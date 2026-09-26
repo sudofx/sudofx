@@ -35,7 +35,6 @@ mechanically interpret it.
 
 from __future__ import annotations
 
-import hashlib
 import json
 import sqlite3
 from contextlib import contextmanager
@@ -44,23 +43,7 @@ from typing import Any, Iterator
 
 from .models import JsonValue
 from .governance import work_key
-
-GENESIS_HASH = "0" * 64
-
-# A fixed sentinel gives the first event the same link shape as every later
-# event. It is deliberately obvious rather than random; secrecy is not part of
-# the integrity model.
-
-
-def canonical_json(value: Any) -> str:
-    """
-    Serialize hash material identically across runs.
-
-    Sorted keys remove dictionary insertion order from the record contract.
-    Compact separators prevent insignificant whitespace from changing hashes.
-    UTF-8 text remains readable instead of being escaped into ASCII sequences.
-    """
-    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+from .storage import EventAppend, GENESIS_HASH, canonical_json, hash_event
 
 
 def apply_operation(state: dict[str, JsonValue], operation: dict[str, Any]) -> None:
@@ -131,6 +114,69 @@ class IntegrityError(RuntimeError):
     """
 
 
+class _SQLiteTransaction:
+    """
+    Adapt one live SQLite transaction to the kernel's storage contract.
+
+    Only semantic operations cross this wrapper. SQL, native connection objects,
+    commit/rollback calls, and table layout stay owned by this module.
+    """
+
+    def __init__(self, record: "Record", connection: sqlite3.Connection) -> None:
+        self._record = record
+        self._connection = connection
+
+    def replay(self) -> tuple[int, dict[str, JsonValue]]:
+        """Verify and reconstruct state inside this transaction snapshot."""
+        return self._record.replay(self._connection)
+
+    def recent(self, limit: int = 10) -> tuple[dict[str, Any], ...]:
+        """Return bounded receipt evidence from the same transaction snapshot."""
+        return self._record.recent(limit, self._connection)
+
+    def proposal_exists(self, proposal_id: str) -> bool:
+        """Check durable proposal identity without exposing the events table."""
+        row = self._connection.execute(
+            "SELECT 1 FROM events WHERE proposal_id = ? LIMIT 1",
+            (proposal_id,),
+        ).fetchone()
+        return row is not None
+
+    def head_hash(self) -> str:
+        """Return the predecessor hash for the next semantic event."""
+        row = self._connection.execute(
+            "SELECT event_hash FROM events ORDER BY sequence DESC LIMIT 1"
+        ).fetchone()
+        return row["event_hash"] if row else GENESIS_HASH
+
+    def append(self, event: EventAppend) -> None:
+        """
+        Append one complete event inside the already-open write transaction.
+
+        Commit/rollback belongs to Record.write_transaction, so no partial
+        publication can occur between event fields.
+        """
+        self._connection.execute(
+            """
+            INSERT INTO events (
+                receipt_id, proposal_id, status, revision_before, revision_after,
+                payload, reasons, previous_hash, event_hash
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                event.receipt_id,
+                event.proposal_id,
+                event.status,
+                event.revision_before,
+                event.revision_after,
+                canonical_json(event.payload),
+                canonical_json(list(event.reasons)),
+                event.previous_hash,
+                event.event_hash,
+            ),
+        )
+
+
 class Record:
     """
     Provide transactional access to one append-only SQLite event stream.
@@ -157,6 +203,40 @@ class Record:
             yield connection
         finally:
             connection.close()
+
+    @contextmanager
+    def read_transaction(self) -> Iterator[_SQLiteTransaction]:
+        """
+        Provide one snapshot-consistent semantic read transaction.
+
+        Kernel receives no SQLite object. Ending the context closes the snapshot
+        without publishing any state.
+        """
+        with self.connect() as connection:
+            connection.execute("BEGIN")
+            try:
+                yield _SQLiteTransaction(self, connection)
+            finally:
+                connection.rollback()
+
+    @contextmanager
+    def write_transaction(self) -> Iterator[_SQLiteTransaction]:
+        """
+        Serialize and atomically publish one governed submission.
+
+        BEGIN IMMEDIATE is SQLite's implementation of the stronger storage
+        contract: replay, identity check, governance, and append share one
+        serialized view. Any exception rolls back before escaping.
+        """
+        with self.connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            try:
+                yield _SQLiteTransaction(self, connection)
+            except BaseException:
+                connection.rollback()
+                raise
+            else:
+                connection.commit()
 
     def _initialize(self) -> None:
         """
@@ -191,9 +271,13 @@ class Record:
 
     @staticmethod
     def hash_event(previous_hash: str, event: dict[str, Any]) -> str:
-        """Bind canonical event material to the verified hash that precedes it."""
-        material = f"{previous_hash}\n{canonical_json(event)}".encode()
-        return hashlib.sha256(material).hexdigest()
+        """
+        Preserve the historical helper while delegating the durable hash contract.
+
+        New kernel code imports the backend-neutral function directly; keeping
+        this method avoids needless breakage for inspection/recovery callers.
+        """
+        return hash_event(previous_hash, event)
 
     def rows(self, connection: sqlite3.Connection | None = None) -> list[sqlite3.Row]:
         """

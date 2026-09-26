@@ -23,6 +23,29 @@ from sudofx.report import render
 # depending on a developer's local state or the production state branch.
 
 
+class ContractOnlyStore:
+    """
+    Expose only the backend-neutral record contract around a real SQLite Record.
+
+    This adapter intentionally has no connect(), path, SQL surface, commit,
+    rollback, or SQLite-specific helper. Kernel regressions that reach through
+    the contract therefore fail even though the underlying implementation still
+    uses SQLite.
+    """
+
+    def __init__(self, record: Record) -> None:
+        self._record = record
+
+    def read_transaction(self):
+        return self._record.read_transaction()
+
+    def write_transaction(self):
+        return self._record.write_transaction()
+
+    def history(self):
+        return self._record.history()
+
+
 class KernelTests(unittest.TestCase):
     """Exercise continuity, governance, integrity, bounded context, and projection."""
     def setUp(self) -> None:
@@ -34,6 +57,19 @@ class KernelTests(unittest.TestCase):
 
     def tearDown(self) -> None:
         self.tempdir.cleanup()
+
+    def test_kernel_depends_on_storage_contract_not_sqlite_connection(self) -> None:
+        """
+        Kernel must operate when every SQLite-specific surface is hidden.
+
+        This protects backend replacement as a durable architectural guarantee,
+        not merely as a type annotation or documentation claim.
+        """
+        path = Path(self.tempdir.name) / "contract-only.sqlite"
+        kernel = Kernel(ContractOnlyStore(Record(path)))
+        receipt = kernel.submit(Proposal("portable", 0, (Operation("set", "x", 1),)))
+        self.assertEqual(receipt.status, "accepted")
+        self.assertEqual(kernel.context().state, {"x": 1})
 
     def test_fresh_intelligences_continue_from_durable_context(self) -> None:
         """A second provider instance must derive progress only from durable context."""
