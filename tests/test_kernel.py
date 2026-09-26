@@ -111,10 +111,17 @@ json.dump({
     'rationale': 'Derived only from bounded durable context'
 }, sys.stdout)
 """
-        result = self.kernel.run(CommandIntelligence((sys.executable, "-c", helper)), work_id="external")
+        # Reopen both the record and kernel before invoking the external process.
+        # Continuity must come from durable replay, not from surviving Python
+        # objects or provider-local memory from the setup phase above.
+        replacement = Kernel(Record(self.path))
+        result = replacement.run(
+            CommandIntelligence((sys.executable, "-c", helper)),
+            work_id="external",
+        )
         self.assertEqual(result.receipt.status, "accepted")
         self.assertEqual(
-            self.kernel.context().state["work:external"]["accepted_results"],
+            replacement.context().state["work:external"]["accepted_results"],
             ["External process continued the work"],
         )
 
