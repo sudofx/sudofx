@@ -5,7 +5,7 @@ import uuid
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-OUT = ROOT / "dist" / "sudofx Run Model.shortcut"
+OUT = ROOT / "dist" / "sudofx Continue.shortcut"
 
 def uid():
     return str(uuid.uuid4()).upper()
@@ -50,7 +50,7 @@ workflow = {
             "WFWorkflowActionIdentifier": "is.workflow.actions.downloadurl",
             "WFWorkflowActionParameters": {
                 "UUID": uid(),
-                "WFURL": "https://api.github.com/repos/sudofx/sudofx/actions/workflows/prove-model.yml/dispatches",
+                "WFURL": "https://api.github.com/repos/sudofx/sudofx/actions/workflows/sudofx.yml/dispatches",
                 "WFHTTPMethod": "POST",
                 "ShowHeaders": True,
                 "WFHTTPHeaders": dict_field([
@@ -61,6 +61,12 @@ workflow = {
                 "WFHTTPBodyType": "JSON",
                 "WFJSONValues": dict_field([
                     (text_token("ref"), text_token("master")),
+                    (
+                        text_token("inputs"),
+                        dict_field([
+                            (text_token("action"), text_token("auto")),
+                        ]),
+                    ),
                 ]),
                 "WFShowWebView": False,
             },
@@ -70,7 +76,7 @@ workflow = {
             "WFWorkflowActionParameters": {
                 "UUID": uid(),
                 "WFNotificationActionTitle": text_token("sudofx"),
-                "WFNotificationActionBody": text_token("Flash-Lite continuity run dispatched."),
+                "WFNotificationActionBody": text_token("sudofx is continuing the current milestone."),
                 "WFNotificationActionSound": True,
             },
         },
@@ -94,7 +100,7 @@ workflow = {
     "WFWorkflowInputContentItemClasses": [],
     "WFWorkflowMinimumClientVersion": 900,
     "WFWorkflowMinimumClientVersionString": "900",
-    "WFWorkflowName": "sudofx Run Model",
+    "WFWorkflowName": "sudofx Continue",
     "WFWorkflowOutputContentItemClasses": [],
     "WFWorkflowTypes": ["NCWidget"],
 }
