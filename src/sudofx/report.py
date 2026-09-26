@@ -87,8 +87,12 @@ def render(kernel: Kernel, *, repository: str = "sudofx/sudofx") -> str:
     body:before {{ content:""; display:block; height:5px; background:var(--green) }}
     main {{ width:min(980px,100%); margin:auto; padding:clamp(20px,5vw,56px) }}
     header {{ display:flex; justify-content:space-between; gap:24px; align-items:flex-start; padding-bottom:44px }}
-    .brand {{ font:900 clamp(34px,9vw,76px)/.85 var(--mono); letter-spacing:-.08em }}
+    .brand-block {{ display:inline-flex; flex-direction:column; align-items:flex-start; gap:8px }}
+    .brand {{ color:var(--ink); text-decoration:none; font:900 clamp(34px,9vw,76px)/.85 var(--mono); letter-spacing:-.08em }}
     .brand i {{ color:var(--green); font-style:normal }}
+    .inspired {{ color:var(--muted); text-decoration:none; font:700 9px/1 var(--mono); letter-spacing:.12em; text-transform:uppercase }}
+    .inspired b {{ color:var(--green) }}
+    .brand:hover,.inspired:hover {{ color:var(--hot) }}
     .tagline {{ max-width:360px; color:var(--muted); font-size:14px; text-align:right }}
     .eyebrow {{ font:700 11px/1 var(--mono); letter-spacing:.14em; text-transform:uppercase; color:var(--green) }}
     .hero {{ border-top:1px solid var(--line); padding:34px 0 46px }}
@@ -130,7 +134,8 @@ def render(kernel: Kernel, *, repository: str = "sudofx/sudofx") -> str:
   </style>
 </head>
 <body><main>
-  <header><div class="brand">sudo<i>fx</i></div><div><div class="tagline">Durable, accountable work across interchangeable intelligences.</div>
+  <header><div class="brand-block"><a class="brand" href="/" aria-label="sudofx home">sudo<i>fx</i></a>
+    <a class="inspired" href="https://sudofx.github.io/wake/">Inspired by WAKE<b>✳︎</b></a></div><div><div class="tagline">Durable, accountable work across interchangeable intelligences.</div>
     <label class="theme-switch" title="Follow system theme"><input id="theme-toggle" type="checkbox" role="switch" aria-label="Use dark theme"><b class="theme-icon" aria-hidden="true">◐</b><span class="data-switch-track" aria-hidden="true"><i></i></span></label></div></header>
   <section class="hero"><div class="eyebrow">Verified durable record</div><h1>The intelligence can disappear. The work remains.</h1></section>
   <section class="metrics" aria-label="Record summary">
