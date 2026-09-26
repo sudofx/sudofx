@@ -161,14 +161,18 @@ def render(kernel: Kernel, *, repository: str = "sudofx/sudofx") -> str:
     body {{ margin:0; background:var(--paper); color:var(--ink); font:16px/1.45 system-ui,-apple-system,sans-serif }}
     body:before {{ content:""; display:block; height:5px; background:var(--green) }}
     main {{ width:min(980px,100%); margin:auto; padding:clamp(20px,5vw,56px) }}
-    header {{ display:flex; justify-content:space-between; gap:24px; align-items:flex-start; padding-bottom:44px }}
-    .brand-block {{ display:inline-flex; flex-direction:column; align-items:flex-start; gap:8px }}
+    /* The header grid gives the identity and theme control independent ownership
+       of the top row. The tagline then spans a second row, so longer copy can
+       wrap without displacing the control or requiring fragile positioning. */
+    header {{ display:grid; grid-template-columns:minmax(0,1fr) auto; grid-template-areas:"brand theme" "tagline tagline";
+      column-gap:24px; row-gap:22px; align-items:start; padding-bottom:44px }}
+    .brand-block {{ grid-area:brand; display:inline-flex; flex-direction:column; align-items:flex-start; gap:8px; min-width:0 }}
     .brand {{ color:var(--ink); text-decoration:none; font:900 clamp(34px,9vw,76px)/.85 var(--mono); letter-spacing:-.08em }}
     .brand i {{ color:var(--green); font-style:normal }}
     .inspired {{ color:var(--muted); text-decoration:none; font:700 9px/1 var(--mono); letter-spacing:.12em; text-transform:uppercase }}
     .inspired b {{ color:var(--green) }}
     .brand:hover,.inspired:hover {{ color:var(--hot) }}
-    .tagline {{ max-width:360px; color:var(--muted); font-size:14px; text-align:right }}
+    .tagline {{ grid-area:tagline; max-width:520px; color:var(--muted); font-size:14px; text-align:left }}
     .eyebrow {{ font:700 11px/1 var(--mono); letter-spacing:.14em; text-transform:uppercase; color:var(--green) }}
     .hero {{ border-top:1px solid var(--line); padding:34px 0 46px }}
     h1 {{ margin:10px 0 0; max-width:760px; font-size:clamp(30px,6vw,58px); line-height:1; letter-spacing:-.045em }}
@@ -207,22 +211,25 @@ def render(kernel: Kernel, *, repository: str = "sudofx/sudofx") -> str:
     .receipt-detail {{ display:none; grid-column:2/-1; gap:6px; padding-top:8px; overflow-wrap:anywhere }}
     .receipt.open .receipt-detail {{ display:grid }}
     footer {{ margin-top:64px; padding-top:22px; border-top:1px solid var(--line); color:var(--muted); font:12px var(--mono) }}
-    .theme-switch {{ display:flex; align-items:center; gap:8px; cursor:pointer; user-select:none }}
+    /* Keeping the switch in normal grid flow anchors it to the upper-right while
+       retaining its full touch target and respecting the phone's content inset. */
+    .theme-switch {{ grid-area:theme; justify-self:end; display:flex; align-items:center; gap:8px; cursor:pointer; user-select:none }}
     .theme-switch input {{ position:absolute; width:1px; height:1px; margin:0; opacity:0; pointer-events:none }}
     .theme-icon {{ width:18px; color:var(--accent); font:16px/1 var(--mono) }}
     .data-switch-track {{ width:42px; height:24px; padding:2px; border:1px solid var(--line); background:var(--surface); border-radius:20px }}
     .data-switch-track i {{ display:block; width:18px; height:18px; border-radius:50%; background:var(--muted); transition:transform .2s ease,background .2s ease }}
     .theme-switch input:checked + .theme-icon + .data-switch-track i {{ transform:translateX(17px); background:var(--accent) }}
     .theme-switch input:focus-visible + .theme-icon + .data-switch-track {{ outline:3px solid var(--hot); outline-offset:3px }}
-    @media(max-width:600px) {{ header {{ display:block }} .tagline {{ text-align:left; margin-top:18px }}
+    @media(max-width:600px) {{ header {{ column-gap:16px; row-gap:24px }}
       .metrics {{ grid-template-columns:1fr }} .toolbar {{ align-items:flex-end }}
       .receipt {{ grid-template-columns:38px 76px 1fr }} .revision {{ grid-column:3 }} .receipt-detail {{ grid-column:1/-1 }} }}
   </style>
 </head>
 <body><main>
   <header><div class="brand-block"><a class="brand" href="./" aria-label="sudofx home">sudo<i>fx</i></a>
-    <a class="inspired" href="https://sudofx.github.io/wake/">Inspired by WAKE<b>✳︎</b></a></div><div><div class="tagline">Durable, accountable work across interchangeable intelligences.</div>
-    <label class="theme-switch" title="Follow system theme"><input id="theme-toggle" type="checkbox" role="switch" aria-label="Use dark theme"><b class="theme-icon" aria-hidden="true">◐</b><span class="data-switch-track" aria-hidden="true"><i></i></span></label></div></header>
+    <a class="inspired" href="https://sudofx.github.io/wake/">Inspired by WAKE<b>✳︎</b></a></div>
+    <label class="theme-switch" title="Follow system theme"><input id="theme-toggle" type="checkbox" role="switch" aria-label="Use dark theme"><b class="theme-icon" aria-hidden="true">◐</b><span class="data-switch-track" aria-hidden="true"><i></i></span></label>
+    <div class="tagline">Durable, accountable work across interchangeable intelligences.</div></header>
   <section class="hero"><div class="eyebrow">Verified durable record</div><h1>The intelligence can disappear. The work remains.</h1></section>
   <section class="metrics" aria-label="Record summary">
     <div class="metric"><span class="eyebrow">Revision</span><strong>{context.revision}</strong></div>
