@@ -144,11 +144,10 @@ json.dump({
         self.assertIn("Run operation", page)
         self.assertIn("wake-theme", page)
         self.assertIn("data-theme=dark", page)
-        # WAKE owns the inherited palette. The light and dark cyan values remain
-        # explicit so the toggle does not drift back to the violet accent.
-        self.assertIn("--cyan:#0f84a5", page)
-        self.assertIn("--cyan:#7dcfff", page)
-        self.assertIn("background:var(--cyan)", page)
+        # Green is the accepted toggle highlight. The 24px glyph box matches the
+        # track height so the two adjacent control shapes retain visual parity.
+        self.assertIn("background:var(--green)", page)
+        self.assertIn("width:24px; height:24px; color:var(--green)", page)
         self.assertIn("width:1px; height:1px", page)
         # The theme control owns the header's upper-right grid area. This guards
         # against regrouping it with the tagline, which made it drop on phones.
