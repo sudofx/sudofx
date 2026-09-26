@@ -134,7 +134,7 @@ def render(kernel: Kernel, *, repository: str = "sudofx/sudofx") -> str:
   </style>
 </head>
 <body><main>
-  <header><div class="brand-block"><a class="brand" href="/" aria-label="sudofx home">sudo<i>fx</i></a>
+  <header><div class="brand-block"><a class="brand" href="./" aria-label="sudofx home">sudo<i>fx</i></a>
     <a class="inspired" href="https://sudofx.github.io/wake/">Inspired by WAKE<b>✳︎</b></a></div><div><div class="tagline">Durable, accountable work across interchangeable intelligences.</div>
     <label class="theme-switch" title="Follow system theme"><input id="theme-toggle" type="checkbox" role="switch" aria-label="Use dark theme"><b class="theme-icon" aria-hidden="true">◐</b><span class="data-switch-track" aria-hidden="true"><i></i></span></label></div></header>
   <section class="hero"><div class="eyebrow">Verified durable record</div><h1>The intelligence can disappear. The work remains.</h1></section>

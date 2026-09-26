@@ -81,7 +81,7 @@ class KernelTests(unittest.TestCase):
         self.assertIn("Run operation", page)
         self.assertIn("wake-theme", page)
         self.assertIn("data-theme=dark", page)
-        self.assertIn('class="brand" href="/"', page)
+        self.assertIn('class="brand" href="./"', page)
         self.assertIn('href="https://sudofx.github.io/wake/">Inspired by WAKE', page)
 
     def test_record_initializes_inside_an_existing_empty_directory(self) -> None:
