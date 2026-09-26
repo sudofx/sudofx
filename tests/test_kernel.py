@@ -180,7 +180,16 @@ json.dump({
     def test_static_report_exposes_state_and_receipt_provenance(self) -> None:
         """The public projection must preserve navigation, theme, and traceability."""
         self.kernel.submit(Proposal("p1", 0, (Operation("set", "objective", "continue"),)))
-        page = render(self.kernel)
+        page = render(
+            self.kernel,
+            verification={
+                "commit": "0123456789abcdef",
+                "run_url": "https://github.com/sudofx/sudofx/actions/runs/123",
+            },
+        )
+        self.assertIn("Tests passed before this page was published.", page)
+        self.assertIn("0123456789ab", page)
+        self.assertIn("actions/runs/123", page)
         self.assertIn("objective", page)
         self.assertIn("continue", page)
         self.assertIn("proposal p1", page)

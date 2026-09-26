@@ -126,7 +126,12 @@ def _receipt_rows(history: tuple[dict[str, object], ...]) -> str:
     return "".join(rows)
 
 
-def render(kernel: Kernel, *, repository: str = "sudofx/sudofx") -> str:
+def render(
+    kernel: Kernel,
+    *,
+    repository: str = "sudofx/sudofx",
+    verification: dict[str, str] | None = None,
+) -> str:
     """
     Produce one complete HTML document from a verified kernel snapshot.
 
@@ -142,6 +147,21 @@ def render(kernel: Kernel, *, repository: str = "sudofx/sudofx") -> str:
     work_items = [value for key, value in context.state.items() if key.startswith("work:")]
     open_work = sum(isinstance(item, dict) and item.get("status") == "open" for item in work_items)
     action_url = f"https://github.com/{repository}/actions/workflows/sudofx.yml"
+    verification = verification or {}
+    verified_commit = verification.get("commit", "")
+    verified_run = verification.get("run_url", "")
+    verification_html = (
+        f"""
+        <section class="verification" aria-label="Build verification">
+          <div>
+            <span class="eyebrow">Phone-ready verification</span>
+            <h2>Tests passed before this page was published.</h2>
+            <code>{_escape(verified_commit[:12] if verified_commit else "local / unknown commit")}</code>
+          </div>
+          {f'<a class="action" href="{_escape(verified_run)}">Open Action run ↗</a>' if verified_run else ''}
+        </section>
+        """
+    )
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -176,9 +196,12 @@ def render(kernel: Kernel, *, repository: str = "sudofx/sudofx") -> str:
     .eyebrow {{ font:700 11px/1 var(--mono); letter-spacing:.14em; text-transform:uppercase; color:var(--green) }}
     .hero {{ border-top:1px solid var(--line); padding:34px 0 46px }}
     h1 {{ margin:10px 0 0; max-width:760px; font-size:clamp(30px,6vw,58px); line-height:1; letter-spacing:-.045em }}
-    .metrics {{ display:grid; grid-template-columns:repeat(3,1fr); gap:1px; background:var(--line); border:1px solid var(--line); margin:0 0 44px }}
+    .metrics {{ display:grid; grid-template-columns:repeat(3,1fr); gap:1px; background:var(--line); border:1px solid var(--line); margin:0 0 22px }}
     .metric {{ background:var(--surface); padding:20px }}
     .metric strong {{ display:block; font:700 clamp(28px,7vw,46px)/1 var(--mono); margin-top:9px }}
+    .verification {{ display:flex; align-items:center; justify-content:space-between; gap:20px; margin:0 0 44px;
+      padding:18px 20px; border:1px solid var(--line); border-left:4px solid var(--green); background:var(--surface) }}
+    .verification h2 {{ margin:5px 0 8px; font-size:18px }}
     .toolbar {{ display:flex; gap:10px; align-items:center; justify-content:space-between; margin:0 0 18px }}
     h2 {{ margin:0; font-size:23px; letter-spacing:-.03em }}
     .action {{ display:inline-flex; align-items:center; min-height:44px; padding:0 16px; color:var(--paper); background:var(--ink); text-decoration:none; font:700 13px var(--mono); border-radius:2px }}
@@ -222,7 +245,8 @@ def render(kernel: Kernel, *, repository: str = "sudofx/sudofx") -> str:
     .theme-switch input:checked + .data-switch-track i {{ transform:translateX(17px); background:var(--green) }}
     .theme-switch input:focus-visible + .data-switch-track {{ outline:3px solid var(--green); outline-offset:3px }}
     @media(max-width:600px) {{ header {{ column-gap:16px; row-gap:24px }}
-      .metrics {{ grid-template-columns:1fr }} .toolbar {{ align-items:flex-end }}
+      .metrics {{ grid-template-columns:1fr }} .verification {{ align-items:flex-start; flex-direction:column }}
+      .toolbar {{ align-items:flex-end }}
       .receipt {{ grid-template-columns:38px 76px 1fr }} .revision {{ grid-column:3 }} .receipt-detail {{ grid-column:1/-1 }} }}
   </style>
 </head>
@@ -237,6 +261,7 @@ def render(kernel: Kernel, *, repository: str = "sudofx/sudofx") -> str:
     <div class="metric"><span class="eyebrow">Accepted</span><strong>{accepted}</strong></div>
     <div class="metric"><span class="eyebrow">Rejected</span><strong>{rejected}</strong></div>
   </section>
+  {verification_html}
   <section><div class="toolbar"><div><span class="eyebrow">{open_work} open</span><h2>Durable work</h2></div><a class="action" href="{action_url}">Create or advance ↗</a></div>
     <div class="work-grid">{_work_cards(context.state)}</div></section>
   <section><div class="toolbar"><h2>General state</h2><a class="action" href="{action_url}">Run operation ↗</a></div>
@@ -257,7 +282,13 @@ try{{const media=matchMedia('(prefers-color-scheme:dark)');media.addEventListene
 </script></body></html>"""
 
 
-def export_site(kernel: Kernel, directory: str | Path, *, repository: str = "sudofx/sudofx") -> Path:
+def export_site(
+    kernel: Kernel,
+    directory: str | Path,
+    *,
+    repository: str = "sudofx/sudofx",
+    verification: dict[str, str] | None = None,
+) -> Path:
     """
     Write the derived Pages artifact and disable Jekyll processing.
 
@@ -267,6 +298,9 @@ def export_site(kernel: Kernel, directory: str | Path, *, repository: str = "sud
     destination = Path(directory)
     destination.mkdir(parents=True, exist_ok=True)
     index = destination / "index.html"
-    index.write_text(render(kernel, repository=repository), encoding="utf-8")
+    index.write_text(
+        render(kernel, repository=repository, verification=verification),
+        encoding="utf-8",
+    )
     (destination / ".nojekyll").write_text("", encoding="utf-8")
     return index

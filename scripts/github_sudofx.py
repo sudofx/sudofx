@@ -172,7 +172,22 @@ def main() -> int:
         # cannot get ahead of the durable branch.
         print(json.dumps({"restored": restored, "receipt": receipt.__dict__}, default=list))
         checkpoint()
-    export_site(kernel, ROOT / "site", repository=os.environ.get("GITHUB_REPOSITORY", "sudofx/sudofx"))
+    # Verification metadata is projection-only evidence from the current Actions
+    # run. It never enters the database or governance path. Because this script is
+    # reached only after the workflow's test gate succeeds, the page can state
+    # exactly which source commit and Actions run produced the visible projection.
+    repository = os.environ.get("GITHUB_REPOSITORY", "sudofx/sudofx")
+    run_id = os.environ.get("GITHUB_RUN_ID", "")
+    verification = {
+        "commit": os.environ.get("GITHUB_SHA", ""),
+        "run_id": run_id,
+        "run_url": (
+            f"{os.environ.get('GITHUB_SERVER_URL', 'https://github.com')}/{repository}/actions/runs/{run_id}"
+            if run_id
+            else ""
+        ),
+    }
+    export_site(kernel, ROOT / "site", repository=repository, verification=verification)
     return 0
 
 

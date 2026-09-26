@@ -26,15 +26,15 @@ on:
     # material, not direct database fields or lifecycle status overrides.
     inputs:
       action:
-        description: Operation
+        description: Verify only, or run one governed operation
         type: choice
-        options: [work-create, work-advance, work-complete, set, delete]
-        default: work-create
+        options: [verify, work-create, work-advance, work-complete, set, delete]
+        default: verify
         required: true
       key:
-        description: Work ID (or state key for set/delete)
+        description: Work ID (or state key for set/delete); leave blank for verify
         type: string
-        required: true
+        required: false
       value:
         description: Objective, progress result, completion result, or state value
         type: string
@@ -78,16 +78,17 @@ jobs:
       - name: Apply governed operation
         # Only a manual dispatch enters the mutation path. The adapter restores
         # and verifies sudofx-state, appends one receipt, checkpoints, and renders.
-        if: github.event_name == 'workflow_dispatch'
+        if: github.event_name == 'workflow_dispatch' && inputs.action != 'verify'
         env:
           ACTION: ${{ inputs.action }}
           KEY: ${{ inputs.key }}
           VALUE: ${{ inputs.value }}
         run: PYTHONPATH=src python scripts/github_sudofx.py --action "$ACTION" --key "$KEY" --value "$VALUE"
       - name: Render verified record
-        # A code push is a read-only consumer of state. When no state branch exists,
-        # it renders the honest empty record and does not initialize remote history.
-        if: github.event_name == 'push'
+        # Code pushes and explicit phone-triggered verify runs are read-only
+        # consumers of state. Publication occurs only after the test step above
+        # succeeds, so Pages can truthfully identify the commit/run it reflects.
+        if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.action == 'verify')
         run: PYTHONPATH=src python scripts/github_sudofx.py --publish-only
       - name: Configure Pages
         # Native Pages configuration supplies the correct base path and deployment
