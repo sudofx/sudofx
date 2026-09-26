@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sudofx"
+version = "0.1.0"
+description = "Durable, accountable work across interchangeable intelligences."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+
+[project.scripts]
+sudofx = "sudofx.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

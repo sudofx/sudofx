@@ -1,0 +1,78 @@
+name: sudofx — operate & publish
+
+on:
+  push:
+    branches: [master]
+    paths: ['src/**', 'scripts/github_sudofx.py', '.github/workflows/sudofx.yml']
+  workflow_dispatch:
+    inputs:
+      action:
+        description: Operation
+        type: choice
+        options: [set, delete]
+        default: set
+        required: true
+      key:
+        description: State key
+        type: string
+        required: true
+      value:
+        description: JSON value (ignored for delete; plain text is also accepted)
+        type: string
+        default: 'null'
+        required: false
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: sudofx-durable-state
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Verify the kernel
+        run: PYTHONPATH=src python -m unittest discover -s tests -v
+      - name: Apply governed operation
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          ACTION: ${{ inputs.action }}
+          KEY: ${{ inputs.key }}
+          VALUE: ${{ inputs.value }}
+        run: PYTHONPATH=src python scripts/github_sudofx.py --action "$ACTION" --key "$KEY" --value "$VALUE"
+      - name: Render verified record
+        if: github.event_name == 'push'
+        run: PYTHONPATH=src python scripts/github_sudofx.py --publish-only
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+      - name: Upload phone interface
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    concurrency:
+      group: pages
+      cancel-in-progress: true
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Publish interface
+        id: deployment
+        uses: actions/deploy-pages@v4

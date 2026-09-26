@@ -288,7 +288,7 @@ That separation is the foundation of the project.
 
 ## Status
 
-sudofx is currently at the architecture and initial implementation stage.
+sudofx now has an initial runnable Python kernel implementing the full governed loop.
 
 The immediate objective is not feature breadth.
 
@@ -299,3 +299,39 @@ Record → Context → Proposal → Governance → Transition → Receipt → Re
 ```
 
 Everything else can grow from there.
+
+## Try the Kernel
+
+The core has no runtime dependencies beyond Python 3.11+.
+
+```bash
+python -m venv .venv
+.venv/bin/pip install -e .
+.venv/bin/sudofx init
+.venv/bin/sudofx set objective '"prove durable continuity"'
+.venv/bin/sudofx show
+.venv/bin/sudofx history
+.venv/bin/sudofx serve
+```
+
+Each `set` or `delete` is a structured proposal evaluated against the revision it
+observed. Accepted and rejected proposals both leave hash-linked receipts in the
+append-only SQLite record; only accepted proposals advance replayed state.
+
+Run the proof suite with:
+
+```bash
+.venv/bin/python -m unittest discover -s tests -v
+```
+
+## Phone Interface
+
+The static interface is designed for GitHub Pages and can be opened locally with
+`sudofx serve`. It shows replayed state and the exact accepted and rejected receipt
+chain, with a compact phone layout and searchable history.
+
+In GitHub, the `sudofx — operate & publish` workflow is the authenticated control
+plane. A manual run accepts a `set` or `delete` proposal, applies deterministic
+governance, checkpoints the SQLite record to the `sudofx-state` branch, verifies it,
+and publishes the resulting projection to Pages. The browser never holds a GitHub
+token and the Pages output is never treated as authoritative state.
