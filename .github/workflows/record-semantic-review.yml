@@ -2,15 +2,17 @@ name: sudofx — record semantic review
 
 # ONE-SHOT HUMAN REVIEW CHECKPOINT
 #
-# This workflow exists only to carry the already-completed human review through
-# the ordinary governed mutation path into the authoritative SQLite record.
-# After the checkpoint is verified, the workflow will be removed from master.
+# This workflow carries one completed human semantic review through the ordinary
+# governed mutation path into the authoritative SQLite record. The checkpoint is
+# bound to the exact model artifact run rather than only the context digest,
+# because repeated probes can legitimately produce the same digest.
 #
-# The review is tied to the exact model artifact by context digest, source event
-# head, model, candidate workflow run, and source commit. The reviewer identity
-# is intentionally reduced to a non-identifying role.
+# After this checkpoint is verified, this workflow should be removed from master.
 
 on:
+  push:
+    paths:
+      - '.github/workflows/record-semantic-review.yml'
   workflow_dispatch:
 
 permissions:
@@ -39,8 +41,8 @@ jobs:
         run: >-
           PYTHONPATH=src python scripts/github_sudofx.py
           --action set
-          --key 'semantic-review:e9e95a8e440d55398297bf26a495478286d06d2020994dd7f77542a89ee201b5'
-          --value '{"review_version":1,"context_digest":"e9e95a8e440d55398297bf26a495478286d06d2020994dd7f77542a89ee201b5","work_id":"first-workflow","provider":"Google Gemini","model":"gemini-3.5-flash-lite","candidate_run_id":36273054414,"candidate_commit":"b7af68aa38aa3a955d046338d5158e0ac4ec6f41","source_event_head":"bd7d94317f92e2744d9121b9824fcba6e82dd11e3de18115c039eb027079122a","criteria":{"objective_fidelity":"pass","history_fidelity":"pass","frontier_fidelity":"pass","constraint_fidelity":"pass","unsupported_claims":"pass","actionability":"pass"},"overall":"pass","reviewer_role":"human_operator"}'
+          --key 'semantic-review:36276489846'
+          --value '{"review_version":1,"artifact_run_id":36276489846,"artifact_commit":"9a3e039c513081423dafcef249b5ccf51e362499","context_digest":"e9e95a8e440d55398297bf26a495478286d06d2020994dd7f77542a89ee201b5","work_id":"first-workflow","provider":"Google Gemini","model":"gemini-3.5-flash-lite","criteria":{"objective_fidelity":"pass","history_fidelity":"pass","frontier_fidelity":"pass","constraint_fidelity":"pass","unsupported_claims":"pass","actionability":"pass"},"overall":"pass","reviewer_role":"human_operator"}'
       - name: Configure Pages
         uses: actions/configure-pages@v5
         with:
