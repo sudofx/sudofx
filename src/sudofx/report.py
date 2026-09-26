@@ -174,6 +174,20 @@ def render(
         for name, value in proof_checks.items()
         if name != "production_state_mutated"
     )
+    semantic_review = continuity_proof.get("semantic_review", {})
+    if not isinstance(semantic_review, dict):
+        semantic_review = {}
+    review_criteria = semantic_review.get("criteria", [])
+    if not isinstance(review_criteria, list):
+        review_criteria = []
+    review_rows = "".join(
+        (
+            f'<li><span class="review-pending">PENDING</span>'
+            f'<span>{_escape(item.get("question", ""))}</span></li>'
+        )
+        for item in review_criteria
+        if isinstance(item, dict)
+    )
     continuity_html = (
         f"""
         <section class="continuity-proof" aria-label="Continuity proof">
@@ -188,6 +202,7 @@ def render(
           {f'<code>context {_escape(str(continuity_proof.get("context_digest", ""))[:16])}…</code>' if continuity_proof.get("context_digest") else ''}
           {f'<ul class="proof-checks">{proof_check_rows}</ul>' if proof_check_rows else ''}
           {f'<div class="model-candidate"><b>Candidate continuation</b><p>{_escape(continuity_proof.get("candidate_result", ""))}</p></div>' if continuity_proof.get("candidate_result") else ''}
+          {f'<div class="semantic-review"><b>Human semantic review · v{_escape(semantic_review.get("version", ""))}</b><p>{_escape(semantic_review.get("rule", ""))}</p><ul>{review_rows}</ul></div>' if review_rows else ''}
           {f'<p class="proof-limit"><b>Boundary:</b> {_escape(continuity_proof.get("does_not_prove", ""))}</p>' if proof_passed else ''}
           {f'<a class="proof-json" href="./continuity-proof.json">Inspect machine-readable proof →</a>' if proof_passed else ''}
         </section>
@@ -245,6 +260,11 @@ def render(
     .proof-limit {{ color:var(--muted); font-size:13px }}
     .model-candidate {{ margin:18px 0; padding:14px; border:1px solid var(--line); background:var(--paper) }}
     .model-candidate b {{ color:var(--accent); font:700 10px var(--mono); letter-spacing:.08em; text-transform:uppercase }}
+    .semantic-review {{ margin:18px 0; padding:14px; border:1px solid var(--line); background:var(--surface) }}
+    .semantic-review>b {{ color:var(--accent); font:700 10px var(--mono); letter-spacing:.08em; text-transform:uppercase }}
+    .semantic-review ul {{ display:grid; gap:9px; margin:12px 0 0; padding:0; list-style:none }}
+    .semantic-review li {{ display:grid; grid-template-columns:auto 1fr; gap:9px; align-items:start; font-size:13px }}
+    .review-pending {{ padding:2px 5px; border:1px solid var(--line); color:var(--muted); font:700 9px var(--mono) }}
     .proof-json {{ color:var(--accent); font:700 12px var(--mono); text-decoration:none }}
     .toolbar {{ display:flex; gap:10px; align-items:center; justify-content:space-between; margin:0 0 18px }}
     h2 {{ margin:0; font-size:23px; letter-spacing:-.03em }}

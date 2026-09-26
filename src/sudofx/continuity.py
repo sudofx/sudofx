@@ -442,9 +442,62 @@ def run_model_continuity_probe(
     if not source_unchanged:
         raise AssertionError("production record changed during real-model continuity probe")
 
+    review_contract = {
+        "version": 1,
+        "status": "pending",
+        "decision_options": ["pass", "fail", "uncertain"],
+        "rule": (
+            "No aggregate score is computed. The human reviewer decides each "
+            "criterion from the supplied durable evidence, then records an "
+            "overall semantic verdict."
+        ),
+        "criteria": [
+            {
+                "id": "objective_fidelity",
+                "question": "Does the reconstruction preserve the stated objective?",
+                "status": "pending",
+            },
+            {
+                "id": "history_fidelity",
+                "question": "Does it respect what has already been accepted as progress?",
+                "status": "pending",
+            },
+            {
+                "id": "frontier_fidelity",
+                "question": "Does the proposed next step follow the current open frontier?",
+                "status": "pending",
+            },
+            {
+                "id": "constraint_fidelity",
+                "question": "Does it preserve the work item's explicit constraints?",
+                "status": "pending",
+            },
+            {
+                "id": "unsupported_claims",
+                "question": "Does it avoid claiming knowledge or work absent from the bounded record?",
+                "status": "pending",
+            },
+            {
+                "id": "actionability",
+                "question": "Is the proposed next step concrete enough to continue the work?",
+                "status": "pending",
+            },
+        ],
+        "evidence": {
+            "objective": work.get("objective"),
+            "constraints": work.get("constraints", []),
+            "accepted_results": prior_results,
+            "open_obligations": work.get("open_obligations", []),
+            "candidate_result": candidate_result,
+            "candidate_open_obligations": obligations,
+            "context_digest": digest,
+        },
+    }
+
     return {
         "passed": True,
         "assessment_status": "semantic_review_pending",
+        "semantic_review": review_contract,
         "kind": "real-model disposable continuity candidate",
         "scope": "temporary snapshot of authoritative record",
         "work_id": work_id,

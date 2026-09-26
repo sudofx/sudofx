@@ -210,6 +210,24 @@ json.dump({
         after = Kernel(Record(self.path)).record.history()
         self.assertTrue(proof["passed"])
         self.assertEqual(proof["assessment_status"], "semantic_review_pending")
+        self.assertEqual(proof["semantic_review"]["version"], 1)
+        self.assertEqual(proof["semantic_review"]["status"], "pending")
+        self.assertEqual(len(proof["semantic_review"]["criteria"]), 6)
+        self.assertEqual(
+            {item["id"] for item in proof["semantic_review"]["criteria"]},
+            {
+                "objective_fidelity",
+                "history_fidelity",
+                "frontier_fidelity",
+                "constraint_fidelity",
+                "unsupported_claims",
+                "actionability",
+            },
+        )
+        self.assertEqual(
+            proof["semantic_review"]["evidence"]["objective"],
+            "Recover meaning after provider replacement",
+        )
         self.assertIn("evaluate semantic fidelity", proof["candidate_result"])
         self.assertEqual(before, after)
         self.assertFalse(proof["checks"]["production_state_mutated"])
@@ -350,12 +368,27 @@ json.dump({
                     "provider_is_fresh_external_process": True,
                     "production_state_mutated": False,
                 },
+                "semantic_review": {
+                    "version": 1,
+                    "status": "pending",
+                    "rule": "Human review only.",
+                    "criteria": [
+                        {
+                            "id": "objective_fidelity",
+                            "question": "Does it preserve the objective?",
+                            "status": "pending",
+                        }
+                    ],
+                },
             },
         )
         self.assertIn("Tests passed before this page was published.", page)
         self.assertIn("Disposable continuity proof", page)
         self.assertIn("Fresh process continued bounded work.", page)
         self.assertIn("continuity-proof.json", page)
+        self.assertIn("Human semantic review", page)
+        self.assertIn("Does it preserve the objective?", page)
+        self.assertIn("PENDING", page)
         self.assertIn("0123456789ab", page)
         self.assertIn("actions/runs/123", page)
         self.assertIn("objective", page)
