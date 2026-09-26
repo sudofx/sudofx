@@ -18,6 +18,7 @@ from sudofx import (
 from sudofx.record import IntegrityError, Record
 from sudofx.continuity import run_continuity_proof, run_model_continuity_probe, run_work_continuity_probe
 from sudofx.report import render
+from sudofx.handoff import build_handoff_packet, export_handoff_packet
 from scripts.github_sudofx import main as github_main
 
 # These tests protect durable guarantees rather than implementation shape.
@@ -449,6 +450,57 @@ json.dump({
         self.assertIn("answer is intentionally not stored on this page", page)
         self.assertIn("When you say “BANG‼️”", page)
         self.assertIn("When you tell me “you get me,”", page)
+
+    def test_handoff_packet_is_bounded_and_portable(self) -> None:
+        """Handoff v1 must export one governed work item without unrelated state."""
+        self.kernel.submit(
+            Proposal(
+                "handoff-create",
+                0,
+                (
+                    Operation(
+                        "create_work",
+                        "handoff-v1",
+                        {
+                            "objective": "Continue the project from durable context",
+                            "constraints": ["Use only governed context"],
+                        },
+                    ),
+                ),
+            )
+        )
+        self.kernel.submit(
+            Proposal(
+                "handoff-progress",
+                1,
+                (
+                    Operation(
+                        "advance_work",
+                        "handoff-v1",
+                        {
+                            "result": "Defined the north star",
+                            "open_obligations": ["Run a fresh-model handoff"],
+                        },
+                    ),
+                ),
+            )
+        )
+        self.kernel.submit(Proposal("private-decoy", 2, (Operation("set", "private", "nope"),)))
+        packet = build_handoff_packet(self.kernel, "handoff-v1")
+        self.assertEqual(packet["handoff_version"], 1)
+        self.assertEqual(packet["work_id"], "handoff-v1")
+        self.assertEqual(packet["work"]["objective"], "Continue the project from durable context")
+        self.assertEqual(packet["work"]["accepted_results"], ["Defined the north star"])
+        self.assertEqual(packet["work"]["open_obligations"], ["Run a fresh-model handoff"])
+        self.assertNotIn("private", str(packet))
+        self.assertEqual(len(packet["packet_digest"]), 64)
+
+        with tempfile.TemporaryDirectory() as temporary:
+            json_path, prompt_path = export_handoff_packet(self.kernel, temporary, "handoff-v1")
+            self.assertTrue(json_path.exists())
+            self.assertTrue(prompt_path.exists())
+            self.assertIn("SUDOFX_HANDOFF v1", prompt_path.read_text())
+            self.assertIn('"packet_digest"', json_path.read_text())
 
     def test_record_initializes_inside_an_existing_empty_directory(self) -> None:
         """A first cloud run may create a record once its explicit parent exists."""
