@@ -33,7 +33,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import shutil
 import subprocess
 import tempfile
 import uuid
@@ -93,18 +92,17 @@ def checkpoint() -> None:
             # avoids teaching the temporary worktree a misleading local branch.
             git("worktree", "add", "--detach", str(checkout), f"origin/{STATE_BRANCH}")
         else:
-            # This directory was created by TemporaryDirectory and the orphan
-            # branch is scoped to the state checkout. Cleanup removes only files
-            # inside that validated temporary path.
+            # The first checkpoint starts from source only as a Git worktree
+            # bootstrap. The orphan ref prevents that source ancestry from
+            # becoming state history.
             git("worktree", "add", "--detach", str(checkout), "HEAD")
             git("-C", str(checkout), "checkout", "--orphan", STATE_BRANCH)
-            for child in checkout.iterdir():
-                if child.name != ".git":
-                    if child.is_dir():
-                        shutil.rmtree(child)
-                    else:
-                        child.unlink()
         try:
+            # The state branch has exactly one current-tree authority artifact:
+            # the SQLite database. Removing every tracked path before re-adding
+            # it also repairs older contaminated state heads without rewriting
+            # history or changing the database bytes.
+            git("-C", str(checkout), "rm", "-rf", "--ignore-unmatch", ".")
             (checkout / "sudofx.sqlite").write_bytes(DATA.read_bytes())
             git("-C", str(checkout), "add", "sudofx.sqlite")
             if git("-C", str(checkout), "diff", "--cached", "--quiet", check=False).returncode == 0:
