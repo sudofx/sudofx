@@ -447,8 +447,8 @@ json.dump({
         self.assertIn("record_revision=", page)
         self.assertIn("Do not treat this as authentication.", page)
         self.assertIn("answer is intentionally not stored on this page", page)
-        self.assertIn("When I say “BANG‼️”", page)
-        self.assertIn("When I tell you “you get me,”", page)
+        self.assertIn("When you say “BANG‼️”", page)
+        self.assertIn("When you tell me “you get me,”", page)
 
     def test_record_initializes_inside_an_existing_empty_directory(self) -> None:
         """A first cloud run may create a record once its explicit parent exists."""
