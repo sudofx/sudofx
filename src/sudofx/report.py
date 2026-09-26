@@ -207,7 +207,7 @@ def render(
           {f'<code>context {_escape(str(continuity_proof.get("context_digest", ""))[:16])}…</code>' if continuity_proof.get("context_digest") else ''}
           {f'<ul class="proof-checks">{proof_check_rows}</ul>' if proof_check_rows else ''}
           {f'<div class="model-candidate"><b>Candidate continuation</b><p>{_escape(continuity_proof.get("candidate_result", ""))}</p></div>' if continuity_proof.get("candidate_result") else ''}
-          {f'<div class="semantic-review" data-review-version="{_escape(semantic_review.get("version", ""))}" data-context-digest="{_escape(str(continuity_proof.get("context_digest", "")))}" data-work-id="{_escape(continuity_proof.get("work_id", ""))}" data-provider="{_escape(continuity_proof.get("provider", ""))}" data-model="{_escape(continuity_proof.get("model", ""))}"><b>Human semantic review · v{_escape(semantic_review.get("version", ""))}</b><p>{_escape(semantic_review.get("rule", ""))}</p><ul>{review_rows}</ul><div class="overall-review"><span>Overall semantic verdict</span><div class="review-choices" role="group" aria-label="Choose overall semantic verdict"><button type="button" data-overall="pass">Pass</button><button type="button" data-overall="fail">Fail</button><button type="button" data-overall="uncertain">Uncertain</button></div></div><button type="button" class="copy-review">Copy review</button><span class="copy-status" role="status" aria-live="polite"></span></div>' if review_rows else ''}
+          {f'<div class="semantic-review" data-review-version="{_escape(semantic_review.get("version", ""))}" data-context-digest="{_escape(str(continuity_proof.get("context_digest", "")))}" data-work-id="{_escape(continuity_proof.get("work_id", ""))}" data-provider="{_escape(continuity_proof.get("provider", ""))}" data-model="{_escape(continuity_proof.get("model", ""))}"><b>Human semantic review · v{_escape(semantic_review.get("version", ""))}</b><p>{_escape(semantic_review.get("rule", ""))}</p><ul>{review_rows}</ul><div class="overall-review"><span>Overall semantic verdict</span><div class="review-choices" role="group" aria-label="Choose overall semantic verdict"><button type="button" data-overall="pass">Pass</button><button type="button" data-overall="fail">Fail</button><button type="button" data-overall="uncertain">Uncertain</button></div></div><button type="button" class="copy-review">Copy review</button><span class="copy-status" role="status" aria-live="polite"></span><div class="refresh-panel" hidden role="dialog" aria-modal="true" aria-labelledby="refresh-title"><div><b id="refresh-title">Review copied</b><p>Refreshing this page in <span class="refresh-count">5</span> seconds…</p></div><div class="refresh-actions"><button type="button" class="refresh-now">Refresh now</button><button type="button" class="refresh-cancel">Cancel</button></div></div></div>' if review_rows else ''}
           {f'<p class="proof-limit"><b>Boundary:</b> {_escape(continuity_proof.get("does_not_prove", ""))}</p>' if proof_passed else ''}
           {f'<a class="proof-json" href="./continuity-proof.json">Inspect machine-readable proof →</a>' if proof_passed else ''}
         </section>
@@ -278,6 +278,13 @@ def render(
     .copy-review {{ width:100%; margin-top:14px; background:var(--ink); color:var(--paper) }}
     .copy-review:disabled {{ cursor:not-allowed; opacity:.45 }}
     .copy-status {{ display:block; min-height:18px; margin-top:8px; color:var(--muted); font:11px var(--mono) }}
+    .refresh-panel {{ position:fixed; left:50%; bottom:max(20px,env(safe-area-inset-bottom)); transform:translateX(-50%); width:min(92vw,420px); z-index:20; padding:16px; border:1px solid var(--line); border-radius:8px; background:var(--surface); box-shadow:0 14px 40px rgba(0,0,0,.28) }}
+    .refresh-panel[hidden] {{ display:none }}
+    .refresh-panel b {{ font:700 12px var(--mono); text-transform:uppercase; letter-spacing:.06em; color:var(--accent) }}
+    .refresh-panel p {{ margin:7px 0 12px; font-size:14px }}
+    .refresh-actions {{ display:grid; grid-template-columns:1fr 1fr; gap:8px }}
+    .refresh-actions button {{ min-height:44px; border:1px solid var(--line); border-radius:4px; background:var(--paper); color:var(--ink); font:700 12px var(--mono); cursor:pointer }}
+    .refresh-now {{ border-color:var(--accent)!important }}
     .proof-json {{ color:var(--accent); font:700 12px var(--mono); text-decoration:none }}
     .toolbar {{ display:flex; gap:10px; align-items:center; justify-content:space-between; margin:0 0 18px }}
     h2 {{ margin:0; font-size:23px; letter-spacing:-.03em }}
@@ -399,6 +406,22 @@ if(review){{
     }}
     copyButton.textContent='Copied — paste into ChatGPT';
     status.textContent='Review copied to clipboard. No authoritative state was changed.';
+    const panel=review.querySelector('.refresh-panel');
+    const count=review.querySelector('.refresh-count');
+    const refreshNow=review.querySelector('.refresh-now');
+    const refreshCancel=review.querySelector('.refresh-cancel');
+    let remaining=5, timer=null, cancelled=false;
+    panel.hidden=false;
+    count.textContent=String(remaining);
+    const stopTimer=()=>{{if(timer!==null)clearInterval(timer);timer=null;}};
+    refreshNow.onclick=()=>{{stopTimer();location.reload();}};
+    refreshCancel.onclick=()=>{{cancelled=true;stopTimer();panel.hidden=true;status.textContent='Review copied. Automatic refresh cancelled.';}};
+    timer=setInterval(()=>{{
+      if(cancelled)return;
+      remaining-=1;
+      count.textContent=String(remaining);
+      if(remaining<=0){{stopTimer();location.reload();}}
+    }},1000);
   }});
   updateCopyState();
 }}
