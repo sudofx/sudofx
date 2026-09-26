@@ -26,11 +26,11 @@ jobs:
         run: >-
           shortcuts sign
           --mode anyone
-          --input "dist/sudofx Run Model.shortcut"
-          --output "dist/sudofx Run Model signed.shortcut"
+          --input "dist/sudofx Continue.shortcut"
+          --output "dist/sudofx Continue signed.shortcut"
       - name: Upload signed shortcut
         uses: actions/upload-artifact@v4
         with:
-          name: sudofx-run-model-shortcut
+          name: sudofx-continue-shortcut
           path: "dist/sudofx Run Model signed.shortcut"
           if-no-files-found: error
