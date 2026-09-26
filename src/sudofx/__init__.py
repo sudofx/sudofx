@@ -2,11 +2,12 @@
 
 from .kernel import Kernel, RunResult
 from .models import Context, Operation, Proposal, Receipt
-from .providers import FakeIntelligence, Intelligence
+from .providers import FakeIntelligence, FakeWorkIntelligence, Intelligence
 
 __all__ = [
     "Context",
     "FakeIntelligence",
+    "FakeWorkIntelligence",
     "Intelligence",
     "Kernel",
     "Operation",

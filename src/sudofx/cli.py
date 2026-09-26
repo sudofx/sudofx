@@ -42,6 +42,19 @@ def build_parser() -> argparse.ArgumentParser:
     set_parser.add_argument("value")
     delete_parser = subparsers.add_parser("delete", help="propose deleting a key")
     delete_parser.add_argument("key")
+    create_parser = subparsers.add_parser("work-create", help="create a governed work item")
+    create_parser.add_argument("work_id")
+    create_parser.add_argument("objective")
+    create_parser.add_argument("--constraint", action="append", default=[])
+    advance_parser = subparsers.add_parser("work-advance", help="record accepted progress")
+    advance_parser.add_argument("work_id")
+    advance_parser.add_argument("result")
+    advance_parser.add_argument("--obligation", action="append", default=[])
+    complete_parser = subparsers.add_parser("work-complete", help="complete a work item")
+    complete_parser.add_argument("work_id")
+    complete_parser.add_argument("result")
+    show_work_parser = subparsers.add_parser("work-show", help="show bounded work context")
+    show_work_parser.add_argument("work_id")
     return parser
 
 
@@ -58,6 +71,16 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.command == "history":
         print(json.dumps(kernel.record.recent(100), indent=2, sort_keys=True))
+        return 0
+    if args.command == "work-show":
+        context = kernel.context(work_id=args.work_id, receipt_limit=100)
+        print(
+            json.dumps(
+                {"revision": context.revision, "state": context.state, "receipts": context.recent_receipts},
+                indent=2,
+                sort_keys=True,
+            )
+        )
         return 0
     if args.command in {"export", "serve"}:
         index = export_site(kernel, args.output, repository=args.repository)
@@ -78,11 +101,24 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     context = kernel.context()
-    operation = (
-        Operation("set", args.key, _json_value(args.value))
-        if args.command == "set"
-        else Operation("delete", args.key)
-    )
+    if args.command == "set":
+        operation = Operation("set", args.key, _json_value(args.value))
+    elif args.command == "delete":
+        operation = Operation("delete", args.key)
+    elif args.command == "work-create":
+        operation = Operation(
+            "create_work",
+            args.work_id,
+            {"objective": args.objective, "constraints": args.constraint},
+        )
+    elif args.command == "work-advance":
+        operation = Operation(
+            "advance_work",
+            args.work_id,
+            {"result": args.result, "open_obligations": args.obligation},
+        )
+    else:
+        operation = Operation("complete_work", args.work_id, {"result": args.result})
     proposal = Proposal(str(uuid.uuid4()), context.revision, (operation,), "CLI proposal")
     receipt = kernel.submit(proposal)
     print(json.dumps(asdict(receipt), indent=2, sort_keys=True))

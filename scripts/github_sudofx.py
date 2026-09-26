@@ -77,7 +77,9 @@ def value_from(raw: str) -> object:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--publish-only", action="store_true")
-    parser.add_argument("--action", choices=("set", "delete"))
+    parser.add_argument(
+        "--action", choices=("set", "delete", "work-create", "work-advance", "work-complete")
+    )
     parser.add_argument("--key")
     parser.add_argument("--value", default="null")
     args = parser.parse_args()
@@ -89,7 +91,20 @@ def main() -> int:
         if not args.action or not args.key:
             parser.error("--action and --key are required for a mutation")
         context = kernel.context()
-        operation = Operation(args.action, args.key, value_from(args.value))
+        if args.action == "set":
+            operation = Operation("set", args.key, value_from(args.value))
+        elif args.action == "delete":
+            operation = Operation("delete", args.key)
+        elif args.action == "work-create":
+            operation = Operation(
+                "create_work", args.key, {"objective": args.value, "constraints": []}
+            )
+        elif args.action == "work-advance":
+            operation = Operation(
+                "advance_work", args.key, {"result": args.value, "open_obligations": []}
+            )
+        else:
+            operation = Operation("complete_work", args.key, {"result": args.value})
         receipt = kernel.submit(Proposal(str(uuid.uuid4()), context.revision, (operation,), "GitHub operator proposal"))
         print(json.dumps({"restored": restored, "receipt": receipt.__dict__}, default=list))
         checkpoint()

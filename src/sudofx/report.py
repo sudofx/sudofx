@@ -14,8 +14,9 @@ def _escape(value: object) -> str:
 
 
 def _state_cards(state: dict[str, object]) -> str:
-    if not state:
-        return '<div class="empty">No accepted state yet. Run the first operation to begin.</div>'
+    visible = {key: value for key, value in state.items() if not key.startswith("work:")}
+    if not visible:
+        return '<div class="empty">No general state has been recorded.</div>'
     return "".join(
         f"""
         <article class="state-card">
@@ -23,8 +24,41 @@ def _state_cards(state: dict[str, object]) -> str:
           <pre>{_escape(json.dumps(value, indent=2, ensure_ascii=False))}</pre>
         </article>
         """
-        for key, value in sorted(state.items())
+        for key, value in sorted(visible.items())
     )
+
+
+def _work_cards(state: dict[str, object]) -> str:
+    work_items = [
+        value for key, value in sorted(state.items())
+        if key.startswith("work:") and isinstance(value, dict)
+    ]
+    if not work_items:
+        return '<div class="empty">No work items yet. Create the first durable objective.</div>'
+    cards: list[str] = []
+    for work in work_items:
+        status = _escape(work.get("status", "unknown"))
+        constraints = work.get("constraints", [])
+        results = work.get("accepted_results", [])
+        obligations = work.get("open_obligations", [])
+        constraints_html = "".join(f"<li>{_escape(item)}</li>" for item in constraints)
+        results_html = "".join(f"<li>{_escape(item)}</li>" for item in results)
+        obligations_html = "".join(f"<li>{_escape(item)}</li>" for item in obligations)
+        final = work.get("final_result")
+        cards.append(
+            f"""
+            <article class="work-card">
+              <div class="work-head"><code>{_escape(work.get('id', ''))}</code><span class="work-status {status}">{status}</span></div>
+              <h3>{_escape(work.get('objective', 'Untitled work'))}</h3>
+              <div class="work-meta">WORK REVISION {int(work.get('work_revision', 0))}</div>
+              {f'<div class="work-section"><b>Constraints</b><ul>{constraints_html}</ul></div>' if constraints else ''}
+              {f'<div class="work-section"><b>Accepted results</b><ol>{results_html}</ol></div>' if results else ''}
+              {f'<div class="work-section"><b>Open obligations</b><ul>{obligations_html}</ul></div>' if obligations else ''}
+              {f'<div class="final-result"><b>Final result</b><p>{_escape(final)}</p></div>' if final else ''}
+            </article>
+            """
+        )
+    return "".join(cards)
 
 
 def _receipt_rows(history: tuple[dict[str, object], ...]) -> str:
@@ -36,7 +70,8 @@ def _receipt_rows(history: tuple[dict[str, object], ...]) -> str:
         assert isinstance(proposal, dict)
         operations = proposal.get("operations", [])
         summary = ", ".join(
-            f"{operation.get('action')} {operation.get('key')}" for operation in operations
+            f"{str(operation.get('action', '')).replace('_', ' ')} {operation.get('key')}"
+            for operation in operations
         )
         reasons = event["reasons"]
         detail = "; ".join(str(reason) for reason in reasons) if reasons else summary
@@ -66,6 +101,8 @@ def render(kernel: Kernel, *, repository: str = "sudofx/sudofx") -> str:
     history = kernel.record.history()
     accepted = sum(event["status"] == "accepted" for event in history)
     rejected = len(history) - accepted
+    work_items = [value for key, value in context.state.items() if key.startswith("work:")]
+    open_work = sum(isinstance(item, dict) and item.get("status") == "open" for item in work_items)
     action_url = f"https://github.com/{repository}/actions/workflows/sudofx.yml"
     return f"""<!doctype html>
 <html lang="en">
@@ -107,6 +144,17 @@ def render(kernel: Kernel, *, repository: str = "sudofx/sudofx") -> str:
     .state-grid {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; margin-bottom:52px }}
     .state-card {{ min-width:0; background:var(--surface); border:1px solid var(--line); padding:17px }}
     .state-key {{ font:700 12px var(--mono); color:var(--accent); overflow-wrap:anywhere }}
+    .work-grid {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:14px; margin-bottom:52px }}
+    .work-card {{ min-width:0; background:var(--surface); border:1px solid var(--line); border-top:4px solid var(--green); padding:19px }}
+    .work-head {{ display:flex; justify-content:space-between; align-items:center; gap:10px }}
+    .work-status {{ padding:4px 8px; background:var(--green); color:#172018; font:700 10px var(--mono); text-transform:uppercase }}
+    .work-status.completed {{ background:var(--accent); color:var(--paper) }}
+    .work-card h3 {{ margin:16px 0 6px; font-size:22px; line-height:1.15; letter-spacing:-.025em }}
+    .work-meta {{ color:var(--muted); font:10px var(--mono); letter-spacing:.1em }}
+    .work-section,.final-result {{ margin-top:18px; padding-top:14px; border-top:1px solid var(--line); font-size:14px }}
+    .work-section b,.final-result b {{ color:var(--accent); font:700 10px var(--mono); letter-spacing:.08em; text-transform:uppercase }}
+    .work-section ul,.work-section ol {{ margin:8px 0 0; padding-left:20px }} .work-section li+li {{ margin-top:6px }}
+    .final-result p {{ margin:8px 0 0 }}
     pre {{ margin:14px 0 0; white-space:pre-wrap; overflow-wrap:anywhere; font:14px/1.4 var(--mono) }}
     .empty {{ padding:28px; border:1px dashed var(--line); color:var(--muted); background:rgba(255,255,255,.28) }}
     .history-tools {{ display:flex; gap:10px; margin:14px 0 }}
@@ -143,7 +191,9 @@ def render(kernel: Kernel, *, repository: str = "sudofx/sudofx") -> str:
     <div class="metric"><span class="eyebrow">Accepted</span><strong>{accepted}</strong></div>
     <div class="metric"><span class="eyebrow">Rejected</span><strong>{rejected}</strong></div>
   </section>
-  <section><div class="toolbar"><h2>Current state</h2><a class="action" href="{action_url}">Run operation ↗</a></div>
+  <section><div class="toolbar"><div><span class="eyebrow">{open_work} open</span><h2>Durable work</h2></div><a class="action" href="{action_url}">Create or advance ↗</a></div>
+    <div class="work-grid">{_work_cards(context.state)}</div></section>
+  <section><div class="toolbar"><h2>General state</h2><a class="action" href="{action_url}">Run operation ↗</a></div>
     <div class="state-grid">{_state_cards(context.state)}</div></section>
   <section><div class="toolbar"><h2>Receipts</h2><span class="eyebrow">Newest first</span></div>
     <div class="history-tools"><input id="search" type="search" placeholder="Filter the record…" aria-label="Filter receipts"></div>

@@ -11,6 +11,7 @@ from .governance import Governance
 from .models import Context, Proposal, Receipt
 from .providers import Intelligence
 from .record import GENESIS_HASH, Record, canonical_json
+from .governance import WORK_ACTIONS, work_key
 
 
 @dataclass(frozen=True)
@@ -25,11 +26,21 @@ class Kernel:
         self.record = record
         self.governance = governance or Governance()
 
-    def context(self, *, receipt_limit: int = 10) -> Context:
+    def context(self, *, receipt_limit: int = 10, work_id: str | None = None) -> Context:
         with self.record.connect() as connection:
             connection.execute("BEGIN")
             revision, state = self.record.replay(connection)
             receipts = self.record.recent(receipt_limit, connection)
+        if work_id is not None:
+            state = {work_key(work_id): state[work_key(work_id)]} if work_key(work_id) in state else {}
+            receipts = tuple(
+                receipt
+                for receipt in receipts
+                if any(
+                    operation.get("key") == work_id and operation.get("action") in WORK_ACTIONS
+                    for operation in receipt["proposal"].get("operations", [])
+                )
+            )
         return Context(revision=revision, state=state, recent_receipts=receipts)
 
     def run(self, intelligence: Intelligence) -> RunResult:
@@ -42,14 +53,16 @@ class Kernel:
         payload = proposal.to_dict()
         with self.record.connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
-            revision, _ = self.record.replay(connection)
+            revision, state = self.record.replay(connection)
             existing = connection.execute(
                 "SELECT receipt_id FROM events WHERE proposal_id = ?", (proposal.proposal_id,)
             ).fetchone()
             if existing is not None:
                 raise ValueError(f"proposal_id already recorded: {proposal.proposal_id}")
 
-            decision = self.governance.evaluate(proposal, current_revision=revision)
+            decision = self.governance.evaluate(
+                proposal, current_revision=revision, current_state=state
+            )
             status = "accepted" if decision.accepted else "rejected"
             revision_after = revision + 1 if decision.accepted else revision
             prior = connection.execute(

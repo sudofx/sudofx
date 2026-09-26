@@ -10,12 +10,52 @@ from pathlib import Path
 from typing import Any, Iterator
 
 from .models import JsonValue
+from .governance import work_key
 
 GENESIS_HASH = "0" * 64
 
 
 def canonical_json(value: Any) -> str:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+
+
+def apply_operation(state: dict[str, JsonValue], operation: dict[str, Any]) -> None:
+    action = operation["action"]
+    key = operation["key"]
+    if action == "set":
+        state[key] = operation.get("value")
+    elif action == "delete":
+        state.pop(key, None)
+    elif action == "create_work":
+        value = operation["value"]
+        state[work_key(key)] = {
+            "id": key,
+            "objective": value["objective"],
+            "constraints": list(value.get("constraints", [])),
+            "status": "open",
+            "accepted_results": [],
+            "open_obligations": [],
+            "work_revision": 0,
+        }
+    elif action == "advance_work":
+        value = operation["value"]
+        work = dict(state[work_key(key)])
+        results = list(work.get("accepted_results", []))
+        results.append(value["result"])
+        work["accepted_results"] = results
+        work["open_obligations"] = list(value.get("open_obligations", []))
+        work["work_revision"] = int(work.get("work_revision", 0)) + 1
+        state[work_key(key)] = work
+    elif action == "complete_work":
+        value = operation["value"]
+        work = dict(state[work_key(key)])
+        work["status"] = "completed"
+        work["final_result"] = value["result"]
+        work["open_obligations"] = []
+        work["work_revision"] = int(work.get("work_revision", 0)) + 1
+        state[work_key(key)] = work
+    else:
+        raise IntegrityError(f"unsupported recorded operation: {action}")
 
 
 class IntegrityError(RuntimeError):
@@ -92,10 +132,7 @@ class Record:
                 raise IntegrityError(f"revision discontinuity at sequence {row['sequence']}")
             if row["status"] == "accepted":
                 for operation in payload["operations"]:
-                    if operation["action"] == "set":
-                        state[operation["key"]] = operation.get("value")
-                    else:
-                        state.pop(operation["key"], None)
+                    apply_operation(state, operation)
                 revision += 1
             if row["revision_after"] != revision:
                 raise IntegrityError(f"invalid resulting revision at sequence {row['sequence']}")
@@ -126,6 +163,7 @@ class Record:
                 "revision_before": row["revision_before"],
                 "revision_after": row["revision_after"],
                 "reasons": json.loads(row["reasons"]),
+                "proposal": json.loads(row["payload"]),
                 "event_hash": row["event_hash"],
             }
             for row in reversed(rows)

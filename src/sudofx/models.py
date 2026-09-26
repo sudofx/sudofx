@@ -10,13 +10,13 @@ JsonValue = str | int | float | bool | None | list["JsonValue"] | dict[str, "Jso
 
 @dataclass(frozen=True)
 class Operation:
-    action: Literal["set", "delete"]
+    action: Literal["set", "delete", "create_work", "advance_work", "complete_work"]
     key: str
     value: JsonValue = None
 
     def to_dict(self) -> dict[str, Any]:
         data: dict[str, Any] = {"action": self.action, "key": self.key}
-        if self.action == "set":
+        if self.action != "delete":
             data["value"] = self.value
         return data
 

@@ -9,15 +9,15 @@ on:
       action:
         description: Operation
         type: choice
-        options: [set, delete]
-        default: set
+        options: [work-create, work-advance, work-complete, set, delete]
+        default: work-create
         required: true
       key:
-        description: State key
+        description: Work ID (or state key for set/delete)
         type: string
         required: true
       value:
-        description: JSON value (ignored for delete; plain text is also accepted)
+        description: Objective, progress result, completion result, or state value
         type: string
         default: 'null'
         required: false

@@ -335,3 +335,23 @@ plane. A manual run accepts a `set` or `delete` proposal, applies deterministic
 governance, checkpoints the SQLite record to the `sudofx-state` branch, verifies it,
 and publishes the resulting projection to Pages. The browser never holds a GitHub
 token and the Pages output is never treated as authoritative state.
+
+## Durable Work Items
+
+The first product workflow carries an objective across disposable intelligence
+invocations. Work items have explicit constraints, accepted results, open
+obligations, lifecycle status, and their own revision inside the global record.
+
+```bash
+.venv/bin/sudofx work-create launch "Launch the first governed workflow" \
+  --constraint "Every transition leaves a receipt"
+.venv/bin/sudofx work-advance launch "Defined the lifecycle" \
+  --obligation "Complete the interface"
+.venv/bin/sudofx work-show launch
+.venv/bin/sudofx work-complete launch "Workflow delivered and verified"
+```
+
+`work-show` supplies only the selected work item and its receipts, demonstrating
+bounded context. A fresh provider can continue from that context without access to
+an earlier invocation. Completed work cannot be advanced again; the rejected
+proposal remains visible while authoritative state stays unchanged.
