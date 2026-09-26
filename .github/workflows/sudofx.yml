@@ -43,7 +43,7 @@ on:
       model:
         description: Gemini model ID for prove-model only
         type: string
-        default: ''
+        default: 'gemini-3.8-flash'
         required: false
 
 permissions:
