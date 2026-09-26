@@ -195,7 +195,7 @@ def render(
     )
     continuity_html = (
         f"""
-        <section class="continuity-proof" aria-label="Continuity proof" data-artifact-run-id="{_escape(continuity_proof.get("artifact_run_id", ""))}">
+        <section class="continuity-proof" aria-label="Continuity proof" data-artifact-run-id="{_escape(continuity_proof.get("artifact_run_id", ""))}" data-artifact-commit="{_escape(continuity_proof.get("artifact_commit", ""))}">
           <div class="proof-head">
             <div>
               <span class="eyebrow">{_escape(continuity_proof.get('kind', 'Disposable continuity proof'))}</span>
@@ -375,6 +375,7 @@ const applyLatestProof=data=>{{
   if(!incoming){{latestStatus.textContent='Latest proof has no run ID';return false;}}
   if(incoming===current){{latestStatus.textContent='No newer result yet · run '+incoming;return false;}}
   proof.dataset.artifactRunId=incoming;
+  proof.dataset.artifactCommit=String(data.artifact_commit||'');
   latestStatus.textContent='Loaded run '+incoming;
   const digest=String(data.context_digest||'');
   const digestNode=proof.querySelector('.context-digest');
@@ -446,6 +447,8 @@ const initializeReviewControls=review=>{{
     if(copyButton.disabled)return;
     const lines=[
       'SUDOFX_SEMANTIC_REVIEW v'+review.dataset.reviewVersion,
+      'artifact_run_id='+(proof?.dataset.artifactRunId||''),
+      'artifact_commit='+(proof?.dataset.artifactCommit||''),
       'context_digest='+review.dataset.contextDigest,
       'work_id='+review.dataset.workId,
       'provider='+review.dataset.provider,
