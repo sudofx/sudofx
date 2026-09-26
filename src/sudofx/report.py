@@ -180,13 +180,14 @@ def render(
           <div class="proof-head">
             <div>
               <span class="eyebrow">{_escape(continuity_proof.get('kind', 'Disposable continuity proof'))}</span>
-              <h2>{'Passed' if proof_passed else 'Not run'}</h2>
+              <h2>{'Technical pass · semantic review pending' if continuity_proof.get('assessment_status') == 'semantic_review_pending' else ('Passed' if proof_passed else 'Not run')}</h2>
             </div>
             <span class="proof-status {'passed' if proof_passed else ''}">{'PASS' if proof_passed else 'N/A'}</span>
           </div>
           <p>{_escape(continuity_proof.get('proves', 'No continuity proof was supplied for this projection.'))}</p>
           {f'<code>context {_escape(str(continuity_proof.get("context_digest", ""))[:16])}…</code>' if continuity_proof.get("context_digest") else ''}
           {f'<ul class="proof-checks">{proof_check_rows}</ul>' if proof_check_rows else ''}
+          {f'<div class="model-candidate"><b>Candidate continuation</b><p>{_escape(continuity_proof.get("candidate_result", ""))}</p></div>' if continuity_proof.get("candidate_result") else ''}
           {f'<p class="proof-limit"><b>Boundary:</b> {_escape(continuity_proof.get("does_not_prove", ""))}</p>' if proof_passed else ''}
           {f'<a class="proof-json" href="./continuity-proof.json">Inspect machine-readable proof →</a>' if proof_passed else ''}
         </section>
@@ -242,6 +243,8 @@ def render(
     .proof-checks {{ display:grid; gap:7px; margin:18px 0; padding:0; list-style:none; font:12px/1.4 var(--mono) }}
     .proof-checks b {{ color:var(--green) }}
     .proof-limit {{ color:var(--muted); font-size:13px }}
+    .model-candidate {{ margin:18px 0; padding:14px; border:1px solid var(--line); background:var(--paper) }}
+    .model-candidate b {{ color:var(--accent); font:700 10px var(--mono); letter-spacing:.08em; text-transform:uppercase }}
     .proof-json {{ color:var(--accent); font:700 12px var(--mono); text-decoration:none }}
     .toolbar {{ display:flex; gap:10px; align-items:center; justify-content:space-between; margin:0 0 18px }}
     h2 {{ margin:0; font-size:23px; letter-spacing:-.03em }}

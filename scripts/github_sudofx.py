@@ -34,13 +34,14 @@ import argparse
 import json
 import os
 import subprocess
+import sys
 import tempfile
 import uuid
 from pathlib import Path
 
 from sudofx import Kernel, Operation, Proposal
 from sudofx.record import Record
-from sudofx.continuity import run_continuity_proof, run_work_continuity_probe
+from sudofx.continuity import run_continuity_proof, run_model_continuity_probe, run_work_continuity_probe
 from sudofx.report import export_site
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -136,6 +137,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--publish-only", action="store_true")
     parser.add_argument("--prove-work")
+    parser.add_argument("--prove-model")
     parser.add_argument(
         "--action", choices=("set", "delete", "work-create", "work-advance", "work-complete")
     )
@@ -148,7 +150,7 @@ def main() -> int:
     # before SQLite can create the empty authoritative record.
     DATA.parent.mkdir(parents=True, exist_ok=True)
     kernel = Kernel(Record(DATA))
-    if not args.publish_only and not args.prove_work:
+    if not args.publish_only and not args.prove_work and not args.prove_model:
         if not args.action or not args.key:
             parser.error("--action and --key are required for a mutation")
         context = kernel.context()
@@ -193,13 +195,29 @@ def main() -> int:
     # restored authoritative record. Ordinary publication runs the synthetic
     # deterministic fixture so every build still checks the mechanism.
     prove_work_id = args.prove_work.strip() if args.prove_work is not None else None
+    prove_model_id = args.prove_model.strip() if args.prove_model is not None else None
     if args.prove_work is not None and not prove_work_id:
         parser.error("--prove-work requires a non-empty work ID")
-    continuity_proof = (
-        run_work_continuity_probe(DATA, prove_work_id)
-        if prove_work_id
-        else run_continuity_proof()
-    )
+    if args.prove_model is not None and not prove_model_id:
+        parser.error("--prove-model requires a non-empty work ID")
+    if prove_work_id and prove_model_id:
+        parser.error("--prove-work and --prove-model are mutually exclusive")
+
+    if prove_model_id:
+        model = os.environ.get("GEMINI_MODEL", "").strip()
+        if not model:
+            parser.error("GEMINI_MODEL is required for --prove-model")
+        continuity_proof = run_model_continuity_probe(
+            DATA,
+            prove_model_id,
+            (sys.executable, str(ROOT / "scripts" / "gemini_provider.py")),
+            provider="Google Gemini",
+            model=model,
+        )
+    elif prove_work_id:
+        continuity_proof = run_work_continuity_probe(DATA, prove_work_id)
+    else:
+        continuity_proof = run_continuity_proof()
     export_site(
         kernel,
         ROOT / "site",

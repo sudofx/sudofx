@@ -363,3 +363,121 @@ json.dump(
         },
         "checks": checks,
     }
+
+
+def run_model_continuity_probe(
+    record_path: str | Path,
+    work_id: str,
+    provider_command: tuple[str, ...],
+    *,
+    provider: str,
+    model: str,
+) -> dict[str, Any]:
+    """
+    Produce one real-model continuation candidate against a temporary record snapshot.
+
+    Technical success means the fresh provider consumed bounded context, emitted
+    a valid proposal, ordinary governance accepted it on the snapshot, replay
+    preserved it, and source authority stayed unchanged. It does NOT mean the
+    semantic continuation is good; that remains an explicit human evaluation.
+
+    The returned artifact includes the model's proposed reconstruction/result so
+    the operator can judge whether continuity of meaning actually survived.
+    """
+    source = Kernel(Record(record_path))
+    source_history_before = source.record.history()
+    source_head_before = (
+        source_history_before[-1]["event_hash"] if source_history_before else GENESIS_HASH
+    )
+    bounded = source.context(work_id=work_id, receipt_limit=100)
+    work_key = f"work:{work_id}"
+    work = bounded.state.get(work_key)
+    if not isinstance(work, dict):
+        raise ValueError(f"work item does not exist: {work_id}")
+    if work.get("status") != "open":
+        raise ValueError(f"work item is not open: {work_id}")
+
+    digest = _context_digest(bounded)
+    starting_work_revision = int(work.get("work_revision", 0))
+    prior_results = work.get("accepted_results", [])
+    if not isinstance(prior_results, list):
+        raise AssertionError("work projection has invalid accepted_results")
+
+    with tempfile.TemporaryDirectory() as temporary:
+        snapshot_path = Path(temporary) / "model-probe.sqlite"
+        _sqlite_snapshot(record_path, snapshot_path)
+        probe_kernel = Kernel(Record(snapshot_path))
+        result = probe_kernel.run(
+            CommandIntelligence(provider_command, timeout_seconds=90),
+            work_id=work_id,
+        )
+        if result.receipt.status != "accepted":
+            raise AssertionError(f"real-model probe proposal was {result.receipt.status}")
+
+        reopened = Kernel(Record(snapshot_path))
+        after = reopened.context(work_id=work_id, receipt_limit=100)
+        after_work = after.state[work_key]
+        accepted_results = after_work.get("accepted_results", [])
+        obligations = after_work.get("open_obligations", [])
+        if int(after_work["work_revision"]) != starting_work_revision + 1:
+            raise AssertionError("model snapshot replay did not advance work revision")
+        if not isinstance(accepted_results, list) or len(accepted_results) != len(prior_results) + 1:
+            raise AssertionError("model snapshot replay did not append exactly one result")
+        if not isinstance(obligations, list):
+            raise AssertionError("model snapshot replay produced invalid obligations")
+        candidate_result = accepted_results[-1]
+
+    # Source authority must remain byte-semantically untouched by the experiment.
+    source_after = Kernel(Record(record_path))
+    source_history_after = source_after.record.history()
+    source_head_after = (
+        source_history_after[-1]["event_hash"] if source_history_after else GENESIS_HASH
+    )
+    source_work_after = source_after.context(work_id=work_id).state[work_key]
+    source_unchanged = (
+        source_head_before == source_head_after
+        and int(source_work_after["work_revision"]) == starting_work_revision
+        and len(source_work_after.get("accepted_results", [])) == len(prior_results)
+    )
+    if not source_unchanged:
+        raise AssertionError("production record changed during real-model continuity probe")
+
+    return {
+        "passed": True,
+        "assessment_status": "semantic_review_pending",
+        "kind": "real-model disposable continuity candidate",
+        "scope": "temporary snapshot of authoritative record",
+        "work_id": work_id,
+        "provider": provider,
+        "model": model,
+        "proves": (
+            "the named real model received bounded durable context and produced "
+            "a governance-accepted continuation candidate on an isolated snapshot"
+        ),
+        "does_not_prove": (
+            "that the candidate preserves meaning well enough; semantic continuity "
+            "requires explicit human review"
+        ),
+        "context_digest": digest,
+        "source_event_head": source_head_before,
+        "revision_before_provider": bounded.revision,
+        "revision_after_provider_on_snapshot": result.receipt.revision_after,
+        "starting_work_revision": starting_work_revision,
+        "prior_accepted_result_count": len(prior_results),
+        "candidate_result": candidate_result,
+        "candidate_open_obligations": obligations,
+        "receipt": {
+            "proposal_id": result.receipt.proposal_id,
+            "status": result.receipt.status,
+            "event_hash": result.receipt.event_hash,
+        },
+        "checks": {
+            "source_record_verified": True,
+            "provider_is_fresh_external_process": True,
+            "provider_context_contains_only_selected_work": set(bounded.state) == {work_key},
+            "proposal_crossed_normal_governance_on_snapshot": result.receipt.status == "accepted",
+            "snapshot_replay_advanced_exactly_once": True,
+            "production_record_head_unchanged": source_head_before == source_head_after,
+            "production_state_mutated": False,
+        },
+    }

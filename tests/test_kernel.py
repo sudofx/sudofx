@@ -16,7 +16,7 @@ from sudofx import (
     ProviderError,
 )
 from sudofx.record import IntegrityError, Record
-from sudofx.continuity import run_continuity_proof, run_work_continuity_probe
+from sudofx.continuity import run_continuity_proof, run_model_continuity_probe, run_work_continuity_probe
 from sudofx.report import render
 from scripts.github_sudofx import main as github_main
 
@@ -156,6 +156,63 @@ class KernelTests(unittest.TestCase):
         source_work = Kernel(Record(self.path)).context(work_id="real").state["work:real"]
         self.assertEqual(source_work["accepted_results"], ["Existing progress"])
         self.assertEqual(source_work["open_obligations"], ["Next real step"])
+
+    def test_real_model_probe_uses_same_bounded_process_contract_without_source_mutation(self) -> None:
+        """
+        A model probe may vary semantics but must preserve the authority boundary.
+
+        The helper process stands in for a network model adapter here so unit
+        tests remain deterministic and credential-free.
+        """
+        self.kernel.submit(
+            Proposal(
+                "model-create",
+                0,
+                (
+                    Operation(
+                        "create_work",
+                        "model",
+                        {
+                            "objective": "Recover meaning after provider replacement",
+                            "constraints": ["Use durable context only"],
+                        },
+                    ),
+                ),
+            )
+        )
+        helper = """
+import json, sys
+context = json.load(sys.stdin)
+assert set(context["state"]) == {"work:model"}
+work = context["state"]["work:model"]
+json.dump({
+    "proposal_id": f"model-test-{context['revision']}",
+    "based_on_revision": context["revision"],
+    "operations": [{
+        "action": "advance_work",
+        "key": work["id"],
+        "value": {
+            "result": "Reconstruction: durable context defines the work. Proposed next step: evaluate semantic fidelity.",
+            "open_obligations": ["evaluate semantic fidelity"]
+        }
+    }],
+    "rationale": "derived only from bounded context"
+}, sys.stdout)
+"""
+        before = self.kernel.record.history()
+        proof = run_model_continuity_probe(
+            self.path,
+            "model",
+            (sys.executable, "-c", helper),
+            provider="test-provider",
+            model="test-model",
+        )
+        after = Kernel(Record(self.path)).record.history()
+        self.assertTrue(proof["passed"])
+        self.assertEqual(proof["assessment_status"], "semantic_review_pending")
+        self.assertIn("evaluate semantic fidelity", proof["candidate_result"])
+        self.assertEqual(before, after)
+        self.assertFalse(proof["checks"]["production_state_mutated"])
 
     def test_kernel_depends_on_storage_contract_not_sqlite_connection(self) -> None:
         """
