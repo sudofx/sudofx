@@ -101,9 +101,12 @@ class KernelTests(unittest.TestCase):
             original_export = adapter.export_site
             adapter.restore = lambda: False
             adapter.export_site = lambda *args, **kwargs: Path(self.tempdir.name) / "index.html"
+            original_argv = sys.argv
             try:
-                self.assertEqual(github_main(["--prove-work", "   first-workflow   "]), 0)
+                sys.argv = ["github_sudofx.py", "--prove-work", "   first-workflow   "]
+                self.assertEqual(github_main(), 0)
             finally:
+                sys.argv = original_argv
                 adapter.restore = original_restore
                 adapter.export_site = original_export
         finally:
