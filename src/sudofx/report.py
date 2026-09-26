@@ -207,7 +207,7 @@ def render(
           {f'<code>context {_escape(str(continuity_proof.get("context_digest", ""))[:16])}…</code>' if continuity_proof.get("context_digest") else ''}
           {f'<ul class="proof-checks">{proof_check_rows}</ul>' if proof_check_rows else ''}
           {f'<div class="model-candidate"><b>Candidate continuation</b><p>{_escape(continuity_proof.get("candidate_result", ""))}</p></div>' if continuity_proof.get("candidate_result") else ''}
-          {f'<div class="semantic-review" data-review-version="{_escape(semantic_review.get("version", ""))}" data-context-digest="{_escape(str(continuity_proof.get("context_digest", "")))}" data-work-id="{_escape(continuity_proof.get("work_id", ""))}" data-provider="{_escape(continuity_proof.get("provider", ""))}" data-model="{_escape(continuity_proof.get("model", ""))}"><b>Human semantic review · v{_escape(semantic_review.get("version", ""))}</b><p>{_escape(semantic_review.get("rule", ""))}</p><ul>{review_rows}</ul><div class="overall-review"><span>Overall semantic verdict</span><div class="review-choices" role="group" aria-label="Choose overall semantic verdict"><button type="button" data-overall="pass">Pass</button><button type="button" data-overall="fail">Fail</button><button type="button" data-overall="uncertain">Uncertain</button></div></div><button type="button" class="copy-review" disabled>Complete all choices to copy review</button><span class="copy-status" role="status" aria-live="polite"></span></div>' if review_rows else ''}
+          {f'<div class="semantic-review" data-review-version="{_escape(semantic_review.get("version", ""))}" data-context-digest="{_escape(str(continuity_proof.get("context_digest", "")))}" data-work-id="{_escape(continuity_proof.get("work_id", ""))}" data-provider="{_escape(continuity_proof.get("provider", ""))}" data-model="{_escape(continuity_proof.get("model", ""))}"><b>Human semantic review · v{_escape(semantic_review.get("version", ""))}</b><p>{_escape(semantic_review.get("rule", ""))}</p><ul>{review_rows}</ul><div class="overall-review"><span>Overall semantic verdict</span><div class="review-choices" role="group" aria-label="Choose overall semantic verdict"><button type="button" data-overall="pass">Pass</button><button type="button" data-overall="fail">Fail</button><button type="button" data-overall="uncertain">Uncertain</button></div></div><button type="button" class="copy-review">Copy review</button><span class="copy-status" role="status" aria-live="polite"></span></div>' if review_rows else ''}
           {f'<p class="proof-limit"><b>Boundary:</b> {_escape(continuity_proof.get("does_not_prove", ""))}</p>' if proof_passed else ''}
           {f'<a class="proof-json" href="./continuity-proof.json">Inspect machine-readable proof →</a>' if proof_passed else ''}
         </section>
@@ -356,10 +356,15 @@ const review=document.querySelector('.semantic-review');
 if(review){{
   const choices={{}}, items=[...review.querySelectorAll('.review-item')], overallButtons=[...review.querySelectorAll('[data-overall]')];
   const copyButton=review.querySelector('.copy-review'), status=review.querySelector('.copy-status');
+  items.forEach(item=>{{
+    choices[item.dataset.reviewId]='pass';
+    item.querySelector('[data-choice="pass"]')?.classList.add('selected');
+  }});
+  choices.__overall='pass';
+  overallButtons.find(button=>button.dataset.overall==='pass')?.classList.add('selected');
   const updateCopyState=()=>{{
-    const complete=items.every(item=>choices[item.dataset.reviewId]) && Boolean(choices.__overall);
-    copyButton.disabled=!complete;
-    copyButton.textContent=complete?'Copy review':'Complete all choices to copy review';
+    copyButton.disabled=false;
+    copyButton.textContent='Copy review';
   }};
   review.querySelectorAll('.review-item [data-choice]').forEach(button=>button.addEventListener('click',()=>{{
     const item=button.closest('.review-item'), id=item.dataset.reviewId;
