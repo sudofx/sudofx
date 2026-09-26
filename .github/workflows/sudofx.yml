@@ -15,7 +15,12 @@ on:
   # appending an event. This keeps presentation current without fabricating work.
   push:
     branches: [master]
-    paths: ['src/**', 'scripts/github_sudofx.py', '.github/workflows/sudofx.yml']
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'scripts/github_sudofx.py'
+      - 'pyproject.toml'
+      - '.github/workflows/sudofx.yml'
   workflow_dispatch:
     # Manual inputs are deliberately narrow. They are operator-supplied proposal
     # material, not direct database fields or lifecycle status overrides.
