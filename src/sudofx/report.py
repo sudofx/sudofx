@@ -215,9 +215,12 @@ def render(kernel: Kernel, *, repository: str = "sudofx/sudofx") -> str:
        retaining its full touch target and respecting the phone's content inset. */
     .theme-switch {{ grid-area:theme; justify-self:end; display:flex; align-items:center; gap:8px; cursor:pointer; user-select:none }}
     .theme-switch input {{ position:absolute; width:1px; height:1px; margin:0; opacity:0; pointer-events:none }}
-    /* The glyph owns the same 24px square as the track's height. Centering its
-       font box prevents the symbol from reading as a smaller, stray control. */
-    .theme-icon {{ display:grid; place-items:center; width:24px; height:24px; color:var(--green); font:24px/24px var(--mono) }}
+    /* A font character cannot guarantee optical size or vertical centering:
+       its visible bounds still follow the font's baseline and internal metrics.
+       Draw the glyph instead, using the track's exact 24px outer geometry. */
+    .theme-icon {{ display:block; flex:0 0 24px; width:24px; height:24px }}
+    .theme-icon::before {{ content:""; display:block; width:24px; height:24px; border:2px solid var(--green);
+      border-radius:50%; background:linear-gradient(90deg,transparent 50%,var(--green) 50%) }}
     .data-switch-track {{ width:42px; height:24px; padding:2px; border:1px solid var(--line); background:var(--surface); border-radius:20px }}
     .data-switch-track i {{ display:block; width:18px; height:18px; border-radius:50%; background:var(--muted); transition:transform .2s ease,background .2s ease }}
     .theme-switch input:checked + .theme-icon + .data-switch-track i {{ transform:translateX(17px); background:var(--green) }}
@@ -230,7 +233,7 @@ def render(kernel: Kernel, *, repository: str = "sudofx/sudofx") -> str:
 <body><main>
   <header><div class="brand-block"><a class="brand" href="./" aria-label="sudofx home">sudo<i>fx</i></a>
     <a class="inspired" href="https://sudofx.github.io/wake/">Inspired by WAKE<b>✳︎</b></a></div>
-    <label class="theme-switch" title="Follow system theme"><input id="theme-toggle" type="checkbox" role="switch" aria-label="Use dark theme"><b class="theme-icon" aria-hidden="true">◐</b><span class="data-switch-track" aria-hidden="true"><i></i></span></label>
+    <label class="theme-switch" title="Follow system theme"><input id="theme-toggle" type="checkbox" role="switch" aria-label="Use dark theme"><b class="theme-icon" aria-hidden="true"></b><span class="data-switch-track" aria-hidden="true"><i></i></span></label>
     <div class="tagline">Durable, accountable work across interchangeable intelligences.</div></header>
   <section class="hero"><div class="eyebrow">Verified durable record</div><h1>The intelligence can disappear. The work remains.</h1></section>
   <section class="metrics" aria-label="Record summary">
@@ -250,9 +253,9 @@ def render(kernel: Kernel, *, repository: str = "sudofx/sudofx") -> str:
 const search=document.querySelector('#search');
 search.addEventListener('input',()=>{{const q=search.value.toLowerCase();document.querySelectorAll('.receipt').forEach(r=>r.hidden=!r.dataset.search.toLowerCase().includes(q))}});
 document.querySelectorAll('.receipt').forEach(r=>r.addEventListener('click',()=>r.setAttribute('aria-expanded',r.classList.contains('open'))));
-const toggle=document.querySelector('#theme-toggle'),icon=document.querySelector('.theme-icon');
+const toggle=document.querySelector('#theme-toggle');
 const saved=()=>{{try{{return localStorage.getItem('wake-theme')}}catch{{return null}}}};
-const sync=()=>{{const dark=document.documentElement.dataset.theme==='dark',manual=Boolean(saved());toggle.checked=dark;toggle.setAttribute('aria-label',dark?'Use light theme':'Use dark theme');icon.textContent=manual?(dark?'◑':'☼'):'◐';toggle.closest('.theme-switch').title=manual?`Manual ${{dark?'dark':'light'}} theme`:`Following system ${{dark?'dark':'light'}} theme`}};
+const sync=()=>{{const dark=document.documentElement.dataset.theme==='dark',manual=Boolean(saved());toggle.checked=dark;toggle.setAttribute('aria-label',dark?'Use light theme':'Use dark theme');toggle.closest('.theme-switch').title=manual?`Manual ${{dark?'dark':'light'}} theme`:`Following system ${{dark?'dark':'light'}} theme`}};
 sync();toggle.addEventListener('change',()=>{{const dark=toggle.checked;if(dark)document.documentElement.dataset.theme='dark';else delete document.documentElement.dataset.theme;try{{localStorage.setItem('wake-theme',dark?'dark':'light')}}catch{{}}sync()}});
 try{{const media=matchMedia('(prefers-color-scheme:dark)');media.addEventListener('change',event=>{{if(saved())return;if(event.matches)document.documentElement.dataset.theme='dark';else delete document.documentElement.dataset.theme;sync()}})}}catch{{}}
 </script></body></html>"""
