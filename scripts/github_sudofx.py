@@ -48,6 +48,14 @@ from sudofx.handoff import export_handoff_packet
 ROOT = Path(__file__).resolve().parents[1]
 DATA = ROOT / "data" / "sudofx.sqlite"
 STATE_BRANCH = "sudofx-state"
+AUTO_HANDOFF_ID = "handoff-v1"
+AUTO_HANDOFF_OBJECTIVE = (
+    "Test whether a fresh intelligence with no prior conversation can reconstruct sudofx: "
+    "durable governed context must survive model replacement; WAKE✳︎ was the experimental "
+    "predecessor; SQLite is authoritative; models propose and the system governs; the current "
+    "frontier is proving portable continuity from sanitized context alone; working style favors "
+    "plain language, compression, direct correction, and action over unnecessary explanation."
+)
 
 
 def git(*args: str, capture: bool = False, check: bool = True) -> subprocess.CompletedProcess[str]:
@@ -140,6 +148,7 @@ def main() -> int:
     parser.add_argument("--prove-work")
     parser.add_argument("--prove-model")
     parser.add_argument("--export-handoff")
+    parser.add_argument("--auto", action="store_true")
     parser.add_argument(
         "--action", choices=("set", "delete", "work-create", "work-advance", "work-complete")
     )
@@ -152,7 +161,36 @@ def main() -> int:
     # before SQLite can create the empty authoritative record.
     DATA.parent.mkdir(parents=True, exist_ok=True)
     kernel = Kernel(Record(DATA))
-    if not args.publish_only and not args.prove_work and not args.prove_model and not args.export_handoff:
+
+    # Observer-mode automation: one stable operator command advances the current
+    # milestone without asking the human to shuttle IDs or long text between devices.
+    # The database remains authoritative: code may seed the work once, then all
+    # subsequent exports derive from the governed record.
+    auto_handoff_id: str | None = None
+    if args.auto:
+        context = kernel.context()
+        work_key = f"work:{AUTO_HANDOFF_ID}"
+        if work_key not in context.state:
+            receipt = kernel.submit(
+                Proposal(
+                    str(uuid.uuid4()),
+                    context.revision,
+                    (
+                        Operation(
+                            "create_work",
+                            AUTO_HANDOFF_ID,
+                            {"objective": AUTO_HANDOFF_OBJECTIVE, "constraints": []},
+                        ),
+                    ),
+                    "Observer-mode automatic milestone seed",
+                )
+            )
+            if receipt.status != "accepted":
+                raise RuntimeError(f"automatic handoff work creation was {receipt.status}")
+            checkpoint()
+            kernel = Kernel(Record(DATA))
+        auto_handoff_id = AUTO_HANDOFF_ID
+    if not args.publish_only and not args.prove_work and not args.prove_model and not args.export_handoff and not args.auto:
         if not args.action or not args.key:
             parser.error("--action and --key are required for a mutation")
         context = kernel.context()
@@ -205,9 +243,9 @@ def main() -> int:
         parser.error("--prove-model requires a non-empty work ID")
     if args.export_handoff is not None and not handoff_id:
         parser.error("--export-handoff requires a non-empty work ID")
-    selected_read_only = [value for value in (prove_work_id, prove_model_id, handoff_id) if value]
+    selected_read_only = [value for value in (prove_work_id, prove_model_id, handoff_id, auto_handoff_id) if value]
     if len(selected_read_only) > 1:
-        parser.error("--prove-work, --prove-model, and --export-handoff are mutually exclusive")
+        parser.error("--prove-work, --prove-model, --export-handoff, and --auto are mutually exclusive")
 
     if prove_model_id:
         model = os.environ.get("GEMINI_MODEL", "").strip()
@@ -237,8 +275,9 @@ def main() -> int:
         verification=verification,
         continuity_proof=continuity_proof,
     )
-    if handoff_id:
-        json_path, prompt_path = export_handoff_packet(kernel, ROOT / "site", handoff_id)
+    export_id = handoff_id or auto_handoff_id
+    if export_id:
+        json_path, prompt_path = export_handoff_packet(kernel, ROOT / "site", export_id)
         print(json.dumps({"handoff_json": str(json_path), "handoff_prompt": str(prompt_path)}))
     return 0
 
