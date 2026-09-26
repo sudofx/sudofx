@@ -32,6 +32,9 @@ jobs:
       - name: Verify the kernel
         run: PYTHONPATH=src python -m unittest discover -s tests -v
       - name: Continue current milestone
+        env:
+          GEMINI_MODEL: gemini-3.5-flash-lite
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: PYTHONPATH=src python scripts/github_sudofx.py --auto
       - name: Configure Pages
         uses: actions/configure-pages@v5
