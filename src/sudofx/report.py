@@ -179,12 +179,13 @@ def render(
         <section class="continuity-proof" aria-label="Continuity proof">
           <div class="proof-head">
             <div>
-              <span class="eyebrow">Disposable continuity proof</span>
+              <span class="eyebrow">{_escape(continuity_proof.get('kind', 'Disposable continuity proof'))}</span>
               <h2>{'Passed' if proof_passed else 'Not run'}</h2>
             </div>
             <span class="proof-status {'passed' if proof_passed else ''}">{'PASS' if proof_passed else 'N/A'}</span>
           </div>
           <p>{_escape(continuity_proof.get('proves', 'No continuity proof was supplied for this projection.'))}</p>
+          {f'<code>context {_escape(str(continuity_proof.get("context_digest", ""))[:16])}…</code>' if continuity_proof.get("context_digest") else ''}
           {f'<ul class="proof-checks">{proof_check_rows}</ul>' if proof_check_rows else ''}
           {f'<p class="proof-limit"><b>Boundary:</b> {_escape(continuity_proof.get("does_not_prove", ""))}</p>' if proof_passed else ''}
           {f'<a class="proof-json" href="./continuity-proof.json">Inspect machine-readable proof →</a>' if proof_passed else ''}

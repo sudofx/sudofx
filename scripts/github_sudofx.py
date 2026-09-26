@@ -40,7 +40,7 @@ from pathlib import Path
 
 from sudofx import Kernel, Operation, Proposal
 from sudofx.record import Record
-from sudofx.continuity import run_continuity_proof
+from sudofx.continuity import run_continuity_proof, run_work_continuity_probe
 from sudofx.report import export_site
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -135,6 +135,7 @@ def main() -> int:
     """
     parser = argparse.ArgumentParser()
     parser.add_argument("--publish-only", action="store_true")
+    parser.add_argument("--prove-work")
     parser.add_argument(
         "--action", choices=("set", "delete", "work-create", "work-advance", "work-complete")
     )
@@ -147,7 +148,7 @@ def main() -> int:
     # before SQLite can create the empty authoritative record.
     DATA.parent.mkdir(parents=True, exist_ok=True)
     kernel = Kernel(Record(DATA))
-    if not args.publish_only:
+    if not args.publish_only and not args.prove_work:
         if not args.action or not args.key:
             parser.error("--action and --key are required for a mutation")
         context = kernel.context()
@@ -188,10 +189,14 @@ def main() -> int:
             else ""
         ),
     }
-    # Run the process-boundary proof against an isolated temporary record on
-    # every publication. Failure blocks Pages rather than publishing a stale
-    # green continuity claim. The proof result is derived evidence only.
-    continuity_proof = run_continuity_proof()
+    # A phone-triggered real-work probe uses a temporary SQLite snapshot of the
+    # restored authoritative record. Ordinary publication runs the synthetic
+    # deterministic fixture so every build still checks the mechanism.
+    continuity_proof = (
+        run_work_continuity_probe(DATA, args.prove_work)
+        if args.prove_work
+        else run_continuity_proof()
+    )
     export_site(
         kernel,
         ROOT / "site",

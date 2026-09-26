@@ -16,7 +16,7 @@ from sudofx import (
     ProviderError,
 )
 from sudofx.record import IntegrityError, Record
-from sudofx.continuity import run_continuity_proof
+from sudofx.continuity import run_continuity_proof, run_work_continuity_probe
 from sudofx.report import render
 
 # These tests protect durable guarantees rather than implementation shape.
@@ -73,6 +73,50 @@ class KernelTests(unittest.TestCase):
         self.assertTrue(proof["checks"]["unrelated_state_remained_outside_provider_context"])
         self.assertTrue(proof["checks"]["accepted_result_survived_replay"])
         self.assertFalse(proof["checks"]["production_state_mutated"])
+
+    def test_real_work_continuity_probe_uses_snapshot_without_mutating_source(self) -> None:
+        """
+        A real-record probe must exercise bounded continuation without changing source authority.
+        """
+        self.kernel.submit(
+            Proposal(
+                "probe-real-create",
+                0,
+                (
+                    Operation(
+                        "create_work",
+                        "real",
+                        {
+                            "objective": "Continue real durable work",
+                            "constraints": ["Do not mutate source during probe"],
+                        },
+                    ),
+                ),
+            )
+        )
+        self.kernel.submit(
+            Proposal(
+                "probe-real-advance",
+                1,
+                (
+                    Operation(
+                        "advance_work",
+                        "real",
+                        {"result": "Existing progress", "open_obligations": ["Next real step"]},
+                    ),
+                ),
+            )
+        )
+        before = self.kernel.record.history()
+        proof = run_work_continuity_probe(self.path, "real")
+        after = Kernel(Record(self.path)).record.history()
+        self.assertTrue(proof["passed"])
+        self.assertTrue(proof["checks"]["production_record_head_unchanged"])
+        self.assertFalse(proof["checks"]["production_state_mutated"])
+        self.assertEqual(before, after)
+        source_work = Kernel(Record(self.path)).context(work_id="real").state["work:real"]
+        self.assertEqual(source_work["accepted_results"], ["Existing progress"])
+        self.assertEqual(source_work["open_obligations"], ["Next real step"])
 
     def test_kernel_depends_on_storage_contract_not_sqlite_connection(self) -> None:
         """

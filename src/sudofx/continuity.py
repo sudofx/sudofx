@@ -24,6 +24,9 @@ model while preserving the same boundary and evidence shape.
 
 from __future__ import annotations
 
+import hashlib
+import json
+import sqlite3
 import sys
 import tempfile
 from pathlib import Path
@@ -33,6 +36,7 @@ from .kernel import Kernel
 from .models import Operation, Proposal
 from .providers import CommandIntelligence
 from .record import Record
+from .storage import GENESIS_HASH, canonical_json
 
 WORK_ID = "continuity-proof"
 RESULT = "Fresh process reconstructed bounded work and continued it."
@@ -188,3 +192,174 @@ json.dump(
             "open_obligations": [OBLIGATION],
             "checks": checks,
         }
+
+
+def _context_digest(context: object) -> str:
+    """
+    Fingerprint the exact JSON context exported to a disposable provider.
+
+    The digest is evidence of input identity, not secrecy. It lets a later
+    reviewer tie a probe result to the bounded packet without publishing that
+    packet's potentially sensitive contents.
+    """
+    payload = {
+        "revision": context.revision,
+        "state": context.state,
+        "recent_receipts": context.recent_receipts,
+    }
+    return hashlib.sha256(canonical_json(payload).encode()).hexdigest()
+
+
+def _sqlite_snapshot(source: str | Path, destination: Path) -> None:
+    """
+    Copy one SQLite record through SQLite's backup API.
+
+    A filesystem copy can miss WAL-resident pages. The backup API produces a
+    transactionally coherent temporary database while leaving source authority
+    untouched. This helper is intentionally experiment infrastructure; Kernel
+    remains storage-backend independent.
+    """
+    with sqlite3.connect(str(source)) as source_connection:
+        with sqlite3.connect(str(destination)) as destination_connection:
+            source_connection.backup(destination_connection)
+
+
+def run_work_continuity_probe(record_path: str | Path, work_id: str) -> dict[str, Any]:
+    """
+    Probe one real work item using a temporary snapshot of the authoritative record.
+
+    The source database is opened only for verified reads and SQLite backup.
+    Proposal submission happens exclusively against the temporary copy. The
+    published result contains counts, hashes, revisions, and booleans rather
+    than the work objective/results themselves.
+
+    Completed or missing work is rejected as an invalid probe target because
+    this experiment specifically tests whether an open work item can be
+    continued by a fresh process.
+    """
+    source = Kernel(Record(record_path))
+    source_history_before = source.record.history()
+    source_head_before = (
+        source_history_before[-1]["event_hash"] if source_history_before else GENESIS_HASH
+    )
+    bounded = source.context(work_id=work_id, receipt_limit=100)
+    work_key = f"work:{work_id}"
+    work = bounded.state.get(work_key)
+    if not isinstance(work, dict):
+        raise ValueError(f"work item does not exist: {work_id}")
+    if work.get("status") != "open":
+        raise ValueError(f"work item is not open: {work_id}")
+
+    digest = _context_digest(bounded)
+    starting_work_revision = int(work.get("work_revision", 0))
+    prior_results = work.get("accepted_results", [])
+    obligations = work.get("open_obligations", [])
+    if not isinstance(prior_results, list) or not isinstance(obligations, list):
+        raise AssertionError("work projection has invalid continuity fields")
+
+    with tempfile.TemporaryDirectory() as temporary:
+        snapshot_path = Path(temporary) / "probe.sqlite"
+        _sqlite_snapshot(record_path, snapshot_path)
+
+        provider = r"""
+import json
+import sys
+
+context = json.load(sys.stdin)
+assert len(context["state"]) == 1
+key, work = next(iter(context["state"].items()))
+assert key.startswith("work:")
+assert work["status"] == "open"
+result = (
+    f"Continuity probe reconstructed work revision {work['work_revision']} "
+    f"with {len(work.get('accepted_results', []))} prior accepted results."
+)
+json.dump(
+    {
+        "proposal_id": f"real-probe-{context['revision']}-{work['work_revision']}",
+        "based_on_revision": context["revision"],
+        "operations": [
+            {
+                "action": "advance_work",
+                "key": work["id"],
+                "value": {
+                    "result": result,
+                    "open_obligations": work.get("open_obligations", []),
+                },
+            }
+        ],
+        "rationale": "Reconstructed solely from bounded production-record context",
+    },
+    sys.stdout,
+)
+"""
+        probe_kernel = Kernel(Record(snapshot_path))
+        result = probe_kernel.run(
+            CommandIntelligence((sys.executable, "-c", provider)),
+            work_id=work_id,
+        )
+        if result.receipt.status != "accepted":
+            raise AssertionError(f"real-record probe proposal was {result.receipt.status}")
+
+        reopened = Kernel(Record(snapshot_path))
+        after = reopened.context(work_id=work_id, receipt_limit=100)
+        after_work = after.state[work_key]
+        if int(after_work["work_revision"]) != starting_work_revision + 1:
+            raise AssertionError("temporary replay did not advance work revision")
+        if len(after_work["accepted_results"]) != len(prior_results) + 1:
+            raise AssertionError("temporary replay did not append exactly one result")
+        if after_work["open_obligations"] != obligations:
+            raise AssertionError("probe changed the real work frontier semantics")
+
+    # Re-read source authority after the temporary probe. Semantic head equality
+    # is stronger evidence than assuming a temp path was used correctly.
+    source_after = Kernel(Record(record_path))
+    source_history_after = source_after.record.history()
+    source_head_after = (
+        source_history_after[-1]["event_hash"] if source_history_after else GENESIS_HASH
+    )
+    source_work_after = source_after.context(work_id=work_id).state[work_key]
+    source_unchanged = (
+        source_head_before == source_head_after
+        and int(source_work_after["work_revision"]) == starting_work_revision
+        and len(source_work_after["accepted_results"]) == len(prior_results)
+    )
+    if not source_unchanged:
+        raise AssertionError("production record changed during continuity probe")
+
+    checks = {
+        "source_record_verified": True,
+        "provider_is_fresh_external_process": True,
+        "provider_context_contains_only_selected_work": set(bounded.state) == {work_key},
+        "proposal_crossed_normal_governance_on_snapshot": result.receipt.status == "accepted",
+        "snapshot_replay_advanced_exactly_once": True,
+        "production_record_head_unchanged": source_head_before == source_head_after,
+        "production_state_mutated": False,
+    }
+    return {
+        "passed": True,
+        "kind": "production-record disposable-process continuity probe",
+        "scope": "temporary snapshot of authoritative record",
+        "work_id": work_id,
+        "proves": (
+            "a fresh external process can reconstruct and governably continue "
+            "this real work item from bounded durable context"
+        ),
+        "does_not_prove": (
+            "semantic quality of a real language model; the proposer remains "
+            "deterministic in this probe"
+        ),
+        "context_digest": digest,
+        "source_event_head": source_head_before,
+        "revision_before_provider": bounded.revision,
+        "revision_after_provider_on_snapshot": result.receipt.revision_after,
+        "starting_work_revision": starting_work_revision,
+        "prior_accepted_result_count": len(prior_results),
+        "open_obligation_count": len(obligations),
+        "receipt": {
+            "proposal_id": result.receipt.proposal_id,
+            "status": result.receipt.status,
+            "event_hash": result.receipt.event_hash,
+        },
+        "checks": checks,
+    }

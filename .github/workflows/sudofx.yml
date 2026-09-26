@@ -28,11 +28,11 @@ on:
       action:
         description: Verify only, or run one governed operation
         type: choice
-        options: [verify, work-create, work-advance, work-complete, set, delete]
+        options: [verify, prove-work, work-create, work-advance, work-complete, set, delete]
         default: verify
         required: true
       key:
-        description: Work ID (or state key for set/delete); leave blank for verify
+        description: Work ID (for prove-work/lifecycle) or state key; blank only for verify
         type: string
         required: false
       value:
@@ -78,12 +78,20 @@ jobs:
       - name: Apply governed operation
         # Only a manual dispatch enters the mutation path. The adapter restores
         # and verifies sudofx-state, appends one receipt, checkpoints, and renders.
-        if: github.event_name == 'workflow_dispatch' && inputs.action != 'verify'
+        if: github.event_name == 'workflow_dispatch' && inputs.action != 'verify' && inputs.action != 'prove-work'
         env:
           ACTION: ${{ inputs.action }}
           KEY: ${{ inputs.key }}
           VALUE: ${{ inputs.value }}
         run: PYTHONPATH=src python scripts/github_sudofx.py --action "$ACTION" --key "$KEY" --value "$VALUE"
+      - name: Probe real work continuity
+        # This path restores authoritative state but submits only against a
+        # temporary snapshot. It publishes derived proof and must leave the
+        # sudofx-state branch unchanged.
+        if: github.event_name == 'workflow_dispatch' && inputs.action == 'prove-work'
+        env:
+          KEY: ${{ inputs.key }}
+        run: PYTHONPATH=src python scripts/github_sudofx.py --prove-work "$KEY"
       - name: Render verified record
         # Code pushes and explicit phone-triggered verify runs are read-only
         # consumers of state. Publication occurs only after the test step above
