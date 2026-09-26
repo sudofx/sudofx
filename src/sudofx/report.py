@@ -29,75 +29,70 @@ from .kernel import Kernel
 # participate in authentication, authorization, governance, or durable replay.
 CONTINUITY_CHALLENGES = (
     {
-        "id": "new-project-boundary",
-        "question": "Why did sudofx become a new project instead of simply extending WAKE✳︎?",
+        "id": "squirrel-name",
+        "question": "What animal became our shorthand for making WAKE✳︎ stop fixating and move on?",
         "anchors": (
-            "sudofx was deliberately narrowed to durable continuity rather than inheriting WAKE✳︎'s broader research system",
-            "the new project isolates the continuity experiment so its claims can be tested without unrelated machinery",
-            "WAKE✳︎ remains inspiration and prior art inside the shared project history, not the sudofx authority boundary",
+            "Squirrel — written 🐿️✳︎ in the project",
+            "it was our shorthand for forcing a context shift when the system got stuck",
         ),
     },
     {
-        "id": "the-boundary",
-        "question": "What does “the boundary” mean in sudofx, and why does the project care about it?",
+        "id": "bob",
+        "question": "What name did we give the analyst persona that steps back and reflects on what WAKE✳︎ is doing?",
         "anchors": (
-            "the boundary separates durable externally inspectable record from ephemeral internal model state",
-            "sudofx treats the governed record as portable continuity while intelligence may disappear or be replaced",
-            "the experiment asks how much useful context can cross that boundary without pretending internal state is durable truth",
+            "Bob",
+            "Bob is the analyst / reflection persona",
         ),
     },
     {
-        "id": "database-first",
-        "question": "Why is SQLite authoritative while HTML, JSON, and the public website are not?",
+        "id": "bob-color",
+        "question": "What color did we choose for Bob's reflection highlights?",
         "anchors": (
-            "the database is the single operational source of durable truth",
-            "HTML, JSON, reports, feeds, and Pages are derived projections or temporary exports",
-            "a projection must be reproducible from verified database replay and must never be read back as authority",
+            "cyan",
+            "the reflection highlight was changed away from green",
         ),
     },
     {
-        "id": "semantic-vs-technical",
-        "question": "Why did we separate technical continuity success from human semantic review?",
+        "id": "whole-repo",
+        "question": "Which WAKE✳︎ research topic did we decide should be allowed to explore the whole repository, not just the docs?",
         "anchors": (
-            "a technically valid proposal can preserve schema, provenance, and governance while still misunderstand the meaning of the work",
-            "the automated proof tests the mechanism and authority boundary; the human review judges meaning preservation",
-            "semantic acceptance must not be inferred from a technically successful model call",
+            "the WAKE✳︎ topic itself",
+            "we explicitly widened that topic's access beyond documentation",
         ),
     },
     {
-        "id": "plausible-failure",
-        "question": "Why can a plausible model answer still count as a sudofx failure?",
+        "id": "five-topics",
+        "question": "What five research topics did we settle on for WAKE✳︎?",
         "anchors": (
-            "plausibility is not evidence that the answer came from the correct governed context",
-            "the continuation must preserve objective, history, frontier, constraints, and avoid unsupported claims",
-            "a persuasive answer that invents continuity or loses provenance fails the experiment",
+            "Comedy",
+            "Entropy",
+            "WAKE✳︎",
+            "Neurodivergence",
+            "Music",
         ),
     },
     {
-        "id": "intelligence-disappears",
-        "question": "What must be true architecturally for “The intelligence can disappear. The work remains.” to be more than a slogan?",
+        "id": "comedy-stall",
+        "question": "Which research topic kept stalling because it could not find the right sources?",
         "anchors": (
-            "authoritative state and provenance must survive outside any model or process",
-            "a fresh intelligence must be able to reconstruct bounded context from verified replay",
-            "accepted transitions and receipts must remain durable while providers, models, processes, and interfaces are replaceable",
+            "Comedy",
+            "the source allowlist kept giving it material that did not match the comedy project",
         ),
     },
     {
-        "id": "digest-not-identity",
-        "question": "Why was a repeated context digest insufficient provenance for semantic review?",
+        "id": "new-project",
+        "question": "What new project name did we choose when we decided not to keep building this experiment directly inside WAKE✳︎?",
         "anchors": (
-            "multiple model probes can legitimately receive identical authoritative context and therefore share a digest",
-            "the review must bind to the exact produced artifact, not merely the input context",
-            "artifact run ID and source commit were added so a human verdict names the exact candidate being judged",
+            "sudofx",
+            "WAKE✳︎ stayed as the inspiration and history; sudofx became the focused new project",
         ),
     },
     {
-        "id": "squirrel",
-        "question": "What failure mode was 🐿️✳︎ designed to solve before sudofx existed?",
+        "id": "durable-thing",
+        "question": "In our simplest version of the idea, what is supposed to survive when the AI changes or disappears?",
         "anchors": (
-            "it addressed fixation on one research topic or constraint without useful progress",
-            "the mechanism forced a bounded context shift and later return rather than endless repetition",
-            "the lesson carried forward: continuity should preserve useful work without preserving every unproductive fixation",
+            "the work — especially the governed record of what happened",
+            "the model is replaceable; the durable record, decisions, provenance, and receipts remain",
         ),
     },
 )
@@ -260,20 +255,20 @@ def render(
             </div>
             <span class="challenge-counter">1 / {len(CONTINUITY_CHALLENGES)}</span>
           </div>
-          <p class="challenge-rule">This is a contextual checksum, not a secret or identity test. Answer from reconstructed project context first; reveal the anchors only when you are ready to judge it.</p>
+          <p class="challenge-rule">Easy words. Shared context. Answer from memory first, then reveal the answer check. This is not a secret or identity test.</p>
           <article class="challenge-card">
             <code class="challenge-id">{_escape(challenge["id"])}</code>
             <p class="challenge-question">{_escape(challenge["question"])}</p>
             <div class="challenge-actions">
               <button type="button" class="copy-challenge">Copy challenge</button>
               <button type="button" class="next-challenge">Next question</button>
-              <button type="button" class="reveal-challenge">Reveal verification anchors</button>
+              <button type="button" class="reveal-challenge">Reveal answer check</button>
             </div>
             <span class="challenge-copy-status" role="status" aria-live="polite"></span>
             <div class="challenge-anchors" hidden>
-              <b>Verification anchors</b>
+              <b>Answer check</b>
               <ul>{challenge_anchors}</ul>
-              <p>These anchors are evaluation evidence, never authentication material.</p>
+              <p>These are memory checks, never authentication material.</p>
             </div>
           </article>
           <script type="application/json" id="continuity-challenges">{challenge_data}</script>
@@ -523,12 +518,12 @@ if(challengeRoot){{
     counterNode.textContent=String(challengeIndex+1)+' / '+String(challenges.length);
     anchorsList.replaceChildren(...item.anchors.map(anchor=>{{const li=document.createElement('li');li.textContent=String(anchor);return li;}}));
     anchorsNode.hidden=true;
-    revealButton.textContent='Reveal verification anchors';
+    revealButton.textContent='Reveal answer check';
     copyStatus.textContent='';
   }};
   revealButton.addEventListener('click',()=>{{
     anchorsNode.hidden=!anchorsNode.hidden;
-    revealButton.textContent=anchorsNode.hidden?'Reveal verification anchors':'Hide verification anchors';
+    revealButton.textContent=anchorsNode.hidden?'Reveal answer check':'Hide answer check';
   }});
   nextButton.addEventListener('click',()=>{{
     challengeIndex=(challengeIndex+1)%challenges.length;
