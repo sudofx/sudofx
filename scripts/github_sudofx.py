@@ -1,4 +1,32 @@
-"""GitHub Actions adapter: restore, mutate, verify, publish, and checkpoint."""
+"""
+SUDOFX GITHUB OPERATIONS ADAPTER
+================================
+
+This script bridges an ephemeral GitHub Actions runner to the durable sudofx
+record. The runner itself has no continuity. Before a stateful operation it
+restores the latest ``sudofx-state`` branch, verifies that record through Kernel,
+submits exactly one governed proposal, checkpoints the database, and renders the
+public projection.
+
+There are deliberately three different authorities:
+
+    master        -> implementation and workflow definition
+    sudofx-state  -> durable SQLite record
+    Pages artifact-> disposable, derived public projection
+
+The published HTML is never read back as state. The source branch never embeds
+the live database. A stateful run pushes the record before publishing so a
+successful page can never advertise a transition that was not first made
+durable.
+
+GitHub workflow concurrency serializes stateful runs. Kernel's SQLite transaction
+and proposal revision still enforce correctness because workflow configuration
+is operational coordination, not the final authority boundary.
+
+This entry point performs Git operations only inside the repository or a newly
+created temporary worktree. It never force-pushes durable history. A push conflict
+must fail visibly rather than choosing one writer's history by accident.
+"""
 
 from __future__ import annotations
 
@@ -21,6 +49,7 @@ STATE_BRANCH = "sudofx-state"
 
 
 def git(*args: str, capture: bool = False, check: bool = True) -> subprocess.CompletedProcess[str]:
+    """Run one explicit Git operation from the source repository."""
     return subprocess.run(
         ["git", *args], cwd=ROOT, check=check, text=True,
         stdout=subprocess.PIPE if capture else None,
@@ -29,6 +58,13 @@ def git(*args: str, capture: bool = False, check: bool = True) -> subprocess.Com
 
 
 def restore() -> bool:
+    """
+    Restore the remote durable database when the state branch exists.
+
+    Missing state is valid only before the first mutation and returns False.
+    Other fetch or extraction failures remain exceptions; silently initializing
+    after a damaged/unreadable branch would erase continuity.
+    """
     fetched = git("fetch", "origin", STATE_BRANCH, check=False, capture=True)
     if fetched.returncode != 0:
         return False
@@ -42,12 +78,24 @@ def restore() -> bool:
 
 
 def checkpoint() -> None:
+    """
+    Commit the exact verified database to ``sudofx-state`` without rewriting history.
+
+    An existing branch is checked out detached at its remote head. The first
+    checkpoint starts an orphan branch so implementation files never become part
+    of durable state. No-change checkpoints return without empty commits.
+    """
     with tempfile.TemporaryDirectory() as temporary:
         checkout = Path(temporary) / "state"
         branch_exists = git("rev-parse", "--verify", f"origin/{STATE_BRANCH}", check=False, capture=True).returncode == 0
         if branch_exists:
+            # Detached checkout makes the eventual push target explicit and
+            # avoids teaching the temporary worktree a misleading local branch.
             git("worktree", "add", "--detach", str(checkout), f"origin/{STATE_BRANCH}")
         else:
+            # This directory was created by TemporaryDirectory and the orphan
+            # branch is scoped to the state checkout. Cleanup removes only files
+            # inside that validated temporary path.
             git("worktree", "add", "--detach", str(checkout), "HEAD")
             git("-C", str(checkout), "checkout", "--orphan", STATE_BRANCH)
             for child in checkout.iterdir():
@@ -61,6 +109,9 @@ def checkpoint() -> None:
             git("-C", str(checkout), "add", "sudofx.sqlite")
             if git("-C", str(checkout), "diff", "--cached", "--quiet", check=False).returncode == 0:
                 return
+
+            # The bot identity labels provenance; it does not establish trust.
+            # Trust comes from verified replay and protected repository access.
             git("-C", str(checkout), "-c", "user.name=sudofx-bot", "-c", "user.email=sudofx-bot@users.noreply.github.com", "commit", "-m", "Checkpoint durable record")
             git("-C", str(checkout), "push", "origin", f"HEAD:{STATE_BRANCH}")
         finally:
@@ -68,6 +119,7 @@ def checkpoint() -> None:
 
 
 def value_from(raw: str) -> object:
+    """Share the CLI convention: structured JSON when valid, plain text otherwise."""
     try:
         return json.loads(raw)
     except json.JSONDecodeError:
@@ -75,6 +127,13 @@ def value_from(raw: str) -> object:
 
 
 def main() -> int:
+    """
+    Execute either a read-only publication or one serialized governed mutation.
+
+    Publish-only runs may initialize a temporary empty local database when no
+    state branch exists, but they never checkpoint it. Stateful runs require an
+    action and key, append one receipt, checkpoint, then render that same state.
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument("--publish-only", action="store_true")
     parser.add_argument(
@@ -85,12 +144,16 @@ def main() -> int:
     args = parser.parse_args()
 
     restored = restore()
+    # A first-ever run has no state branch, so the database parent must exist
+    # before SQLite can create the empty authoritative record.
     DATA.parent.mkdir(parents=True, exist_ok=True)
     kernel = Kernel(Record(DATA))
     if not args.publish_only:
         if not args.action or not args.key:
             parser.error("--action and --key are required for a mutation")
         context = kernel.context()
+        # Workflow strings are mapped into the same typed operations as the CLI.
+        # GitHub inputs cannot supply lifecycle-owned status or revisions.
         if args.action == "set":
             operation = Operation("set", args.key, value_from(args.value))
         elif args.action == "delete":
@@ -106,6 +169,9 @@ def main() -> int:
         else:
             operation = Operation("complete_work", args.key, {"result": args.value})
         receipt = kernel.submit(Proposal(str(uuid.uuid4()), context.revision, (operation,), "GitHub operator proposal"))
+
+        # Checkpoint precedes export. A failed push stops publication so Pages
+        # cannot get ahead of the durable branch.
         print(json.dumps({"restored": restored, "receipt": receipt.__dict__}, default=list))
         checkpoint()
     export_site(kernel, ROOT / "site", repository=os.environ.get("GITHUB_REPOSITORY", "sudofx/sudofx"))

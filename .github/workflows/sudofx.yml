@@ -1,10 +1,24 @@
 name: sudofx — operate & publish
 
+# SUDOFX CLOUD AUTHORITY BOUNDARY
+#
+# GitHub Actions is the authenticated operator surface for the static Pages
+# interface. Pages never receives credentials and cannot write authoritative
+# state. A manual dispatch creates one proposal; the Python kernel governs it.
+#
+# master owns implementation. sudofx-state owns the SQLite event record. The
+# uploaded Pages artifact is a replaceable projection of verified replay.
+# Publishing a projection must never be mistaken for checkpointing the record.
+
 on:
+  # Source changes refresh the public projection without creating a proposal or
+  # appending an event. This keeps presentation current without fabricating work.
   push:
     branches: [master]
     paths: ['src/**', 'scripts/github_sudofx.py', '.github/workflows/sudofx.yml']
   workflow_dispatch:
+    # Manual inputs are deliberately narrow. They are operator-supplied proposal
+    # material, not direct database fields or lifecycle status overrides.
     inputs:
       action:
         description: Operation
@@ -23,16 +37,26 @@ on:
         required: false
 
 permissions:
+  # contents:write is needed only for the durable state branch checkpoint.
+  # Pages permissions publish the derived artifact through GitHub's native path.
+  # No third-party deployment token is stored or exposed to browser JavaScript.
   contents: write
   pages: write
   id-token: write
 
 concurrency:
+  # One group serializes all runs that could touch durable state. Push-triggered
+  # read-only publications also join the group for a simple initial operational
+  # model. Kernel revision checks remain the correctness backstop if workflow
+  # coordination changes later.
   group: sudofx-durable-state
   cancel-in-progress: false
 
 jobs:
   build:
+    # Build both verifies the implementation and renders from a verified record.
+    # A five-minute ceiling turns stuck infrastructure into a visible failure
+    # rather than leaving an ambiguous operation active indefinitely.
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -43,8 +67,12 @@ jobs:
         with:
           python-version: '3.13'
       - name: Verify the kernel
+        # Tests run before any stateful action. A broken implementation must not
+        # be allowed to append history merely because the workflow was dispatched.
         run: PYTHONPATH=src python -m unittest discover -s tests -v
       - name: Apply governed operation
+        # Only a manual dispatch enters the mutation path. The adapter restores
+        # and verifies sudofx-state, appends one receipt, checkpoints, and renders.
         if: github.event_name == 'workflow_dispatch'
         env:
           ACTION: ${{ inputs.action }}
@@ -52,27 +80,40 @@ jobs:
           VALUE: ${{ inputs.value }}
         run: PYTHONPATH=src python scripts/github_sudofx.py --action "$ACTION" --key "$KEY" --value "$VALUE"
       - name: Render verified record
+        # A code push is a read-only consumer of state. When no state branch exists,
+        # it renders the honest empty record and does not initialize remote history.
         if: github.event_name == 'push'
         run: PYTHONPATH=src python scripts/github_sudofx.py --publish-only
       - name: Configure Pages
+        # Native Pages configuration supplies the correct base path and deployment
+        # metadata for the project site. Custom-domain ownership is intentionally
+        # absent while sudofx.com remains a simple registrar forward.
         uses: actions/configure-pages@v5
         with:
           enablement: true
       - name: Upload phone interface
+        # The artifact contains only derived static files. The SQLite database is
+        # checkpointed separately and must never be included in the public bundle.
         uses: actions/upload-pages-artifact@v3
         with:
           path: site
 
   deploy:
+    # Deployment is isolated from record mutation. If artifact publication fails,
+    # durable state remains valid and a later read-only run may safely republish it.
     needs: build
     runs-on: ubuntu-latest
     concurrency:
       group: pages
       cancel-in-progress: true
     environment:
+      # GitHub records the deployment URL and protects the Pages environment using
+      # repository-native controls rather than a custom secret-bearing publisher.
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Publish interface
+        # deploy-pages consumes the exact artifact uploaded by build. It does not
+        # rerun governance, replay operations, or synthesize a second projection.
         id: deployment
         uses: actions/deploy-pages@v4

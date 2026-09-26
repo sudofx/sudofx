@@ -1,4 +1,19 @@
-"""Small command-line surface for exercising the kernel."""
+"""
+SUDOFX OPERATOR CLI
+===================
+
+The CLI is a thin operator surface over Kernel; it is not a second authority
+path. Every mutation is converted into a Proposal and crosses the same
+governance, transaction, receipt, and replay boundaries used by cloud runs.
+
+Read commands replay and verify the record before showing state. Export renders
+a projection from that verified state. Serve is local convenience only and does
+not make browser interaction authoritative.
+
+Arguments intentionally favor explicit operations over an embedded scripting
+language. The narrow commands keep actions inspectable in shell history and map
+directly to the lifecycle shown in receipts.
+"""
 
 from __future__ import annotations
 
@@ -17,6 +32,7 @@ from .report import export_site
 
 
 def _json_value(raw: str) -> Any:
+    """Interpret valid JSON while preserving ordinary operator text as a string."""
     try:
         return json.loads(raw)
     except json.JSONDecodeError:
@@ -24,6 +40,7 @@ def _json_value(raw: str) -> Any:
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Define the complete human-facing command contract in one discoverable place."""
     parser = argparse.ArgumentParser(prog="sudofx")
     parser.add_argument("--record", type=Path, default=Path("data/sudofx.sqlite"))
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -59,6 +76,12 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """
+    Execute one bounded CLI operation and return a shell-meaningful status.
+
+    Accepted transitions return zero. Governed rejection returns two so scripts
+    can distinguish refusal from infrastructure failure without parsing prose.
+    """
     args = build_parser().parse_args(argv)
     args.record.parent.mkdir(parents=True, exist_ok=True)
     kernel = Kernel(Record(args.record))
@@ -83,6 +106,9 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 0
     if args.command in {"export", "serve"}:
+        # Export and serve consume verified state but never append an event.
+        # The HTTP server is bound to loopback to avoid presenting a local
+        # development convenience as a remotely secured deployment.
         index = export_site(kernel, args.output, repository=args.repository)
         if args.command == "export":
             print(index)
@@ -101,6 +127,10 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     context = kernel.context()
+
+    # CLI syntax is translated into typed operations here. Lifecycle-owned
+    # fields such as status and work revision are never accepted from the user;
+    # replay derives them after governance approves the semantic input.
     if args.command == "set":
         operation = Operation("set", args.key, _json_value(args.value))
     elif args.command == "delete":

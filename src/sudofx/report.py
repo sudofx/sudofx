@@ -1,4 +1,18 @@
-"""Generate the static, phone-friendly view of a verified record."""
+"""
+SUDOFX PUBLIC PROJECTION
+========================
+
+This module turns verified replayed state into a self-contained, phone-friendly
+HTML artifact. The artifact is a projection: useful for inspection and navigation,
+but never an input to governance, replay, or recovery.
+
+Rendering is intentionally dependency-free so a fresh GitHub runner can publish
+without a JavaScript toolchain or package registry. State-derived text is escaped
+before interpolation. Interactive behavior is limited to filtering, disclosure,
+theme preference, and links into GitHub's authenticated workflow control plane.
+
+The browser receives no GitHub token and cannot mutate the record directly.
+"""
 
 from __future__ import annotations
 
@@ -10,10 +24,12 @@ from .kernel import Kernel
 
 
 def _escape(value: object) -> str:
+    """Escape all durable or operator text before placing it in HTML attributes or content."""
     return html.escape(str(value), quote=True)
 
 
 def _state_cards(state: dict[str, object]) -> str:
+    """Render non-work keys separately so generic kernel state remains inspectable."""
     visible = {key: value for key, value in state.items() if not key.startswith("work:")}
     if not visible:
         return '<div class="empty">No general state has been recorded.</div>'
@@ -29,6 +45,13 @@ def _state_cards(state: dict[str, object]) -> str:
 
 
 def _work_cards(state: dict[str, object]) -> str:
+    """
+    Render governed work as human-readable lifecycle cards.
+
+    Work-local revision, constraints, progress, obligations, and final result
+    remain visually distinct so presentation does not flatten different semantic
+    roles into an attractive but ambiguous blob.
+    """
     work_items = [
         value for key, value in sorted(state.items())
         if key.startswith("work:") and isinstance(value, dict)
@@ -62,6 +85,13 @@ def _work_cards(state: dict[str, object]) -> str:
 
 
 def _receipt_rows(history: tuple[dict[str, object], ...]) -> str:
+    """
+    Render newest-first receipt summaries with expandable exact provenance.
+
+    Search text includes action, target, and rejection details. Full payloads
+    remain in the durable record; the page exposes enough identifiers and hashes
+    to trace a visible outcome without pretending to be the record itself.
+    """
     if not history:
         return '<div class="empty">Receipts will appear here after the first proposal.</div>'
     rows: list[str] = []
@@ -97,6 +127,14 @@ def _receipt_rows(history: tuple[dict[str, object], ...]) -> str:
 
 
 def render(kernel: Kernel, *, repository: str = "sudofx/sudofx") -> str:
+    """
+    Produce one complete HTML document from a verified kernel snapshot.
+
+    Theme preference deliberately reuses WAKE's origin-scoped key so the two
+    related projects honor the same day/night choice on ``sudofx.github.io``.
+    The hidden theme control has an explicit 1px box: global form-control width
+    rules must not make an invisible element widen the mobile viewport.
+    """
     context = kernel.context(receipt_limit=0)
     history = kernel.record.history()
     accepted = sum(event["status"] == "accepted" for event in history)
@@ -212,6 +250,12 @@ try{{const media=matchMedia('(prefers-color-scheme:dark)');media.addEventListene
 
 
 def export_site(kernel: Kernel, directory: str | Path, *, repository: str = "sudofx/sudofx") -> Path:
+    """
+    Write the derived Pages artifact and disable Jekyll processing.
+
+    Callers choose the destination. The function never touches the database and
+    never claims that a successful file write publishes or checkpoints state.
+    """
     destination = Path(directory)
     destination.mkdir(parents=True, exist_ok=True)
     index = destination / "index.html"

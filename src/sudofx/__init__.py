@@ -1,4 +1,20 @@
-"""The sudofx governed-work kernel."""
+"""
+PUBLIC SUDOFX SURFACE
+=====================
+
+Only the stable concepts needed to embed the governed-work kernel are exported
+here. Internal storage, hashing, rendering, and policy helpers remain reachable
+from their owning modules but are intentionally absent from the convenience API.
+
+Keeping this surface small prevents callers from mistaking an implementation
+helper for a supported authority boundary. In particular, external code should
+submit Proposals through Kernel rather than writing SQLite rows, applying replay
+operations, or asking a provider to mutate state directly.
+
+The package version describes the implementation release, not the durable
+record schema. Replayed history is protected by explicit event structure and
+governance semantics rather than an implicit dependency on this string.
+"""
 
 from .kernel import Kernel, RunResult
 from .models import Context, Operation, Proposal, Receipt

@@ -9,9 +9,16 @@ from sudofx import FakeIntelligence, FakeWorkIntelligence, Kernel, Operation, Pr
 from sudofx.record import IntegrityError, Record
 from sudofx.report import render
 
+# These tests protect durable guarantees rather than implementation shape.
+# Temporary SQLite records prove replay across reopened processes without
+# depending on a developer's local state or the production state branch.
+
 
 class KernelTests(unittest.TestCase):
+    """Exercise continuity, governance, integrity, bounded context, and projection."""
     def setUp(self) -> None:
+        # Every test owns a fresh record so event identity and revision assertions
+        # remain independent and reproducible in any execution order.
         self.tempdir = tempfile.TemporaryDirectory()
         self.path = Path(self.tempdir.name) / "record.sqlite"
         self.kernel = Kernel(Record(self.path))
@@ -20,6 +27,7 @@ class KernelTests(unittest.TestCase):
         self.tempdir.cleanup()
 
     def test_fresh_intelligences_continue_from_durable_context(self) -> None:
+        """A second provider instance must derive progress only from durable context."""
         first = FakeIntelligence(
             lambda context: Proposal("p1", context.revision, (Operation("set", "step", 1),))
         )
@@ -33,6 +41,7 @@ class KernelTests(unittest.TestCase):
         self.assertEqual(self.kernel.context().state, {"step": 2})
 
     def test_replay_survives_kernel_and_provider_replacement(self) -> None:
+        """Replacing both active objects must preserve authoritative state."""
         proposal = Proposal("p1", 0, (Operation("set", "provider", "fake-a"),))
         self.kernel.run(FakeIntelligence([proposal]))
         replacement = Kernel(Record(self.path))
@@ -45,6 +54,7 @@ class KernelTests(unittest.TestCase):
         self.assertEqual(replacement.context().revision, 2)
 
     def test_stale_proposal_is_rejected_without_state_change(self) -> None:
+        """Optimistic concurrency must preserve newer accepted work and record refusal."""
         self.kernel.submit(Proposal("p1", 0, (Operation("set", "safe", True),)))
         receipt = self.kernel.submit(Proposal("stale", 0, (Operation("set", "safe", False),)))
         self.assertEqual(receipt.status, "rejected")
@@ -53,18 +63,21 @@ class KernelTests(unittest.TestCase):
         self.assertEqual(len(self.kernel.context().recent_receipts), 2)
 
     def test_invalid_proposal_is_recorded_as_rejected(self) -> None:
+        """Malformed intent should become evidence without becoming state."""
         receipt = self.kernel.submit(Proposal("empty", 0, ()))
         self.assertEqual(receipt.status, "rejected")
         self.assertIn("at least one operation", receipt.reasons[0])
         self.assertEqual(self.kernel.context().revision, 0)
 
     def test_duplicate_proposal_id_cannot_be_replayed(self) -> None:
+        """Proposal identity reuse must fail rather than append ambiguous history."""
         proposal = Proposal("same", 0, (Operation("set", "x", 1),))
         self.kernel.submit(proposal)
         with self.assertRaises(ValueError):
             self.kernel.submit(proposal)
 
     def test_hash_chain_detects_tampering(self) -> None:
+        """Changing stored payload bytes must make complete replay unavailable."""
         self.kernel.submit(Proposal("p1", 0, (Operation("set", "x", 1),)))
         with sqlite3.connect(self.path) as connection:
             connection.execute("UPDATE events SET payload = ? WHERE sequence = 1", ('{}',))
@@ -73,6 +86,7 @@ class KernelTests(unittest.TestCase):
             self.kernel.context()
 
     def test_static_report_exposes_state_and_receipt_provenance(self) -> None:
+        """The public projection must preserve navigation, theme, and traceability."""
         self.kernel.submit(Proposal("p1", 0, (Operation("set", "objective", "continue"),)))
         page = render(self.kernel)
         self.assertIn("objective", page)
@@ -86,12 +100,14 @@ class KernelTests(unittest.TestCase):
         self.assertIn('href="https://sudofx.github.io/wake/">Inspired by WAKE', page)
 
     def test_record_initializes_inside_an_existing_empty_directory(self) -> None:
+        """A first cloud run may create a record once its explicit parent exists."""
         nested = Path(self.tempdir.name) / "cloud-data" / "record.sqlite"
         nested.parent.mkdir(parents=True)
         kernel = Kernel(Record(nested))
         self.assertEqual(kernel.context().revision, 0)
 
     def test_disposable_intelligences_advance_one_durable_work_item(self) -> None:
+        """Independent invocations must append results to the same governed objective."""
         created = self.kernel.submit(
             Proposal(
                 "create",
@@ -115,6 +131,7 @@ class KernelTests(unittest.TestCase):
         self.assertEqual(work["work_revision"], 2)
 
     def test_work_completion_closes_obligations_and_blocks_more_progress(self) -> None:
+        """Completion is terminal and cannot be silently reopened by later progress."""
         self.kernel.submit(
             Proposal(
                 "create",
@@ -138,6 +155,7 @@ class KernelTests(unittest.TestCase):
         self.assertEqual(self.kernel.context().state["work:done"]["final_result"], "Finished")
 
     def test_work_context_is_bounded_to_one_item(self) -> None:
+        """Scoped context must not leak another work item's state or receipts."""
         self.kernel.submit(
             Proposal(
                 "a",
@@ -158,6 +176,7 @@ class KernelTests(unittest.TestCase):
         self.assertEqual(bounded.recent_receipts[0]["proposal_id"], "a")
 
     def test_work_lifecycle_is_visible_in_static_report(self) -> None:
+        """Users must be able to inspect durable work rather than only raw JSON."""
         self.kernel.submit(
             Proposal(
                 "create",

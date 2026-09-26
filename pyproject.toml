@@ -1,7 +1,13 @@
+# Packaging remains deliberately conventional. sudofx has no runtime dependency
+# on a provider SDK, web framework, or build tool; disposable environments need
+# only Python and SQLite from the standard library to replay authoritative work.
 [build-system]
 requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
+# The package version identifies this implementation artifact. It is not a
+# durable-record schema version and must never be used to bypass replay or
+# migration reasoning when the event contract eventually changes.
 [project]
 name = "sudofx"
 version = "0.1.0"
@@ -10,8 +16,12 @@ readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
 
+# The console entry point is an operator adapter over Kernel. It does not expose
+# a privileged mutation route; every state-changing command submits a Proposal.
 [project.scripts]
 sudofx = "sudofx.cli:main"
 
+# Source layout prevents accidental imports from the repository root and makes
+# wheel contents explicit enough to inspect in a fresh build environment.
 [tool.setuptools.packages.find]
 where = ["src"]

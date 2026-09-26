@@ -1,4 +1,37 @@
-"""Append-only SQLite record and deterministic replay."""
+"""
+SUDOFX DURABLE RECORD
+=====================
+
+This module owns the authoritative history and the deterministic projection from
+that history into current state. SQLite is used as a durable append-only event
+container, not as a mutable table of current objects.
+
+Every meaningful proposal produces exactly one event:
+
+    accepted -> receipt + transition + revision advance
+    rejected -> receipt + no transition + unchanged revision
+
+Rejected events remain in the chain because they are evidence of what the
+system refused. They do not alter state. That distinction makes correction
+possible without silently rewriting history.
+
+Events are linked by SHA-256 hashes over canonical JSON and the previous hash.
+The chain detects accidental or unauthorized row changes during replay. It is
+not a signature and does not prove who authored an event; anyone with write
+access to the entire database could rebuild the chain. Its guarantee is local
+integrity detection against the expected stored head, not external notarization.
+
+Current state is never trusted as a separate cache. ``replay`` starts from an
+empty mapping, verifies every event in sequence, and applies only accepted
+operations. If an event hash, revision edge, or operation is invalid, replay
+stops rather than returning a plausible partial state.
+
+The record does not decide whether an operation is allowed. Governance owns
+permission before append. ``apply_operation`` owns the exact semantics needed
+to reconstruct already accepted history. Keeping those responsibilities
+separate prevents historical data from becoming valid merely because replay can
+mechanically interpret it.
+"""
 
 from __future__ import annotations
 
@@ -14,12 +47,35 @@ from .governance import work_key
 
 GENESIS_HASH = "0" * 64
 
+# A fixed sentinel gives the first event the same link shape as every later
+# event. It is deliberately obvious rather than random; secrecy is not part of
+# the integrity model.
+
 
 def canonical_json(value: Any) -> str:
+    """
+    Serialize hash material identically across runs.
+
+    Sorted keys remove dictionary insertion order from the record contract.
+    Compact separators prevent insignificant whitespace from changing hashes.
+    UTF-8 text remains readable instead of being escaped into ASCII sequences.
+    """
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
 
 
 def apply_operation(state: dict[str, JsonValue], operation: dict[str, Any]) -> None:
+    """
+    Apply one previously accepted operation to an in-memory projection.
+
+    This function assumes governance approved the original event. It still
+    rejects unknown actions because silently ignoring an operation would return
+    a false state while claiming successful replay.
+
+    Work transitions copy nested containers before changing them. Historical
+    replay currently builds a fresh state, but copy-on-transition prevents a
+    future caller from observing an earlier projection mutate through a shared
+    reference.
+    """
     action = operation["action"]
     key = operation["key"]
     if action == "set":
@@ -27,6 +83,9 @@ def apply_operation(state: dict[str, JsonValue], operation: dict[str, Any]) -> N
     elif action == "delete":
         state.pop(key, None)
     elif action == "create_work":
+        # Creation derives lifecycle-owned fields here rather than accepting
+        # provider-supplied status, revisions, or results. The proposer controls
+        # the objective and constraints; the system controls lifecycle state.
         value = operation["value"]
         state[work_key(key)] = {
             "id": key,
@@ -38,6 +97,9 @@ def apply_operation(state: dict[str, JsonValue], operation: dict[str, Any]) -> N
             "work_revision": 0,
         }
     elif action == "advance_work":
+        # Accepted results are append-only within the work projection. Open
+        # obligations describe the newest known frontier and therefore replace,
+        # rather than append to, the previous set.
         value = operation["value"]
         work = dict(state[work_key(key)])
         results = list(work.get("accepted_results", []))
@@ -47,6 +109,8 @@ def apply_operation(state: dict[str, JsonValue], operation: dict[str, Any]) -> N
         work["work_revision"] = int(work.get("work_revision", 0)) + 1
         state[work_key(key)] = work
     elif action == "complete_work":
+        # Completion preserves accepted progress, records the final result,
+        # clears resolved obligations, and advances the work-local revision.
         value = operation["value"]
         work = dict(state[work_key(key)])
         work["status"] = "completed"
@@ -59,16 +123,34 @@ def apply_operation(state: dict[str, JsonValue], operation: dict[str, Any]) -> N
 
 
 class IntegrityError(RuntimeError):
-    """Raised when the durable record cannot be verified."""
+    """
+    Signal that authoritative history cannot be verified safely.
+
+    Callers must not recover by skipping the row or trusting a cached projection.
+    Repair requires an explicit recovery process with stronger evidence.
+    """
 
 
 class Record:
+    """
+    Provide transactional access to one append-only SQLite event stream.
+
+    A Record may be reopened by a fresh process at any time. No correctness
+    depends on a long-lived Python instance, which is essential to disposable
+    invocation continuity.
+    """
     def __init__(self, path: str | Path) -> None:
         self.path = str(path)
         self._initialize()
 
     @contextmanager
     def connect(self) -> Iterator[sqlite3.Connection]:
+        """
+        Yield a short-lived row-aware connection and always close it.
+
+        Transaction ownership stays with the calling operation because reads,
+        governance, and append sometimes need one shared snapshot.
+        """
         connection = sqlite3.connect(self.path)
         connection.row_factory = sqlite3.Row
         try:
@@ -77,8 +159,17 @@ class Record:
             connection.close()
 
     def _initialize(self) -> None:
+        """
+        Create storage idempotently without creating semantic state.
+
+        Initialization may establish the empty schema, but the first meaningful
+        revision exists only after an accepted proposal is appended.
+        """
         with self.connect() as connection:
             connection.execute("PRAGMA journal_mode=WAL")
+            # WAL supports readers alongside the serialized writer. Kernel.submit
+            # still uses BEGIN IMMEDIATE so two writers cannot govern from the
+            # same revision and both commit conflicting accepted transitions.
             connection.execute(
                 """
                 CREATE TABLE IF NOT EXISTS events (
@@ -100,20 +191,36 @@ class Record:
 
     @staticmethod
     def hash_event(previous_hash: str, event: dict[str, Any]) -> str:
+        """Bind canonical event material to the verified hash that precedes it."""
         material = f"{previous_hash}\n{canonical_json(event)}".encode()
         return hashlib.sha256(material).hexdigest()
 
     def rows(self, connection: sqlite3.Connection | None = None) -> list[sqlite3.Row]:
+        """
+        Return events strictly in append order.
+
+        Accepting an existing connection lets replay participate in the caller's
+        transaction instead of accidentally reading a second database snapshot.
+        """
         if connection is not None:
             return list(connection.execute("SELECT * FROM events ORDER BY sequence"))
         with self.connect() as own_connection:
             return list(own_connection.execute("SELECT * FROM events ORDER BY sequence"))
 
     def replay(self, connection: sqlite3.Connection | None = None) -> tuple[int, dict[str, JsonValue]]:
+        """
+        Verify the complete chain and reconstruct authoritative current state.
+
+        Revision continuity is checked independently of hashes. That redundant
+        invariant catches logically impossible histories even if their bytes
+        were re-hashed consistently by a faulty writer.
+        """
         state: dict[str, JsonValue] = {}
         revision = 0
         previous_hash = GENESIS_HASH
         for row in self.rows(connection):
+            # Recreate exactly the material used at append time. Timestamps and
+            # SQLite sequence numbers are metadata, not semantic hash input.
             payload = json.loads(row["payload"])
             reasons = json.loads(row["reasons"])
             material = {
@@ -131,6 +238,8 @@ class Record:
             if row["revision_before"] != revision:
                 raise IntegrityError(f"revision discontinuity at sequence {row['sequence']}")
             if row["status"] == "accepted":
+                # All operations in an accepted proposal are applied together.
+                # Rejected payloads are retained for evidence but never executed.
                 for operation in payload["operations"]:
                     apply_operation(state, operation)
                 revision += 1
@@ -142,6 +251,13 @@ class Record:
     def recent(
         self, limit: int = 10, connection: sqlite3.Connection | None = None
     ) -> tuple[dict[str, Any], ...]:
+        """
+        Return a bounded chronological receipt window for provider context.
+
+        SQL reads newest rows efficiently, then Python reverses them so context
+        presents cause before effect. Proposal payloads remain attached because
+        work-scoped context must filter receipts by semantic target.
+        """
         if connection is not None:
             rows = list(
                 connection.execute(
@@ -170,7 +286,13 @@ class Record:
         )
 
     def history(self) -> tuple[dict[str, Any], ...]:
-        """Return the complete verified receipt history in record order."""
+        """
+        Return the complete verified history in record order.
+
+        Verification and row capture share one read transaction. A concurrent
+        append may happen before or after that snapshot, but cannot produce a
+        history whose verification covered fewer rows than the returned result.
+        """
         with self.connect() as connection:
             connection.execute("BEGIN")
             self.replay(connection)

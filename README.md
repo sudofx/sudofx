@@ -355,3 +355,13 @@ obligations, lifecycle status, and their own revision inside the global record.
 bounded context. A fresh provider can continue from that context without access to
 an earlier invocation. Completed work cannot be advanced again; the rejected
 proposal remains visible while authoritative state stays unchanged.
+
+## Implementation Commentary
+
+sudofx treats source commentary as part of its continuity infrastructure. Every
+module and public function documents its authority, invariants, and failure
+semantics; governance, replay, recovery, provider, and concurrency boundaries
+receive the deepest treatment. The project targets roughly two lines of useful
+commentary per logical line or small block of consequential behavior without
+padding obvious plumbing with filler. The durable guidance lives in
+[`AGENTS.md`](AGENTS.md).
