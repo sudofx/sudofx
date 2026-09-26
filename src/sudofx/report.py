@@ -28,14 +28,14 @@ from .kernel import Kernel
 # from governed context. Verification anchors stay presentation-only and never
 # participate in authentication, authorization, governance, or durable replay.
 CONTINUITY_CHALLENGES = (
-    {"id": "bang", "question": "When I say “BANG‼️” during our work, what usually just happened?"},
-    {"id": "you-get-me", "question": "When I tell you “you get me,” what am I actually confirming?"},
-    {"id": "order-flexes", "question": "If I flip “fix it, push it” into “push it, fix it,” what part of the message stays the same?"},
-    {"id": "too-much-language", "question": "When I say “that is too much language right now,” what change am I asking you to make?"},
-    {"id": "correction", "question": "When I correct you after you gave a confident answer, what does that moment demonstrate about how we work?"},
-    {"id": "one-sentence", "question": "When I ask for one sentence, what am I really optimizing for?"},
-    {"id": "move-now", "question": "What am I signaling when I tell you to stop overthinking and just move?"},
-    {"id": "intent-over-words", "question": "When I say “that is exactly what I meant,” what did you successfully carry across?"},
+    {"id": "bang", "question": "When you say “BANG‼️” during our work, what usually just happened?"},
+    {"id": "you-get-me", "question": "When you tell me “you get me,” what are you actually confirming?"},
+    {"id": "order-flexes", "question": "If you flip “fix it, push it” into “push it, fix it,” what part of your message stays the same?"},
+    {"id": "too-much-language", "question": "When you say “that is too much language right now,” what change are you asking me to make?"},
+    {"id": "correction", "question": "When you correct me after I gave a confident answer, what does that moment demonstrate about how we work?"},
+    {"id": "one-sentence", "question": "When you ask me for one sentence, what are you really optimizing for?"},
+    {"id": "move-now", "question": "What are you signaling when you tell me to stop overthinking and just move?"},
+    {"id": "intent-over-words", "question": "When you say “that is exactly what I meant,” what did I successfully carry across?"},
 )
 
 
