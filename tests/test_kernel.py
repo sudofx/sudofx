@@ -362,6 +362,8 @@ json.dump({
             },
             continuity_proof={
                 "passed": True,
+                "artifact_run_id": "123",
+                "artifact_commit": "0123456789abcdef",
                 "proves": "Fresh process continued bounded work.",
                 "does_not_prove": "Real model semantic reconstruction.",
                 "checks": {
@@ -387,6 +389,11 @@ json.dump({
         self.assertIn("Fresh process continued bounded work.", page)
         self.assertIn("continuity-proof.json", page)
         self.assertIn("Human semantic review", page)
+        self.assertIn("Get latest result", page)
+        self.assertIn("data-artifact-run-id=\"123\"", page)
+        self.assertIn("continuity-proof.json?ts=", page)
+        self.assertIn("No newer result yet", page)
+        self.assertIn("initializeReviewControls", page)
         self.assertIn("Does it preserve the objective?", page)
         self.assertIn("Pass", page)
         self.assertIn("Fail", page)

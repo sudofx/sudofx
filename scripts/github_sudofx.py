@@ -218,6 +218,12 @@ def main() -> int:
         continuity_proof = run_work_continuity_probe(DATA, prove_work_id)
     else:
         continuity_proof = run_continuity_proof()
+    # Projection metadata binds a disposable proof artifact to the exact Actions
+    # run that produced it. Repeated probes can share the same context digest, so
+    # run identity—not digest inequality—is the stale-result discriminator.
+    continuity_proof = dict(continuity_proof)
+    continuity_proof["artifact_run_id"] = run_id
+    continuity_proof["artifact_commit"] = verification["commit"]
     export_site(
         kernel,
         ROOT / "site",

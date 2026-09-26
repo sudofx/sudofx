@@ -195,7 +195,7 @@ def render(
     )
     continuity_html = (
         f"""
-        <section class="continuity-proof" aria-label="Continuity proof">
+        <section class="continuity-proof" aria-label="Continuity proof" data-artifact-run-id="{_escape(continuity_proof.get("artifact_run_id", ""))}">
           <div class="proof-head">
             <div>
               <span class="eyebrow">{_escape(continuity_proof.get('kind', 'Disposable continuity proof'))}</span>
@@ -203,10 +203,14 @@ def render(
             </div>
             <span class="proof-status {'passed' if proof_passed else ''}">{'PASS' if proof_passed else 'N/A'}</span>
           </div>
+          <div class="latest-result-bar">
+            <button type="button" class="get-latest-result">Get latest result</button>
+            <span class="latest-result-status" role="status" aria-live="polite">Run {_escape(continuity_proof.get("artifact_run_id", "unknown"))}</span>
+          </div>
           <p>{_escape(continuity_proof.get('proves', 'No continuity proof was supplied for this projection.'))}</p>
-          {f'<code>context {_escape(str(continuity_proof.get("context_digest", ""))[:16])}…</code>' if continuity_proof.get("context_digest") else ''}
+          {f'<code class="context-digest">context {_escape(str(continuity_proof.get("context_digest", ""))[:16])}…</code>' if continuity_proof.get("context_digest") else '<code class="context-digest"></code>'}
           {f'<ul class="proof-checks">{proof_check_rows}</ul>' if proof_check_rows else ''}
-          {f'<div class="model-candidate"><b>Candidate continuation</b><p>{_escape(continuity_proof.get("candidate_result", ""))}</p></div>' if continuity_proof.get("candidate_result") else ''}
+          <div class="model-candidate"{' hidden' if not continuity_proof.get("candidate_result") else ''}><b>Candidate continuation</b><p>{_escape(continuity_proof.get("candidate_result", ""))}</p></div>
           {f'<div class="semantic-review" data-review-version="{_escape(semantic_review.get("version", ""))}" data-context-digest="{_escape(str(continuity_proof.get("context_digest", "")))}" data-work-id="{_escape(continuity_proof.get("work_id", ""))}" data-provider="{_escape(continuity_proof.get("provider", ""))}" data-model="{_escape(continuity_proof.get("model", ""))}"><b>Human semantic review · v{_escape(semantic_review.get("version", ""))}</b><p>{_escape(semantic_review.get("rule", ""))}</p><ul>{review_rows}</ul><div class="overall-review"><span>Overall semantic verdict</span><div class="review-choices" role="group" aria-label="Choose overall semantic verdict"><button type="button" data-overall="pass">Pass</button><button type="button" data-overall="fail">Fail</button><button type="button" data-overall="uncertain">Uncertain</button></div></div><button type="button" class="copy-review">Copy review</button><span class="copy-status" role="status" aria-live="polite"></span><div class="refresh-panel" hidden role="dialog" aria-modal="true" aria-labelledby="refresh-title"><div><b id="refresh-title">Review copied</b><p>Refreshing this page in <span class="refresh-count">5</span> seconds…</p></div><div class="refresh-actions"><button type="button" class="refresh-now">Refresh now</button><button type="button" class="refresh-cancel">Cancel</button></div></div></div>' if review_rows else ''}
           {f'<p class="proof-limit"><b>Boundary:</b> {_escape(continuity_proof.get("does_not_prove", ""))}</p>' if proof_passed else ''}
           {f'<a class="proof-json" href="./continuity-proof.json">Inspect machine-readable proof →</a>' if proof_passed else ''}
@@ -259,6 +263,9 @@ def render(
     .proof-head h2 {{ margin:5px 0 0; font-size:24px }}
     .proof-status {{ padding:5px 9px; border:1px solid var(--line); font:800 11px var(--mono); color:var(--muted) }}
     .proof-status.passed {{ border-color:var(--green); color:var(--green) }}
+    .latest-result-bar {{ display:flex; align-items:center; gap:10px; justify-content:space-between; margin:14px 0 }}
+    .get-latest-result {{ min-height:44px; padding:0 14px; border:1px solid var(--accent); border-radius:4px; background:var(--paper); color:var(--ink); font:700 12px var(--mono); cursor:pointer }}
+    .latest-result-status {{ color:var(--muted); font:11px var(--mono); text-align:right }}
     .continuity-proof p {{ max-width:760px }}
     .proof-checks {{ display:grid; gap:7px; margin:18px 0; padding:0; list-style:none; font:12px/1.4 var(--mono) }}
     .proof-checks b {{ color:var(--green) }}
@@ -359,8 +366,59 @@ def render(
 const search=document.querySelector('#search');
 search.addEventListener('input',()=>{{const q=search.value.toLowerCase();document.querySelectorAll('.receipt').forEach(r=>r.hidden=!r.dataset.search.toLowerCase().includes(q))}});
 document.querySelectorAll('.receipt').forEach(r=>r.addEventListener('click',()=>r.setAttribute('aria-expanded',r.classList.contains('open'))));
-const review=document.querySelector('.semantic-review');
-if(review){{
+const proof=document.querySelector('.continuity-proof');
+const latestButton=document.querySelector('.get-latest-result');
+const latestStatus=document.querySelector('.latest-result-status');
+const applyLatestProof=data=>{{
+  const incoming=String(data.artifact_run_id||'');
+  const current=String(proof?.dataset.artifactRunId||'');
+  if(!incoming){{latestStatus.textContent='Latest proof has no run ID';return false;}}
+  if(incoming===current){{latestStatus.textContent='No newer result yet · run '+incoming;return false;}}
+  proof.dataset.artifactRunId=incoming;
+  latestStatus.textContent='Loaded run '+incoming;
+  const digest=String(data.context_digest||'');
+  const digestNode=proof.querySelector('.context-digest');
+  digestNode.textContent=digest?'context '+digest.slice(0,16)+'…':'';
+  const candidate=proof.querySelector('.model-candidate');
+  const candidateText=candidate.querySelector('p');
+  candidate.hidden=!data.candidate_result;
+  candidateText.textContent=String(data.candidate_result||'');
+  const reviewNode=proof.querySelector('.semantic-review');
+  if(reviewNode){{
+    reviewNode.dataset.contextDigest=digest;
+    reviewNode.dataset.workId=String(data.work_id||'');
+    reviewNode.dataset.provider=String(data.provider||'');
+    reviewNode.dataset.model=String(data.model||'');
+    reviewNode.dataset.reviewVersion=String(data.semantic_review?.version||'');
+    const criteria=Array.isArray(data.semantic_review?.criteria)?data.semantic_review.criteria:[];
+    const list=reviewNode.querySelector('ul');
+    list.replaceChildren(...criteria.map(item=>{{
+      const li=document.createElement('li');li.className='review-item';li.dataset.reviewId=String(item.id||'');
+      const q=document.createElement('span');q.className='review-question';q.textContent=String(item.question||'');
+      const choices=document.createElement('div');choices.className='review-choices';choices.setAttribute('role','group');choices.setAttribute('aria-label','Choose semantic review verdict');
+      for(const value of ['pass','fail','uncertain']){{
+        const b=document.createElement('button');b.type='button';b.dataset.choice=value;b.textContent=value[0].toUpperCase()+value.slice(1);choices.appendChild(b);
+      }}
+      li.append(q,choices);return li;
+    }}));
+    initializeReviewControls(reviewNode);
+  }}
+  return true;
+}};
+if(latestButton){{
+  latestButton.addEventListener('click',async()=>{{
+    latestButton.disabled=true;latestStatus.textContent='Checking…';
+    try{{
+      const response=await fetch('./continuity-proof.json?ts='+Date.now(),{{cache:'no-store'}});
+      if(!response.ok)throw new Error('HTTP '+response.status);
+      const data=await response.json();
+      applyLatestProof(data);
+    }}catch(error){{
+      latestStatus.textContent='Could not load latest result';
+    }}finally{{latestButton.disabled=false;}}
+  }});
+}}
+const initializeReviewControls=review=>{{
   const choices={{}}, items=[...review.querySelectorAll('.review-item')], overallButtons=[...review.querySelectorAll('[data-overall]')];
   const copyButton=review.querySelector('.copy-review'), status=review.querySelector('.copy-status');
   items.forEach(item=>{{
@@ -424,7 +482,9 @@ if(review){{
     }},1000);
   }});
   updateCopyState();
-}}
+}};
+const review=document.querySelector('.semantic-review');
+if(review)initializeReviewControls(review);
 
 const toggle=document.querySelector('#theme-toggle');
 const saved=()=>{{try{{return localStorage.getItem('wake-theme')}}catch{{return null}}}};
