@@ -182,11 +182,16 @@ def render(
         review_criteria = []
     review_rows = "".join(
         (
-            f'<li><span class="review-pending">PENDING</span>'
-            f'<span>{_escape(item.get("question", ""))}</span></li>'
+            f'<li class="review-item" data-review-id="{_escape(item.get("id", ""))}">'
+            f'<span class="review-question">{_escape(item.get("question", ""))}</span>'
+            '<div class="review-choices" role="group" aria-label="Choose semantic review verdict">'
+            '<button type="button" data-choice="pass">Pass</button>'
+            '<button type="button" data-choice="fail">Fail</button>'
+            '<button type="button" data-choice="uncertain">Uncertain</button>'
+            '</div></li>'
         )
         for item in review_criteria
-        if isinstance(item, dict)
+        if isinstance(item, dict) and item.get("id")
     )
     continuity_html = (
         f"""
@@ -202,7 +207,7 @@ def render(
           {f'<code>context {_escape(str(continuity_proof.get("context_digest", ""))[:16])}…</code>' if continuity_proof.get("context_digest") else ''}
           {f'<ul class="proof-checks">{proof_check_rows}</ul>' if proof_check_rows else ''}
           {f'<div class="model-candidate"><b>Candidate continuation</b><p>{_escape(continuity_proof.get("candidate_result", ""))}</p></div>' if continuity_proof.get("candidate_result") else ''}
-          {f'<div class="semantic-review"><b>Human semantic review · v{_escape(semantic_review.get("version", ""))}</b><p>{_escape(semantic_review.get("rule", ""))}</p><ul>{review_rows}</ul></div>' if review_rows else ''}
+          {f'<div class="semantic-review" data-review-version="{_escape(semantic_review.get("version", ""))}" data-context-digest="{_escape(str(continuity_proof.get("context_digest", "")))}" data-work-id="{_escape(continuity_proof.get("work_id", ""))}" data-provider="{_escape(continuity_proof.get("provider", ""))}" data-model="{_escape(continuity_proof.get("model", ""))}"><b>Human semantic review · v{_escape(semantic_review.get("version", ""))}</b><p>{_escape(semantic_review.get("rule", ""))}</p><ul>{review_rows}</ul><div class="overall-review"><span>Overall semantic verdict</span><div class="review-choices" role="group" aria-label="Choose overall semantic verdict"><button type="button" data-overall="pass">Pass</button><button type="button" data-overall="fail">Fail</button><button type="button" data-overall="uncertain">Uncertain</button></div></div><button type="button" class="copy-review" disabled>Complete all choices to copy review</button><span class="copy-status" role="status" aria-live="polite"></span></div>' if review_rows else ''}
           {f'<p class="proof-limit"><b>Boundary:</b> {_escape(continuity_proof.get("does_not_prove", ""))}</p>' if proof_passed else ''}
           {f'<a class="proof-json" href="./continuity-proof.json">Inspect machine-readable proof →</a>' if proof_passed else ''}
         </section>
@@ -262,9 +267,17 @@ def render(
     .model-candidate b {{ color:var(--accent); font:700 10px var(--mono); letter-spacing:.08em; text-transform:uppercase }}
     .semantic-review {{ margin:18px 0; padding:14px; border:1px solid var(--line); background:var(--surface) }}
     .semantic-review>b {{ color:var(--accent); font:700 10px var(--mono); letter-spacing:.08em; text-transform:uppercase }}
-    .semantic-review ul {{ display:grid; gap:9px; margin:12px 0 0; padding:0; list-style:none }}
-    .semantic-review li {{ display:grid; grid-template-columns:auto 1fr; gap:9px; align-items:start; font-size:13px }}
-    .review-pending {{ padding:2px 5px; border:1px solid var(--line); color:var(--muted); font:700 9px var(--mono) }}
+    .semantic-review ul {{ display:grid; gap:14px; margin:14px 0 0; padding:0; list-style:none }}
+    .review-item {{ display:grid; gap:9px; padding:12px 0; border-top:1px solid var(--line) }}
+    .review-question {{ font-size:14px; line-height:1.35 }}
+    .review-choices {{ display:grid; grid-template-columns:repeat(3,1fr); gap:6px }}
+    .review-choices button,.copy-review {{ min-height:44px; border:1px solid var(--line); border-radius:4px; background:var(--paper); color:var(--ink); font:700 12px var(--mono); cursor:pointer }}
+    .review-choices button.selected {{ border-color:var(--accent); background:var(--accent); color:var(--paper) }}
+    .overall-review {{ display:grid; gap:9px; margin-top:18px; padding-top:16px; border-top:1px solid var(--line) }}
+    .overall-review>span {{ font:700 12px var(--mono); text-transform:uppercase; letter-spacing:.05em }}
+    .copy-review {{ width:100%; margin-top:14px; background:var(--ink); color:var(--paper) }}
+    .copy-review:disabled {{ cursor:not-allowed; opacity:.45 }}
+    .copy-status {{ display:block; min-height:18px; margin-top:8px; color:var(--muted); font:11px var(--mono) }}
     .proof-json {{ color:var(--accent); font:700 12px var(--mono); text-decoration:none }}
     .toolbar {{ display:flex; gap:10px; align-items:center; justify-content:space-between; margin:0 0 18px }}
     h2 {{ margin:0; font-size:23px; letter-spacing:-.03em }}
@@ -339,6 +352,52 @@ def render(
 const search=document.querySelector('#search');
 search.addEventListener('input',()=>{{const q=search.value.toLowerCase();document.querySelectorAll('.receipt').forEach(r=>r.hidden=!r.dataset.search.toLowerCase().includes(q))}});
 document.querySelectorAll('.receipt').forEach(r=>r.addEventListener('click',()=>r.setAttribute('aria-expanded',r.classList.contains('open'))));
+const review=document.querySelector('.semantic-review');
+if(review){{
+  const choices={{}}, items=[...review.querySelectorAll('.review-item')], overallButtons=[...review.querySelectorAll('[data-overall]')];
+  const copyButton=review.querySelector('.copy-review'), status=review.querySelector('.copy-status');
+  const updateCopyState=()=>{{
+    const complete=items.every(item=>choices[item.dataset.reviewId]) && Boolean(choices.__overall);
+    copyButton.disabled=!complete;
+    copyButton.textContent=complete?'Copy review':'Complete all choices to copy review';
+  }};
+  review.querySelectorAll('.review-item [data-choice]').forEach(button=>button.addEventListener('click',()=>{{
+    const item=button.closest('.review-item'), id=item.dataset.reviewId;
+    choices[id]=button.dataset.choice;
+    item.querySelectorAll('[data-choice]').forEach(peer=>peer.classList.toggle('selected',peer===button));
+    updateCopyState();
+  }}));
+  overallButtons.forEach(button=>button.addEventListener('click',()=>{{
+    choices.__overall=button.dataset.overall;
+    overallButtons.forEach(peer=>peer.classList.toggle('selected',peer===button));
+    updateCopyState();
+  }}));
+  copyButton.addEventListener('click',async()=>{{
+    if(copyButton.disabled)return;
+    const lines=[
+      'SUDOFX_SEMANTIC_REVIEW v'+review.dataset.reviewVersion,
+      'context_digest='+review.dataset.contextDigest,
+      'work_id='+review.dataset.workId,
+      'provider='+review.dataset.provider,
+      'model='+review.dataset.model,
+      ...items.map(item=>item.dataset.reviewId+'='+choices[item.dataset.reviewId]),
+      'overall='+choices.__overall,
+    ];
+    const payload=lines.join('\n');
+    try{{
+      await navigator.clipboard.writeText(payload);
+    }}catch(error){{
+      const area=document.createElement('textarea');
+      area.value=payload;area.style.position='fixed';area.style.opacity='0';
+      document.body.appendChild(area);area.select();
+      document.execCommand('copy');area.remove();
+    }}
+    copyButton.textContent='Copied — paste into ChatGPT';
+    status.textContent='Review copied to clipboard. No authoritative state was changed.';
+  }});
+  updateCopyState();
+}}
+
 const toggle=document.querySelector('#theme-toggle');
 const saved=()=>{{try{{return localStorage.getItem('wake-theme')}}catch{{return null}}}};
 const sync=()=>{{const dark=document.documentElement.dataset.theme==='dark',manual=Boolean(saved());toggle.checked=dark;toggle.setAttribute('aria-label',dark?'Use light theme':'Use dark theme');toggle.closest('.theme-switch').title=manual?`Manual ${{dark?'dark':'light'}} theme`:`Following system ${{dark?'dark':'light'}} theme`}};
