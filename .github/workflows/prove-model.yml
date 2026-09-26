@@ -7,6 +7,15 @@ name: sudofx — continue
 # does not carry work IDs, model IDs, or long context between devices.
 
 on:
+  # Source changes advance the current bounded milestone automatically. The
+  # Shortcut remains a manual nudge, not a required part of ordinary progress.
+  push:
+    branches: [master]
+    paths:
+      - 'src/**'
+      - 'scripts/github_sudofx.py'
+      - 'scripts/gemini_provider.py'
+      - '.github/workflows/prove-model.yml'
   workflow_dispatch:
 
 permissions:
