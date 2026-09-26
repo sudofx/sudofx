@@ -144,11 +144,10 @@ json.dump({
         self.assertIn("Run operation", page)
         self.assertIn("wake-theme", page)
         self.assertIn("data-theme=dark", page)
-        # Green is the accepted toggle highlight. A drawn 24px glyph avoids font
-        # baselines, making its visible circle share the track's exact height.
+        # Green is the accepted toggle highlight. The switch remains the only
+        # visual indicator so no redundant glyph can drift out of alignment.
         self.assertIn("background:var(--green)", page)
-        self.assertIn("flex:0 0 24px; width:24px; height:24px", page)
-        self.assertIn("border:2px solid var(--green)", page)
+        self.assertNotIn("theme-icon", page)
         self.assertIn("width:1px; height:1px", page)
         # The theme control owns the header's upper-right grid area. This guards
         # against regrouping it with the tagline, which made it drop on phones.

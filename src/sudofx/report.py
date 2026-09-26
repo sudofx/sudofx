@@ -215,16 +215,12 @@ def render(kernel: Kernel, *, repository: str = "sudofx/sudofx") -> str:
        retaining its full touch target and respecting the phone's content inset. */
     .theme-switch {{ grid-area:theme; justify-self:end; display:flex; align-items:center; gap:8px; cursor:pointer; user-select:none }}
     .theme-switch input {{ position:absolute; width:1px; height:1px; margin:0; opacity:0; pointer-events:none }}
-    /* A font character cannot guarantee optical size or vertical centering:
-       its visible bounds still follow the font's baseline and internal metrics.
-       Draw the glyph instead, using the track's exact 24px outer geometry. */
-    .theme-icon {{ display:block; flex:0 0 24px; width:24px; height:24px }}
-    .theme-icon::before {{ content:""; display:block; width:24px; height:24px; border:2px solid var(--green);
-      border-radius:50%; background:linear-gradient(90deg,transparent 50%,var(--green) 50%) }}
+    /* The track is the complete visual control. A second theme glyph repeated
+       the same meaning and introduced an unnecessary alignment relationship. */
     .data-switch-track {{ width:42px; height:24px; padding:2px; border:1px solid var(--line); background:var(--surface); border-radius:20px }}
     .data-switch-track i {{ display:block; width:18px; height:18px; border-radius:50%; background:var(--muted); transition:transform .2s ease,background .2s ease }}
-    .theme-switch input:checked + .theme-icon + .data-switch-track i {{ transform:translateX(17px); background:var(--green) }}
-    .theme-switch input:focus-visible + .theme-icon + .data-switch-track {{ outline:3px solid var(--green); outline-offset:3px }}
+    .theme-switch input:checked + .data-switch-track i {{ transform:translateX(17px); background:var(--green) }}
+    .theme-switch input:focus-visible + .data-switch-track {{ outline:3px solid var(--green); outline-offset:3px }}
     @media(max-width:600px) {{ header {{ column-gap:16px; row-gap:24px }}
       .metrics {{ grid-template-columns:1fr }} .toolbar {{ align-items:flex-end }}
       .receipt {{ grid-template-columns:38px 76px 1fr }} .revision {{ grid-column:3 }} .receipt-detail {{ grid-column:1/-1 }} }}
@@ -233,7 +229,7 @@ def render(kernel: Kernel, *, repository: str = "sudofx/sudofx") -> str:
 <body><main>
   <header><div class="brand-block"><a class="brand" href="./" aria-label="sudofx home">sudo<i>fx</i></a>
     <a class="inspired" href="https://sudofx.github.io/wake/">Inspired by WAKE<b>✳︎</b></a></div>
-    <label class="theme-switch" title="Follow system theme"><input id="theme-toggle" type="checkbox" role="switch" aria-label="Use dark theme"><b class="theme-icon" aria-hidden="true"></b><span class="data-switch-track" aria-hidden="true"><i></i></span></label>
+    <label class="theme-switch" title="Follow system theme"><input id="theme-toggle" type="checkbox" role="switch" aria-label="Use dark theme"><span class="data-switch-track" aria-hidden="true"><i></i></span></label>
     <div class="tagline">Durable, accountable work across interchangeable intelligences.</div></header>
   <section class="hero"><div class="eyebrow">Verified durable record</div><h1>The intelligence can disappear. The work remains.</h1></section>
   <section class="metrics" aria-label="Record summary">
