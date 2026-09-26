@@ -28,11 +28,11 @@ on:
       action:
         description: Verify only, or run one governed operation
         type: choice
-        options: [verify, prove-work, prove-model, work-create, work-advance, work-complete, set, delete]
+        options: [verify, prove-work, prove-model, export-handoff, work-create, work-advance, work-complete, set, delete]
         default: verify
         required: true
       key:
-        description: Work ID (for prove-work/prove-model/lifecycle) or state key; blank only for verify
+        description: Work ID (for prove-work/prove-model/export-handoff/lifecycle) or state key; blank only for verify
         type: string
         required: false
       value:
@@ -83,7 +83,7 @@ jobs:
       - name: Apply governed operation
         # Only a manual dispatch enters the mutation path. The adapter restores
         # and verifies sudofx-state, appends one receipt, checkpoints, and renders.
-        if: github.event_name == 'workflow_dispatch' && inputs.action != 'verify' && inputs.action != 'prove-work' && inputs.action != 'prove-model'
+        if: github.event_name == 'workflow_dispatch' && inputs.action != 'verify' && inputs.action != 'prove-work' && inputs.action != 'prove-model' && inputs.action != 'export-handoff'
         env:
           ACTION: ${{ inputs.action }}
           KEY: ${{ inputs.key }}
@@ -107,6 +107,13 @@ jobs:
           GEMINI_MODEL: ${{ inputs.model }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: PYTHONPATH=src python scripts/github_sudofx.py --prove-model "$KEY"
+      - name: Export handoff packet
+        # A handoff export is a derived, read-only view of one governed work item.
+        # It never becomes database authority and never mutates the state branch.
+        if: github.event_name == 'workflow_dispatch' && inputs.action == 'export-handoff'
+        env:
+          KEY: ${{ inputs.key }}
+        run: PYTHONPATH=src python scripts/github_sudofx.py --export-handoff "$KEY"
       - name: Render verified record
         # Code pushes and explicit phone-triggered verify runs are read-only
         # consumers of state. Publication occurs only after the test step above
