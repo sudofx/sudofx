@@ -131,6 +131,7 @@ def render(
     *,
     repository: str = "sudofx/sudofx",
     verification: dict[str, str] | None = None,
+    continuity_proof: dict[str, object] | None = None,
 ) -> str:
     """
     Produce one complete HTML document from a verified kernel snapshot.
@@ -159,6 +160,34 @@ def render(
             <code>{_escape(verified_commit[:12] if verified_commit else "local / unknown commit")}</code>
           </div>
           {f'<a class="action" href="{_escape(verified_run)}">Open Action run ↗</a>' if verified_run else ''}
+        </section>
+        """
+    )
+
+    continuity_proof = continuity_proof or {}
+    proof_passed = continuity_proof.get("passed") is True
+    proof_checks = continuity_proof.get("checks", {})
+    if not isinstance(proof_checks, dict):
+        proof_checks = {}
+    proof_check_rows = "".join(
+        f"<li><b>{'PASS' if value is True else 'FAIL'}</b> {_escape(str(name).replace('_', ' '))}</li>"
+        for name, value in proof_checks.items()
+        if name != "production_state_mutated"
+    )
+    continuity_html = (
+        f"""
+        <section class="continuity-proof" aria-label="Continuity proof">
+          <div class="proof-head">
+            <div>
+              <span class="eyebrow">Disposable continuity proof</span>
+              <h2>{'Passed' if proof_passed else 'Not run'}</h2>
+            </div>
+            <span class="proof-status {'passed' if proof_passed else ''}">{'PASS' if proof_passed else 'N/A'}</span>
+          </div>
+          <p>{_escape(continuity_proof.get('proves', 'No continuity proof was supplied for this projection.'))}</p>
+          {f'<ul class="proof-checks">{proof_check_rows}</ul>' if proof_check_rows else ''}
+          {f'<p class="proof-limit"><b>Boundary:</b> {_escape(continuity_proof.get("does_not_prove", ""))}</p>' if proof_passed else ''}
+          {f'<a class="proof-json" href="./continuity-proof.json">Inspect machine-readable proof →</a>' if proof_passed else ''}
         </section>
         """
     )
@@ -202,6 +231,17 @@ def render(
     .verification {{ display:flex; align-items:center; justify-content:space-between; gap:20px; margin:0 0 44px;
       padding:18px 20px; border:1px solid var(--line); border-left:4px solid var(--green); background:var(--surface) }}
     .verification h2 {{ margin:5px 0 8px; font-size:18px }}
+
+    .continuity-proof {{ margin:0 0 44px; padding:20px; border:1px solid var(--line); background:var(--surface) }}
+    .proof-head {{ display:flex; align-items:flex-start; justify-content:space-between; gap:18px }}
+    .proof-head h2 {{ margin:5px 0 0; font-size:24px }}
+    .proof-status {{ padding:5px 9px; border:1px solid var(--line); font:800 11px var(--mono); color:var(--muted) }}
+    .proof-status.passed {{ border-color:var(--green); color:var(--green) }}
+    .continuity-proof p {{ max-width:760px }}
+    .proof-checks {{ display:grid; gap:7px; margin:18px 0; padding:0; list-style:none; font:12px/1.4 var(--mono) }}
+    .proof-checks b {{ color:var(--green) }}
+    .proof-limit {{ color:var(--muted); font-size:13px }}
+    .proof-json {{ color:var(--accent); font:700 12px var(--mono); text-decoration:none }}
     .toolbar {{ display:flex; gap:10px; align-items:center; justify-content:space-between; margin:0 0 18px }}
     h2 {{ margin:0; font-size:23px; letter-spacing:-.03em }}
     .action {{ display:inline-flex; align-items:center; min-height:44px; padding:0 16px; color:var(--paper); background:var(--ink); text-decoration:none; font:700 13px var(--mono); border-radius:2px }}
@@ -262,6 +302,7 @@ def render(
     <div class="metric"><span class="eyebrow">Rejected</span><strong>{rejected}</strong></div>
   </section>
   {verification_html}
+  {continuity_html}
   <section><div class="toolbar"><div><span class="eyebrow">{open_work} open</span><h2>Durable work</h2></div><a class="action" href="{action_url}">Create or advance ↗</a></div>
     <div class="work-grid">{_work_cards(context.state)}</div></section>
   <section><div class="toolbar"><h2>General state</h2><a class="action" href="{action_url}">Run operation ↗</a></div>
@@ -288,6 +329,7 @@ def export_site(
     *,
     repository: str = "sudofx/sudofx",
     verification: dict[str, str] | None = None,
+    continuity_proof: dict[str, object] | None = None,
 ) -> Path:
     """
     Write the derived Pages artifact and disable Jekyll processing.
@@ -299,8 +341,20 @@ def export_site(
     destination.mkdir(parents=True, exist_ok=True)
     index = destination / "index.html"
     index.write_text(
-        render(kernel, repository=repository, verification=verification),
+        render(
+            kernel,
+            repository=repository,
+            verification=verification,
+            continuity_proof=continuity_proof,
+        ),
         encoding="utf-8",
     )
+    if continuity_proof is not None:
+        # This JSON is a derived proof artifact for inspection. It contains only
+        # synthetic continuity-fixture evidence and is never read back as state.
+        (destination / "continuity-proof.json").write_text(
+            json.dumps(continuity_proof, indent=2, sort_keys=True),
+            encoding="utf-8",
+        )
     (destination / ".nojekyll").write_text("", encoding="utf-8")
     return index

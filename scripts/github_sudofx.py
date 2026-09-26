@@ -40,6 +40,7 @@ from pathlib import Path
 
 from sudofx import Kernel, Operation, Proposal
 from sudofx.record import Record
+from sudofx.continuity import run_continuity_proof
 from sudofx.report import export_site
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -187,7 +188,17 @@ def main() -> int:
             else ""
         ),
     }
-    export_site(kernel, ROOT / "site", repository=repository, verification=verification)
+    # Run the process-boundary proof against an isolated temporary record on
+    # every publication. Failure blocks Pages rather than publishing a stale
+    # green continuity claim. The proof result is derived evidence only.
+    continuity_proof = run_continuity_proof()
+    export_site(
+        kernel,
+        ROOT / "site",
+        repository=repository,
+        verification=verification,
+        continuity_proof=continuity_proof,
+    )
     return 0
 
 

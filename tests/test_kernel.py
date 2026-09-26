@@ -16,6 +16,7 @@ from sudofx import (
     ProviderError,
 )
 from sudofx.record import IntegrityError, Record
+from sudofx.continuity import run_continuity_proof
 from sudofx.report import render
 
 # These tests protect durable guarantees rather than implementation shape.
@@ -57,6 +58,21 @@ class KernelTests(unittest.TestCase):
 
     def tearDown(self) -> None:
         self.tempdir.cleanup()
+
+    def test_deterministic_continuity_proof_crosses_fresh_process_boundary(self) -> None:
+        """
+        The publishable proof must survive kernel/provider replacement and replay.
+
+        This is the executable v0.1 infrastructure claim. It intentionally does
+        not claim that a real model understands human context well.
+        """
+        proof = run_continuity_proof()
+        self.assertTrue(proof["passed"])
+        self.assertEqual(proof["receipt"]["status"], "accepted")
+        self.assertTrue(proof["checks"]["provider_is_fresh_external_process"])
+        self.assertTrue(proof["checks"]["unrelated_state_remained_outside_provider_context"])
+        self.assertTrue(proof["checks"]["accepted_result_survived_replay"])
+        self.assertFalse(proof["checks"]["production_state_mutated"])
 
     def test_kernel_depends_on_storage_contract_not_sqlite_connection(self) -> None:
         """
@@ -186,8 +202,20 @@ json.dump({
                 "commit": "0123456789abcdef",
                 "run_url": "https://github.com/sudofx/sudofx/actions/runs/123",
             },
+            continuity_proof={
+                "passed": True,
+                "proves": "Fresh process continued bounded work.",
+                "does_not_prove": "Real model semantic reconstruction.",
+                "checks": {
+                    "provider_is_fresh_external_process": True,
+                    "production_state_mutated": False,
+                },
+            },
         )
         self.assertIn("Tests passed before this page was published.", page)
+        self.assertIn("Disposable continuity proof", page)
+        self.assertIn("Fresh process continued bounded work.", page)
+        self.assertIn("continuity-proof.json", page)
         self.assertIn("0123456789ab", page)
         self.assertIn("actions/runs/123", page)
         self.assertIn("objective", page)
