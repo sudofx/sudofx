@@ -1,0 +1,65 @@
+name: sudofx — record semantic review
+
+# ONE-SHOT HUMAN REVIEW CHECKPOINT
+#
+# This workflow exists only to carry the already-completed human review through
+# the ordinary governed mutation path into the authoritative SQLite record.
+# After the checkpoint is verified, the workflow will be removed from master.
+#
+# The review is tied to the exact model artifact by context digest, source event
+# head, model, candidate workflow run, and source commit. The reviewer identity
+# is intentionally reduced to a non-identifying role.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: sudofx-durable-state
+  cancel-in-progress: false
+
+jobs:
+  record:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Verify the kernel
+        run: PYTHONPATH=src python -m unittest discover -s tests -v
+      - name: Record governed human semantic review
+        run: >-
+          PYTHONPATH=src python scripts/github_sudofx.py
+          --action set
+          --key 'semantic-review:e9e95a8e440d55398297bf26a495478286d06d2020994dd7f77542a89ee201b5'
+          --value '{"review_version":1,"context_digest":"e9e95a8e440d55398297bf26a495478286d06d2020994dd7f77542a89ee201b5","work_id":"first-workflow","provider":"Google Gemini","model":"gemini-3.5-flash-lite","candidate_run_id":36273054414,"candidate_commit":"b7af68aa38aa3a955d046338d5158e0ac4ec6f41","source_event_head":"bd7d94317f92e2744d9121b9824fcba6e82dd11e3de18115c039eb027079122a","criteria":{"objective_fidelity":"pass","history_fidelity":"pass","frontier_fidelity":"pass","constraint_fidelity":"pass","unsupported_claims":"pass","actionability":"pass"},"overall":"pass","reviewer_role":"human_operator"}'
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+      - name: Upload verified record interface
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: record
+    runs-on: ubuntu-latest
+    concurrency:
+      group: pages
+      cancel-in-progress: true
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Publish verified record
+        id: deployment
+        uses: actions/deploy-pages@v4
