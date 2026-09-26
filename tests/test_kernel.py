@@ -81,6 +81,7 @@ class KernelTests(unittest.TestCase):
         self.assertIn("Run operation", page)
         self.assertIn("wake-theme", page)
         self.assertIn("data-theme=dark", page)
+        self.assertIn("width:1px; height:1px", page)
         self.assertIn('class="brand" href="./"', page)
         self.assertIn('href="https://sudofx.github.io/wake/">Inspired by WAKE', page)
 

@@ -170,7 +170,7 @@ def render(kernel: Kernel, *, repository: str = "sudofx/sudofx") -> str:
     .receipt.open .receipt-detail {{ display:grid }}
     footer {{ margin-top:64px; padding-top:22px; border-top:1px solid var(--line); color:var(--muted); font:12px var(--mono) }}
     .theme-switch {{ display:flex; align-items:center; gap:8px; cursor:pointer; user-select:none }}
-    .theme-switch input {{ position:absolute; opacity:0; pointer-events:none }}
+    .theme-switch input {{ position:absolute; width:1px; height:1px; margin:0; opacity:0; pointer-events:none }}
     .theme-icon {{ width:18px; color:var(--accent); font:16px/1 var(--mono) }}
     .data-switch-track {{ width:42px; height:24px; padding:2px; border:1px solid var(--line); background:var(--surface); border-radius:20px }}
     .data-switch-track i {{ display:block; width:18px; height:18px; border-radius:50%; background:var(--muted); transition:transform .2s ease,background .2s ease }}
