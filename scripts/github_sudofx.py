@@ -43,6 +43,7 @@ from sudofx import Kernel, Operation, Proposal
 from sudofx.record import Record
 from sudofx.continuity import run_continuity_proof, run_model_continuity_probe, run_work_continuity_probe
 from sudofx.report import export_site
+from sudofx.handoff import export_handoff_packet
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA = ROOT / "data" / "sudofx.sqlite"
@@ -138,6 +139,7 @@ def main() -> int:
     parser.add_argument("--publish-only", action="store_true")
     parser.add_argument("--prove-work")
     parser.add_argument("--prove-model")
+    parser.add_argument("--export-handoff")
     parser.add_argument(
         "--action", choices=("set", "delete", "work-create", "work-advance", "work-complete")
     )
@@ -150,7 +152,7 @@ def main() -> int:
     # before SQLite can create the empty authoritative record.
     DATA.parent.mkdir(parents=True, exist_ok=True)
     kernel = Kernel(Record(DATA))
-    if not args.publish_only and not args.prove_work and not args.prove_model:
+    if not args.publish_only and not args.prove_work and not args.prove_model and not args.export_handoff:
         if not args.action or not args.key:
             parser.error("--action and --key are required for a mutation")
         context = kernel.context()
@@ -196,12 +198,16 @@ def main() -> int:
     # deterministic fixture so every build still checks the mechanism.
     prove_work_id = args.prove_work.strip() if args.prove_work is not None else None
     prove_model_id = args.prove_model.strip() if args.prove_model is not None else None
+    handoff_id = args.export_handoff.strip() if args.export_handoff is not None else None
     if args.prove_work is not None and not prove_work_id:
         parser.error("--prove-work requires a non-empty work ID")
     if args.prove_model is not None and not prove_model_id:
         parser.error("--prove-model requires a non-empty work ID")
-    if prove_work_id and prove_model_id:
-        parser.error("--prove-work and --prove-model are mutually exclusive")
+    if args.export_handoff is not None and not handoff_id:
+        parser.error("--export-handoff requires a non-empty work ID")
+    selected_read_only = [value for value in (prove_work_id, prove_model_id, handoff_id) if value]
+    if len(selected_read_only) > 1:
+        parser.error("--prove-work, --prove-model, and --export-handoff are mutually exclusive")
 
     if prove_model_id:
         model = os.environ.get("GEMINI_MODEL", "").strip()
@@ -231,6 +237,9 @@ def main() -> int:
         verification=verification,
         continuity_proof=continuity_proof,
     )
+    if handoff_id:
+        json_path, prompt_path = export_handoff_packet(kernel, ROOT / "site", handoff_id)
+        print(json.dumps({"handoff_json": str(json_path), "handoff_prompt": str(prompt_path)}))
     return 0
 
 
