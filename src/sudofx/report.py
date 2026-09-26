@@ -383,7 +383,7 @@ if(review){{
       ...items.map(item=>item.dataset.reviewId+'='+choices[item.dataset.reviewId]),
       'overall='+choices.__overall,
     ];
-    const payload=lines.join('\n');
+    const payload=lines.join('\\n');
     try{{
       await navigator.clipboard.writeText(payload);
     }}catch(error){{
