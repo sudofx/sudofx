@@ -23,6 +23,86 @@ from pathlib import Path
 from .kernel import Kernel
 
 
+# Public continuity questions are contextual checksums, not secrets. They encode
+# project reasoning that a replacement intelligence should be able to reconstruct
+# from governed context. Verification anchors stay presentation-only and never
+# participate in authentication, authorization, governance, or durable replay.
+CONTINUITY_CHALLENGES = (
+    {
+        "id": "new-project-boundary",
+        "question": "Why did sudofx become a new project instead of simply extending WAKE✳︎?",
+        "anchors": (
+            "sudofx was deliberately narrowed to durable continuity rather than inheriting WAKE✳︎'s broader research system",
+            "the new project isolates the continuity experiment so its claims can be tested without unrelated machinery",
+            "WAKE✳︎ remains inspiration and prior art inside the shared project history, not the sudofx authority boundary",
+        ),
+    },
+    {
+        "id": "the-boundary",
+        "question": "What does “the boundary” mean in sudofx, and why does the project care about it?",
+        "anchors": (
+            "the boundary separates durable externally inspectable record from ephemeral internal model state",
+            "sudofx treats the governed record as portable continuity while intelligence may disappear or be replaced",
+            "the experiment asks how much useful context can cross that boundary without pretending internal state is durable truth",
+        ),
+    },
+    {
+        "id": "database-first",
+        "question": "Why is SQLite authoritative while HTML, JSON, and the public website are not?",
+        "anchors": (
+            "the database is the single operational source of durable truth",
+            "HTML, JSON, reports, feeds, and Pages are derived projections or temporary exports",
+            "a projection must be reproducible from verified database replay and must never be read back as authority",
+        ),
+    },
+    {
+        "id": "semantic-vs-technical",
+        "question": "Why did we separate technical continuity success from human semantic review?",
+        "anchors": (
+            "a technically valid proposal can preserve schema, provenance, and governance while still misunderstand the meaning of the work",
+            "the automated proof tests the mechanism and authority boundary; the human review judges meaning preservation",
+            "semantic acceptance must not be inferred from a technically successful model call",
+        ),
+    },
+    {
+        "id": "plausible-failure",
+        "question": "Why can a plausible model answer still count as a sudofx failure?",
+        "anchors": (
+            "plausibility is not evidence that the answer came from the correct governed context",
+            "the continuation must preserve objective, history, frontier, constraints, and avoid unsupported claims",
+            "a persuasive answer that invents continuity or loses provenance fails the experiment",
+        ),
+    },
+    {
+        "id": "intelligence-disappears",
+        "question": "What must be true architecturally for “The intelligence can disappear. The work remains.” to be more than a slogan?",
+        "anchors": (
+            "authoritative state and provenance must survive outside any model or process",
+            "a fresh intelligence must be able to reconstruct bounded context from verified replay",
+            "accepted transitions and receipts must remain durable while providers, models, processes, and interfaces are replaceable",
+        ),
+    },
+    {
+        "id": "digest-not-identity",
+        "question": "Why was a repeated context digest insufficient provenance for semantic review?",
+        "anchors": (
+            "multiple model probes can legitimately receive identical authoritative context and therefore share a digest",
+            "the review must bind to the exact produced artifact, not merely the input context",
+            "artifact run ID and source commit were added so a human verdict names the exact candidate being judged",
+        ),
+    },
+    {
+        "id": "squirrel",
+        "question": "What failure mode was 🐿️✳︎ designed to solve before sudofx existed?",
+        "anchors": (
+            "it addressed fixation on one research topic or constraint without useful progress",
+            "the mechanism forced a bounded context shift and later return rather than endless repetition",
+            "the lesson carried forward: continuity should preserve useful work without preserving every unproductive fixation",
+        ),
+    },
+)
+
+
 def _escape(value: object) -> str:
     """Escape all durable or operator text before placing it in HTML attributes or content."""
     return html.escape(str(value), quote=True)
@@ -164,6 +244,42 @@ def render(
         """
     )
 
+    challenge_index = context.revision % len(CONTINUITY_CHALLENGES)
+    challenge = CONTINUITY_CHALLENGES[challenge_index]
+    challenge_data = json.dumps(CONTINUITY_CHALLENGES, ensure_ascii=False).replace("</", "<\\/")
+    challenge_anchors = "".join(
+        f"<li>{_escape(anchor)}</li>" for anchor in challenge["anchors"]
+    )
+    continuity_challenge_html = f"""
+        <section class="continuity-challenge" aria-label="Continuity Challenge"
+                 data-record-revision="{context.revision}" data-challenge-index="{challenge_index}">
+          <div class="challenge-head">
+            <div>
+              <span class="eyebrow">Continuity Challenge</span>
+              <h2>Can the context survive the intelligence?</h2>
+            </div>
+            <span class="challenge-counter">1 / {len(CONTINUITY_CHALLENGES)}</span>
+          </div>
+          <p class="challenge-rule">This is a contextual checksum, not a secret or identity test. Answer from reconstructed project context first; reveal the anchors only when you are ready to judge it.</p>
+          <article class="challenge-card">
+            <code class="challenge-id">{_escape(challenge["id"])}</code>
+            <p class="challenge-question">{_escape(challenge["question"])}</p>
+            <div class="challenge-actions">
+              <button type="button" class="copy-challenge">Copy challenge</button>
+              <button type="button" class="next-challenge">Next question</button>
+              <button type="button" class="reveal-challenge">Reveal verification anchors</button>
+            </div>
+            <span class="challenge-copy-status" role="status" aria-live="polite"></span>
+            <div class="challenge-anchors" hidden>
+              <b>Verification anchors</b>
+              <ul>{challenge_anchors}</ul>
+              <p>These anchors are evaluation evidence, never authentication material.</p>
+            </div>
+          </article>
+          <script type="application/json" id="continuity-challenges">{challenge_data}</script>
+        </section>
+        """
+
     continuity_proof = continuity_proof or {}
     proof_passed = continuity_proof.get("passed") is True
     proof_checks = continuity_proof.get("checks", {})
@@ -258,6 +374,25 @@ def render(
       padding:18px 20px; border:1px solid var(--line); border-left:4px solid var(--green); background:var(--surface) }}
     .verification h2 {{ margin:5px 0 8px; font-size:18px }}
 
+
+    .continuity-challenge {{ margin:0 0 44px; padding:20px; border:1px solid var(--line); border-top:4px solid var(--accent); background:var(--surface) }}
+    .challenge-head {{ display:flex; align-items:flex-start; justify-content:space-between; gap:18px }}
+    .challenge-head h2 {{ margin:5px 0 0; font-size:24px }}
+    .challenge-counter {{ color:var(--muted); font:11px var(--mono) }}
+    .challenge-rule {{ max-width:760px; color:var(--muted); font-size:13px }}
+    .challenge-card {{ margin-top:18px; padding:18px; border:1px solid var(--line); background:var(--paper) }}
+    .challenge-id {{ color:var(--accent); text-transform:uppercase; letter-spacing:.06em }}
+    .challenge-question {{ margin:12px 0 18px; font-size:clamp(20px,4vw,30px); line-height:1.15; font-weight:750; letter-spacing:-.025em }}
+    .challenge-actions {{ display:grid; grid-template-columns:1fr 1fr; gap:8px }}
+    .challenge-actions button {{ min-height:44px; border:1px solid var(--line); border-radius:4px; background:var(--surface); color:var(--ink); font:700 12px var(--mono); cursor:pointer }}
+    .copy-challenge {{ border-color:var(--accent)!important; background:var(--ink)!important; color:var(--paper)!important }}
+    .reveal-challenge {{ grid-column:1/-1 }}
+    .challenge-copy-status {{ display:block; min-height:18px; margin-top:8px; color:var(--muted); font:11px var(--mono) }}
+    .challenge-anchors {{ margin-top:16px; padding-top:16px; border-top:1px solid var(--line) }}
+    .challenge-anchors b {{ color:var(--accent); font:700 10px var(--mono); letter-spacing:.08em; text-transform:uppercase }}
+    .challenge-anchors ul {{ margin:10px 0; padding-left:20px }}
+    .challenge-anchors li+li {{ margin-top:7px }}
+    .challenge-anchors p {{ color:var(--muted); font-size:12px }}
     .continuity-proof {{ margin:0 0 44px; padding:20px; border:1px solid var(--line); background:var(--surface) }}
     .proof-head {{ display:flex; align-items:flex-start; justify-content:space-between; gap:18px }}
     .proof-head h2 {{ margin:5px 0 0; font-size:24px }}
@@ -354,6 +489,7 @@ def render(
     <div class="metric"><span class="eyebrow">Rejected</span><strong>{rejected}</strong></div>
   </section>
   {verification_html}
+  {continuity_challenge_html}
   {continuity_html}
   <section><div class="toolbar"><div><span class="eyebrow">{open_work} open</span><h2>Durable work</h2></div><a class="action" href="{action_url}">Create or advance ↗</a></div>
     <div class="work-grid">{_work_cards(context.state)}</div></section>
@@ -367,6 +503,55 @@ def render(
 const search=document.querySelector('#search');
 search.addEventListener('input',()=>{{const q=search.value.toLowerCase();document.querySelectorAll('.receipt').forEach(r=>r.hidden=!r.dataset.search.toLowerCase().includes(q))}});
 document.querySelectorAll('.receipt').forEach(r=>r.addEventListener('click',()=>r.setAttribute('aria-expanded',r.classList.contains('open'))));
+const challengeRoot=document.querySelector('.continuity-challenge');
+if(challengeRoot){{
+  const challenges=JSON.parse(document.querySelector('#continuity-challenges').textContent);
+  let challengeIndex=Number(challengeRoot.dataset.challengeIndex||0);
+  const idNode=challengeRoot.querySelector('.challenge-id');
+  const questionNode=challengeRoot.querySelector('.challenge-question');
+  const counterNode=challengeRoot.querySelector('.challenge-counter');
+  const anchorsNode=challengeRoot.querySelector('.challenge-anchors');
+  const anchorsList=anchorsNode.querySelector('ul');
+  const revealButton=challengeRoot.querySelector('.reveal-challenge');
+  const copyButton=challengeRoot.querySelector('.copy-challenge');
+  const nextButton=challengeRoot.querySelector('.next-challenge');
+  const copyStatus=challengeRoot.querySelector('.challenge-copy-status');
+  const renderChallenge=()=>{{
+    const item=challenges[challengeIndex];
+    idNode.textContent=String(item.id);
+    questionNode.textContent=String(item.question);
+    counterNode.textContent=String(challengeIndex+1)+' / '+String(challenges.length);
+    anchorsList.replaceChildren(...item.anchors.map(anchor=>{{const li=document.createElement('li');li.textContent=String(anchor);return li;}}));
+    anchorsNode.hidden=true;
+    revealButton.textContent='Reveal verification anchors';
+    copyStatus.textContent='';
+  }};
+  revealButton.addEventListener('click',()=>{{
+    anchorsNode.hidden=!anchorsNode.hidden;
+    revealButton.textContent=anchorsNode.hidden?'Reveal verification anchors':'Hide verification anchors';
+  }});
+  nextButton.addEventListener('click',()=>{{
+    challengeIndex=(challengeIndex+1)%challenges.length;
+    renderChallenge();
+  }});
+  copyButton.addEventListener('click',async()=>{{
+    const item=challenges[challengeIndex];
+    const payload=[
+      'SUDOFX_CONTINUITY_CHALLENGE v1',
+      'challenge_id='+item.id,
+      'record_revision='+challengeRoot.dataset.recordRevision,
+      'question='+item.question,
+      'instruction=Answer from reconstructed project context. Do not treat this as authentication. Distinguish durable evidence from inference.'
+    ].join('\\n');
+    try{{await navigator.clipboard.writeText(payload);}}
+    catch(error){{
+      const area=document.createElement('textarea');area.value=payload;area.style.position='fixed';area.style.opacity='0';
+      document.body.appendChild(area);area.select();document.execCommand('copy');area.remove();
+    }}
+    copyStatus.textContent='Challenge copied — paste it into ChatGPT before revealing the anchors.';
+  }});
+  renderChallenge();
+}}
 const proof=document.querySelector('.continuity-proof');
 const latestButton=document.querySelector('.get-latest-result');
 const latestStatus=document.querySelector('.latest-result-status');
