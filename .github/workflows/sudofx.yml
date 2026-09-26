@@ -28,8 +28,8 @@ on:
       action:
         description: Verify only, or run one governed operation
         type: choice
-        options: [verify, prove-work, prove-model, export-handoff, work-create, work-advance, work-complete, set, delete]
-        default: verify
+        options: [auto, verify, prove-work, prove-model, export-handoff, work-create, work-advance, work-complete, set, delete]
+        default: auto
         required: true
       key:
         description: Work ID (for prove-work/prove-model/export-handoff/lifecycle) or state key; blank only for verify
@@ -80,10 +80,15 @@ jobs:
         # Tests run before any stateful action. A broken implementation must not
         # be allowed to append history merely because the workflow was dispatched.
         run: PYTHONPATH=src python -m unittest discover -s tests -v
+      - name: Continue current milestone automatically
+        # Observer mode: one stable command handles the next safe milestone step.
+        # The operator should not have to carry work IDs or long context between devices.
+        if: github.event_name == 'workflow_dispatch' && inputs.action == 'auto'
+        run: PYTHONPATH=src python scripts/github_sudofx.py --auto
       - name: Apply governed operation
         # Only a manual dispatch enters the mutation path. The adapter restores
         # and verifies sudofx-state, appends one receipt, checkpoints, and renders.
-        if: github.event_name == 'workflow_dispatch' && inputs.action != 'verify' && inputs.action != 'prove-work' && inputs.action != 'prove-model' && inputs.action != 'export-handoff'
+        if: github.event_name == 'workflow_dispatch' && inputs.action != 'auto' && inputs.action != 'verify' && inputs.action != 'prove-work' && inputs.action != 'prove-model' && inputs.action != 'export-handoff'
         env:
           ACTION: ${{ inputs.action }}
           KEY: ${{ inputs.key }}
