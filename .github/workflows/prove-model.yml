@@ -1,0 +1,57 @@
+name: sudofx — continue
+
+# Stable one-tap device entry point.
+#
+# Existing iPhone/iPad/Mac Shortcuts dispatch this workflow with no parameters.
+# It intentionally delegates operator intent to sudofx observer mode so the human
+# does not carry work IDs, model IDs, or long context between devices.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: sudofx-durable-state
+  cancel-in-progress: false
+
+jobs:
+  continue:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Verify the kernel
+        run: PYTHONPATH=src python -m unittest discover -s tests -v
+      - name: Continue current milestone
+        run: PYTHONPATH=src python scripts/github_sudofx.py --auto
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+      - name: Upload observer interface
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: continue
+    runs-on: ubuntu-latest
+    concurrency:
+      group: pages
+      cancel-in-progress: true
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Publish interface
+        id: deployment
+        uses: actions/deploy-pages@v4
