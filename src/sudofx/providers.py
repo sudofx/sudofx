@@ -18,15 +18,120 @@ facts; no instance retains a conversation or private scratch state.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterable
+import json
+import subprocess
+from collections.abc import Callable, Iterable, Sequence
 from typing import Protocol
 
 from .models import Context, Operation, Proposal
 
 
+class ProviderError(RuntimeError):
+    """
+    Report failure before a valid proposal crosses into the kernel.
+
+    Provider failure is not governed rejection: there is no complete proposal
+    to evaluate or preserve as a receipt. Callers may retry after inspecting the
+    external process, but must not invent a durable proposal on its behalf.
+    """
+
+
+def _proposal_from_json(raw: str) -> Proposal:
+    """
+    Convert provider JSON into the narrow, provider-neutral proposal contract.
+
+    This parser validates transport shape, not permission. An operation can be
+    well-formed here and still be rejected by Governance for staleness, an
+    unsupported action, lifecycle state, or another deterministic rule.
+    """
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as error:
+        raise ProviderError(f"provider returned invalid JSON: {error.msg}") from error
+    if not isinstance(data, dict):
+        raise ProviderError("provider response must be a JSON object")
+
+    proposal_id = data.get("proposal_id")
+    revision = data.get("based_on_revision")
+    operations = data.get("operations")
+    rationale = data.get("rationale", "")
+    if not isinstance(proposal_id, str):
+        raise ProviderError("proposal_id must be a string")
+    if not isinstance(revision, int) or isinstance(revision, bool):
+        raise ProviderError("based_on_revision must be an integer")
+    if not isinstance(operations, list):
+        raise ProviderError("operations must be a JSON array")
+    if not isinstance(rationale, str):
+        raise ProviderError("rationale must be a string")
+
+    parsed: list[Operation] = []
+    for index, operation in enumerate(operations):
+        if not isinstance(operation, dict):
+            raise ProviderError(f"operation {index} must be a JSON object")
+        action = operation.get("action")
+        key = operation.get("key")
+        if not isinstance(action, str) or not isinstance(key, str):
+            raise ProviderError(f"operation {index} requires string action and key")
+        # Runtime input cannot be trusted merely because Operation's annotation
+        # is a Literal. Governance performs the authoritative action check.
+        parsed.append(Operation(action, key, operation.get("value")))  # type: ignore[arg-type]
+    return Proposal(proposal_id, revision, tuple(parsed), rationale)
+
+
 class Intelligence(Protocol):
     """Structural contract implemented by every disposable provider adapter."""
     def propose(self, context: Context) -> Proposal: ...
+
+
+class CommandIntelligence:
+    """
+    Run one disposable external intelligence through a JSON process boundary.
+
+    The command receives exactly one Context document on standard input and
+    must return exactly one Proposal document on standard output. It receives
+    no Record, Kernel, governance object, or mutation callback. ``shell=False``
+    is intentional: executable identity and arguments remain explicit rather
+    than becoming a second command language interpreted by a shell.
+
+    A timeout, nonzero exit, undecodable output, or malformed proposal raises
+    ProviderError before Kernel.submit. Standard error is diagnostic only and
+    is never copied into authoritative state or mistaken for rationale.
+    """
+
+    def __init__(self, command: Sequence[str], *, timeout_seconds: float = 60.0) -> None:
+        if not command:
+            raise ValueError("provider command must not be empty")
+        if timeout_seconds <= 0:
+            raise ValueError("provider timeout must be positive")
+        self.command = tuple(command)
+        self.timeout_seconds = timeout_seconds
+
+    def propose(self, context: Context) -> Proposal:
+        """Execute one isolated request and parse its untrusted proposal output."""
+        request = json.dumps(
+            {
+                "revision": context.revision,
+                "state": context.state,
+                "recent_receipts": context.recent_receipts,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        try:
+            completed = subprocess.run(
+                self.command,
+                input=request,
+                capture_output=True,
+                text=True,
+                timeout=self.timeout_seconds,
+                check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired) as error:
+            raise ProviderError(f"provider command failed before proposing: {error}") from error
+        if completed.returncode != 0:
+            detail = completed.stderr.strip() or f"exit status {completed.returncode}"
+            raise ProviderError(f"provider command did not produce a proposal: {detail}")
+        return _proposal_from_json(completed.stdout)
 
 
 class FakeIntelligence:

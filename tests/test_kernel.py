@@ -1,11 +1,20 @@
 from __future__ import annotations
 
 import sqlite3
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 
-from sudofx import FakeIntelligence, FakeWorkIntelligence, Kernel, Operation, Proposal
+from sudofx import (
+    CommandIntelligence,
+    FakeIntelligence,
+    FakeWorkIntelligence,
+    Kernel,
+    Operation,
+    Proposal,
+    ProviderError,
+)
 from sudofx.record import IntegrityError, Record
 from sudofx.report import render
 
@@ -39,6 +48,46 @@ class KernelTests(unittest.TestCase):
         self.assertEqual(self.kernel.run(first).receipt.status, "accepted")
         self.assertEqual(self.kernel.run(second).receipt.status, "accepted")
         self.assertEqual(self.kernel.context().state, {"step": 2})
+
+    def test_external_process_advances_work_from_bounded_json_context(self) -> None:
+        """A disposable process must continue work without record or kernel access."""
+        self.kernel.submit(
+            Proposal(
+                "create-external",
+                0,
+                (Operation("create_work", "external", {"objective": "Cross process", "constraints": []}),),
+            )
+        )
+        self.kernel.submit(Proposal("unrelated", 1, (Operation("set", "private", "not shared"),)))
+        # The helper is intentionally stateless: it derives every proposal field
+        # from the JSON document delivered to this one process invocation. Its
+        # assertion proves unrelated durable state did not cross the boundary.
+        helper = """
+import json, sys
+context = json.load(sys.stdin)
+assert set(context['state']) == {'work:external'}
+work = context['state']['work:external']
+json.dump({
+    'proposal_id': f\"external-{context['revision']}\",
+    'based_on_revision': context['revision'],
+    'operations': [{'action': 'advance_work', 'key': work['id'], 'value': {
+        'result': 'External process continued the work', 'open_obligations': []}}],
+    'rationale': 'Derived only from bounded durable context'
+}, sys.stdout)
+"""
+        result = self.kernel.run(CommandIntelligence((sys.executable, "-c", helper)), work_id="external")
+        self.assertEqual(result.receipt.status, "accepted")
+        self.assertEqual(
+            self.kernel.context().state["work:external"]["accepted_results"],
+            ["External process continued the work"],
+        )
+
+    def test_invalid_external_output_never_creates_a_receipt(self) -> None:
+        """Provider transport failure must not fabricate durable proposal history."""
+        provider = CommandIntelligence((sys.executable, "-c", "print('not json')"))
+        with self.assertRaises(ProviderError):
+            self.kernel.run(provider)
+        self.assertEqual(self.kernel.record.history(), ())
 
     def test_replay_survives_kernel_and_provider_replacement(self) -> None:
         """Replacing both active objects must preserve authoritative state."""
@@ -95,6 +144,11 @@ class KernelTests(unittest.TestCase):
         self.assertIn("Run operation", page)
         self.assertIn("wake-theme", page)
         self.assertIn("data-theme=dark", page)
+        # WAKE owns the inherited palette. The light and dark cyan values remain
+        # explicit so the toggle does not drift back to the violet accent.
+        self.assertIn("--cyan:#0f84a5", page)
+        self.assertIn("--cyan:#7dcfff", page)
+        self.assertIn("background:var(--cyan)", page)
         self.assertIn("width:1px; height:1px", page)
         # The theme control owns the header's upper-right grid area. This guards
         # against regrouping it with the tagline, which made it drop on phones.

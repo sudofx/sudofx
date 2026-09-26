@@ -263,6 +263,24 @@ If continuity, governance, receipts, replay, and provider substitution cannot wo
 
 Real model providers come after the core invariants are proven.
 
+## Phase 2: External Intelligence
+
+The next phase has begun with a vendor-neutral process adapter. An external
+intelligence receives one bounded Context document on standard input and returns
+one structured Proposal document on standard output. It never receives the
+SQLite record, governance authority, or a mutation callback.
+
+```bash
+.venv/bin/sudofx run --work-id launch -- python path/to/provider.py
+```
+
+The provider process may be a local model, a thin adapter around a hosted model,
+or any other executable that speaks the JSON boundary. Successful output is not
+automatically trusted: the proposal still passes through deterministic governance,
+the atomic kernel transaction, and the hash-linked receipt record. A timeout,
+process failure, or malformed response creates no proposal receipt because no
+complete proposal existed to govern.
+
 ---
 
 ## The Boundary That Matters

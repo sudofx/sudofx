@@ -153,10 +153,10 @@ def render(kernel: Kernel, *, repository: str = "sudofx/sudofx") -> str:
   <script>try{{const saved=localStorage.getItem('wake-theme');const dark=saved?saved==='dark':matchMedia('(prefers-color-scheme:dark)').matches;if(dark)document.documentElement.dataset.theme='dark'}}catch{{}}</script>
   <style>
     :root {{ color-scheme:light; --paper:#f4f5fb; --surface:#ffffff; --ink:#24283b; --muted:#626b8a;
-      --line:#d9ddeb; --green:#3FB950; --accent:#7658b3; --hot:#c52f9b; --pale:#ffffff;
+      --line:#d9ddeb; --green:#3FB950; --cyan:#0f84a5; --accent:#7658b3; --hot:#c52f9b; --pale:#ffffff;
       --mono:ui-monospace,SFMono-Regular,Consolas,monospace; }}
     :root[data-theme=dark] {{ color-scheme:dark; --paper:#24283b; --surface:#1f2335; --ink:#c0caf5;
-      --muted:#a9b1d6; --line:#3b4261; --green:#3FB950; --accent:#bb9af7; --hot:#7aa2f7; --pale:#1f2335; }}
+      --muted:#a9b1d6; --line:#3b4261; --green:#3FB950; --cyan:#7dcfff; --accent:#bb9af7; --hot:#7aa2f7; --pale:#1f2335; }}
     * {{ box-sizing:border-box }}
     body {{ margin:0; background:var(--paper); color:var(--ink); font:16px/1.45 system-ui,-apple-system,sans-serif }}
     body:before {{ content:""; display:block; height:5px; background:var(--green) }}
@@ -215,11 +215,11 @@ def render(kernel: Kernel, *, repository: str = "sudofx/sudofx") -> str:
        retaining its full touch target and respecting the phone's content inset. */
     .theme-switch {{ grid-area:theme; justify-self:end; display:flex; align-items:center; gap:8px; cursor:pointer; user-select:none }}
     .theme-switch input {{ position:absolute; width:1px; height:1px; margin:0; opacity:0; pointer-events:none }}
-    .theme-icon {{ width:18px; color:var(--accent); font:16px/1 var(--mono) }}
+    .theme-icon {{ width:18px; color:var(--cyan); font:16px/1 var(--mono) }}
     .data-switch-track {{ width:42px; height:24px; padding:2px; border:1px solid var(--line); background:var(--surface); border-radius:20px }}
     .data-switch-track i {{ display:block; width:18px; height:18px; border-radius:50%; background:var(--muted); transition:transform .2s ease,background .2s ease }}
-    .theme-switch input:checked + .theme-icon + .data-switch-track i {{ transform:translateX(17px); background:var(--accent) }}
-    .theme-switch input:focus-visible + .theme-icon + .data-switch-track {{ outline:3px solid var(--hot); outline-offset:3px }}
+    .theme-switch input:checked + .theme-icon + .data-switch-track i {{ transform:translateX(17px); background:var(--cyan) }}
+    .theme-switch input:focus-visible + .theme-icon + .data-switch-track {{ outline:3px solid var(--cyan); outline-offset:3px }}
     @media(max-width:600px) {{ header {{ column-gap:16px; row-gap:24px }}
       .metrics {{ grid-template-columns:1fr }} .toolbar {{ align-items:flex-end }}
       .receipt {{ grid-template-columns:38px 76px 1fr }} .revision {{ grid-column:3 }} .receipt-detail {{ grid-column:1/-1 }} }}

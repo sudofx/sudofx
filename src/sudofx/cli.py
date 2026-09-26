@@ -27,6 +27,7 @@ from typing import Any
 
 from .kernel import Kernel
 from .models import Operation, Proposal
+from .providers import CommandIntelligence
 from .record import Record
 from .report import export_site
 
@@ -72,6 +73,10 @@ def build_parser() -> argparse.ArgumentParser:
     complete_parser.add_argument("result")
     show_work_parser = subparsers.add_parser("work-show", help="show bounded work context")
     show_work_parser.add_argument("work_id")
+    run_parser = subparsers.add_parser("run", help="run one external intelligence process")
+    run_parser.add_argument("--work-id", help="limit provider context to one durable work item")
+    run_parser.add_argument("--timeout", type=float, default=60.0, help="provider timeout in seconds")
+    run_parser.add_argument("provider_command", nargs=argparse.REMAINDER)
     return parser
 
 
@@ -105,6 +110,21 @@ def main(argv: list[str] | None = None) -> int:
             )
         )
         return 0
+    if args.command == "run":
+        # The process receives JSON through stdin and has no direct record
+        # capability. Its output still crosses ordinary governance and produces
+        # the same durable receipt as a proposal from any other source.
+        command = args.provider_command
+        if command[:1] == ["--"]:
+            command = command[1:]
+        if not command:
+            parser.error("run requires a provider command")
+        result = kernel.run(
+            CommandIntelligence(command, timeout_seconds=args.timeout),
+            work_id=args.work_id,
+        )
+        print(json.dumps(asdict(result.receipt), indent=2, sort_keys=True))
+        return 0 if result.receipt.status == "accepted" else 2
     if args.command in {"export", "serve"}:
         # Export and serve consume verified state but never append an event.
         # The HTTP server is bound to loopback to avoid presenting a local

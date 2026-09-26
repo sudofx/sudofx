@@ -78,14 +78,17 @@ class Kernel:
             )
         return Context(revision=revision, state=state, recent_receipts=receipts)
 
-    def run(self, intelligence: Intelligence) -> RunResult:
+    def run(self, intelligence: Intelligence, *, work_id: str | None = None) -> RunResult:
         """
         Give one disposable intelligence a context and submit its proposal.
 
         No provider reference or hidden memory is retained after this call. A
-        later run must reconstruct everything it needs from the Record.
+        later run must reconstruct everything it needs from the Record. When a
+        work identifier is supplied, the provider sees only that work item's
+        state and receipts; submission still enters the same global governance
+        and transaction boundary as every other proposal.
         """
-        context = self.context()
+        context = self.context(work_id=work_id)
         proposal = intelligence.propose(context)
         receipt = self.submit(proposal)
         return RunResult(context=context, proposal=proposal, receipt=receipt)
