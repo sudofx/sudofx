@@ -437,6 +437,16 @@ json.dump({
         self.assertIn("grid-area:theme; justify-self:end", page)
         self.assertIn('class="brand" href="./"', page)
         self.assertIn('href="https://sudofx.github.io/wake/">Inspired by WAKE', page)
+        self.assertIn("Continuity Challenge", page)
+        self.assertIn("contextual checksum", page)
+        self.assertIn("Copy challenge", page)
+        self.assertIn("Next question", page)
+        self.assertIn("Reveal verification anchors", page)
+        self.assertIn("SUDOFX_CONTINUITY_CHALLENGE v1", page)
+        self.assertIn("record_revision=", page)
+        self.assertIn("Do not treat this as authentication.", page)
+        self.assertIn("Why is SQLite authoritative", page)
+        self.assertIn("artifact run ID and source commit", page)
 
     def test_record_initializes_inside_an_existing_empty_directory(self) -> None:
         """A first cloud run may create a record once its explicit parent exists."""
