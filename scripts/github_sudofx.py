@@ -192,9 +192,12 @@ def main() -> int:
     # A phone-triggered real-work probe uses a temporary SQLite snapshot of the
     # restored authoritative record. Ordinary publication runs the synthetic
     # deterministic fixture so every build still checks the mechanism.
+    prove_work_id = args.prove_work.strip() if args.prove_work is not None else None
+    if args.prove_work is not None and not prove_work_id:
+        parser.error("--prove-work requires a non-empty work ID")
     continuity_proof = (
-        run_work_continuity_probe(DATA, args.prove_work)
-        if args.prove_work
+        run_work_continuity_probe(DATA, prove_work_id)
+        if prove_work_id
         else run_continuity_proof()
     )
     export_site(

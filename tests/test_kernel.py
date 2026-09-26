@@ -18,6 +18,7 @@ from sudofx import (
 from sudofx.record import IntegrityError, Record
 from sudofx.continuity import run_continuity_proof, run_work_continuity_probe
 from sudofx.report import render
+from scripts.github_sudofx import main as github_main
 
 # These tests protect durable guarantees rather than implementation shape.
 # Temporary SQLite records prove replay across reopened processes without
@@ -73,6 +74,41 @@ class KernelTests(unittest.TestCase):
         self.assertTrue(proof["checks"]["unrelated_state_remained_outside_provider_context"])
         self.assertTrue(proof["checks"]["accepted_result_survived_replay"])
         self.assertFalse(proof["checks"]["production_state_mutated"])
+
+    def test_phone_prove_work_trims_accidental_input_whitespace(self) -> None:
+        """
+        GitHub Mobile may preserve leading/trailing spaces in text inputs.
+
+        The phone-only probe boundary normalizes only the work selector; general
+        state keys retain their exact operator-supplied semantics.
+        """
+        import scripts.github_sudofx as adapter
+
+        seen: list[str] = []
+        original = adapter.run_work_continuity_probe
+        try:
+            adapter.run_work_continuity_probe = lambda path, work_id: (
+                seen.append(work_id)
+                or {
+                    "passed": True,
+                    "kind": "test",
+                    "proves": "test",
+                    "does_not_prove": "test",
+                    "checks": {},
+                }
+            )
+            original_restore = adapter.restore
+            original_export = adapter.export_site
+            adapter.restore = lambda: False
+            adapter.export_site = lambda *args, **kwargs: Path(self.tempdir.name) / "index.html"
+            try:
+                self.assertEqual(github_main(["--prove-work", "   first-workflow   "]), 0)
+            finally:
+                adapter.restore = original_restore
+                adapter.export_site = original_export
+        finally:
+            adapter.run_work_continuity_probe = original
+        self.assertEqual(seen, ["first-workflow"])
 
     def test_real_work_continuity_probe_uses_snapshot_without_mutating_source(self) -> None:
         """
