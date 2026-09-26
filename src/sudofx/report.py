@@ -28,73 +28,14 @@ from .kernel import Kernel
 # from governed context. Verification anchors stay presentation-only and never
 # participate in authentication, authorization, governance, or durable replay.
 CONTINUITY_CHALLENGES = (
-    {
-        "id": "squirrel-name",
-        "question": "What animal became our shorthand for making WAKE✳︎ stop fixating and move on?",
-        "anchors": (
-            "Squirrel — written 🐿️✳︎ in the project",
-            "it was our shorthand for forcing a context shift when the system got stuck",
-        ),
-    },
-    {
-        "id": "bob",
-        "question": "What name did we give the analyst persona that steps back and reflects on what WAKE✳︎ is doing?",
-        "anchors": (
-            "Bob",
-            "Bob is the analyst / reflection persona",
-        ),
-    },
-    {
-        "id": "bob-color",
-        "question": "What color did we choose for Bob's reflection highlights?",
-        "anchors": (
-            "cyan",
-            "the reflection highlight was changed away from green",
-        ),
-    },
-    {
-        "id": "whole-repo",
-        "question": "Which WAKE✳︎ research topic did we decide should be allowed to explore the whole repository, not just the docs?",
-        "anchors": (
-            "the WAKE✳︎ topic itself",
-            "we explicitly widened that topic's access beyond documentation",
-        ),
-    },
-    {
-        "id": "five-topics",
-        "question": "What five research topics did we settle on for WAKE✳︎?",
-        "anchors": (
-            "Comedy",
-            "Entropy",
-            "WAKE✳︎",
-            "Neurodivergence",
-            "Music",
-        ),
-    },
-    {
-        "id": "comedy-stall",
-        "question": "Which research topic kept stalling because it could not find the right sources?",
-        "anchors": (
-            "Comedy",
-            "the source allowlist kept giving it material that did not match the comedy project",
-        ),
-    },
-    {
-        "id": "new-project",
-        "question": "What new project name did we choose when we decided not to keep building this experiment directly inside WAKE✳︎?",
-        "anchors": (
-            "sudofx",
-            "WAKE✳︎ stayed as the inspiration and history; sudofx became the focused new project",
-        ),
-    },
-    {
-        "id": "durable-thing",
-        "question": "In our simplest version of the idea, what is supposed to survive when the AI changes or disappears?",
-        "anchors": (
-            "the work — especially the governed record of what happened",
-            "the model is replaceable; the durable record, decisions, provenance, and receipts remain",
-        ),
-    },
+    {"id": "bang", "question": "When I say “BANG‼️” during our work, what usually just happened?"},
+    {"id": "you-get-me", "question": "When I tell you “you get me,” what am I actually confirming?"},
+    {"id": "order-flexes", "question": "If I flip “fix it, push it” into “push it, fix it,” what part of the message stays the same?"},
+    {"id": "too-much-language", "question": "When I say “that is too much language right now,” what change am I asking you to make?"},
+    {"id": "correction", "question": "When I correct you after you gave a confident answer, what does that moment demonstrate about how we work?"},
+    {"id": "one-sentence", "question": "When I ask for one sentence, what am I really optimizing for?"},
+    {"id": "move-now", "question": "What am I signaling when I tell you to stop overthinking and just move?"},
+    {"id": "intent-over-words", "question": "When I say “that is exactly what I meant,” what did you successfully carry across?"},
 )
 
 
@@ -242,9 +183,6 @@ def render(
     challenge_index = context.revision % len(CONTINUITY_CHALLENGES)
     challenge = CONTINUITY_CHALLENGES[challenge_index]
     challenge_data = json.dumps(CONTINUITY_CHALLENGES, ensure_ascii=False).replace("</", "<\\/")
-    challenge_anchors = "".join(
-        f"<li>{_escape(anchor)}</li>" for anchor in challenge["anchors"]
-    )
     continuity_challenge_html = f"""
         <section class="continuity-challenge" aria-label="Continuity Challenge"
                  data-record-revision="{context.revision}" data-challenge-index="{challenge_index}">
@@ -255,21 +193,15 @@ def render(
             </div>
             <span class="challenge-counter">1 / {len(CONTINUITY_CHALLENGES)}</span>
           </div>
-          <p class="challenge-rule">Easy words. Shared context. Answer from memory first, then reveal the answer check. This is not a secret or identity test.</p>
+          <p class="challenge-rule">Public question. Shared-history answer. Ask the intelligence first. The answer is intentionally not stored on this page. This is a continuity probe, not authentication.</p>
           <article class="challenge-card">
             <code class="challenge-id">{_escape(challenge["id"])}</code>
             <p class="challenge-question">{_escape(challenge["question"])}</p>
             <div class="challenge-actions">
               <button type="button" class="copy-challenge">Copy challenge</button>
               <button type="button" class="next-challenge">Next question</button>
-              <button type="button" class="reveal-challenge">Reveal answer check</button>
             </div>
             <span class="challenge-copy-status" role="status" aria-live="polite"></span>
-            <div class="challenge-anchors" hidden>
-              <b>Answer check</b>
-              <ul>{challenge_anchors}</ul>
-              <p>These are memory checks, never authentication material.</p>
-            </div>
           </article>
           <script type="application/json" id="continuity-challenges">{challenge_data}</script>
         </section>
@@ -381,13 +313,7 @@ def render(
     .challenge-actions {{ display:grid; grid-template-columns:1fr 1fr; gap:8px }}
     .challenge-actions button {{ min-height:44px; border:1px solid var(--line); border-radius:4px; background:var(--surface); color:var(--ink); font:700 12px var(--mono); cursor:pointer }}
     .copy-challenge {{ border-color:var(--accent)!important; background:var(--ink)!important; color:var(--paper)!important }}
-    .reveal-challenge {{ grid-column:1/-1 }}
     .challenge-copy-status {{ display:block; min-height:18px; margin-top:8px; color:var(--muted); font:11px var(--mono) }}
-    .challenge-anchors {{ margin-top:16px; padding-top:16px; border-top:1px solid var(--line) }}
-    .challenge-anchors b {{ color:var(--accent); font:700 10px var(--mono); letter-spacing:.08em; text-transform:uppercase }}
-    .challenge-anchors ul {{ margin:10px 0; padding-left:20px }}
-    .challenge-anchors li+li {{ margin-top:7px }}
-    .challenge-anchors p {{ color:var(--muted); font-size:12px }}
     .continuity-proof {{ margin:0 0 44px; padding:20px; border:1px solid var(--line); background:var(--surface) }}
     .proof-head {{ display:flex; align-items:flex-start; justify-content:space-between; gap:18px }}
     .proof-head h2 {{ margin:5px 0 0; font-size:24px }}
@@ -505,9 +431,6 @@ if(challengeRoot){{
   const idNode=challengeRoot.querySelector('.challenge-id');
   const questionNode=challengeRoot.querySelector('.challenge-question');
   const counterNode=challengeRoot.querySelector('.challenge-counter');
-  const anchorsNode=challengeRoot.querySelector('.challenge-anchors');
-  const anchorsList=anchorsNode.querySelector('ul');
-  const revealButton=challengeRoot.querySelector('.reveal-challenge');
   const copyButton=challengeRoot.querySelector('.copy-challenge');
   const nextButton=challengeRoot.querySelector('.next-challenge');
   const copyStatus=challengeRoot.querySelector('.challenge-copy-status');
@@ -516,15 +439,8 @@ if(challengeRoot){{
     idNode.textContent=String(item.id);
     questionNode.textContent=String(item.question);
     counterNode.textContent=String(challengeIndex+1)+' / '+String(challenges.length);
-    anchorsList.replaceChildren(...item.anchors.map(anchor=>{{const li=document.createElement('li');li.textContent=String(anchor);return li;}}));
-    anchorsNode.hidden=true;
-    revealButton.textContent='Reveal answer check';
     copyStatus.textContent='';
   }};
-  revealButton.addEventListener('click',()=>{{
-    anchorsNode.hidden=!anchorsNode.hidden;
-    revealButton.textContent=anchorsNode.hidden?'Reveal answer check':'Hide answer check';
-  }});
   nextButton.addEventListener('click',()=>{{
     challengeIndex=(challengeIndex+1)%challenges.length;
     renderChallenge();
@@ -543,7 +459,7 @@ if(challengeRoot){{
       const area=document.createElement('textarea');area.value=payload;area.style.position='fixed';area.style.opacity='0';
       document.body.appendChild(area);area.select();document.execCommand('copy');area.remove();
     }}
-    copyStatus.textContent='Challenge copied — paste it into ChatGPT before revealing the anchors.';
+    copyStatus.textContent='Question copied — paste it into ChatGPT and judge whether the shared context survives.';
   }});
   renderChallenge();
 }}
