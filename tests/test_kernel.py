@@ -82,6 +82,12 @@ class KernelTests(unittest.TestCase):
         self.assertIn("wake-theme", page)
         self.assertIn("data-theme=dark", page)
 
+    def test_record_initializes_inside_an_existing_empty_directory(self) -> None:
+        nested = Path(self.tempdir.name) / "cloud-data" / "record.sqlite"
+        nested.parent.mkdir(parents=True)
+        kernel = Kernel(Record(nested))
+        self.assertEqual(kernel.context().revision, 0)
+
 
 if __name__ == "__main__":
     unittest.main()

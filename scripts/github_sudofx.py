@@ -83,6 +83,7 @@ def main() -> int:
     args = parser.parse_args()
 
     restored = restore()
+    DATA.parent.mkdir(parents=True, exist_ok=True)
     kernel = Kernel(Record(DATA))
     if not args.publish_only:
         if not args.action or not args.key:
