@@ -52,6 +52,7 @@ from sudofx.continuity import (
 )
 from sudofx.report import export_site
 from sudofx.handoff import export_handoff_packet
+from sudofx.overnight import EXPERIMENT_STATE_KEY
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA = ROOT / "data" / "sudofx.sqlite"
@@ -64,6 +65,58 @@ AUTO_HANDOFF_OBJECTIVE = (
     "frontier is proving portable continuity from sanitized context alone; working style favors "
     "plain language, compression, direct correction, and action over unnecessary explanation."
 )
+
+
+def latest_overnight_proof(kernel: Kernel) -> dict[str, object] | None:
+    """Rebuild the public exchange from durable experiment state.
+
+    Pages is deliberately independent from the Gemini runner, so publication
+    cannot depend on a transient site artifact from that runner. The latest
+    observation was already recorded in authoritative SQLite as untrusted model
+    evidence; this helper projects that durable record back into the proof shape
+    expected by the observer UI.
+    """
+    experiment = kernel.context().state.get(EXPERIMENT_STATE_KEY)
+    if not isinstance(experiment, dict):
+        return None
+    observation = experiment.get("latest_observation")
+    if not isinstance(observation, dict):
+        return None
+    candidate_result = observation.get("candidate_result")
+    if not isinstance(candidate_result, str) or not candidate_result.strip():
+        return None
+
+    cycle = observation.get("cycle", experiment.get("cycle"))
+    phase = observation.get("phase", experiment.get("phase"))
+    task = observation.get("task", "")
+    return {
+        "passed": True,
+        "assessment_status": "semantic_review_pending",
+        "kind": "evolving overnight Gemini continuity observation",
+        "provider": observation.get("provider", "Google Gemini"),
+        "model": observation.get("model", ""),
+        "artifact_run_id": observation.get("artifact_run_id", ""),
+        "source_event_head": observation.get("source_event_head", ""),
+        "context_digest": observation.get("context_digest", ""),
+        "candidate_result": candidate_result,
+        "candidate_rationale": observation.get("candidate_rationale", ""),
+        "candidate_open_obligations": observation.get("candidate_open_obligations", []),
+        "overnight_trial": {
+            "version": experiment.get("version"),
+            "cycle": cycle,
+            "phase": phase,
+            "task": task,
+        },
+        "semantic_review": {
+            "version": 1,
+            "status": "pending",
+            "evidence": {
+                "candidate_result": candidate_result,
+                "trial_cycle": cycle,
+                "trial_phase": phase,
+            },
+        },
+    }
 
 
 def git(*args: str, capture: bool = False, check: bool = True) -> subprocess.CompletedProcess[str]:
@@ -484,13 +537,20 @@ def main() -> int:
         if continuity_proof.get("assessment_status") != "semantic_review_pending":
             raise AssertionError("observer model probe did not reach semantic review")
     else:
-        continuity_proof = run_continuity_proof()
+        # Independent Pages publication must recover the latest completed Gemini
+        # exchange from SQLite rather than falling back to a synthetic proof and
+        # erasing the answer that the continuity runner just recorded.
+        continuity_proof = latest_overnight_proof(kernel) or run_continuity_proof()
     # Projection metadata binds a disposable proof artifact to the exact Actions
     # run that produced it. Repeated probes can share the same context digest, so
     # run identity—not digest inequality—is the stale-result discriminator.
     continuity_proof = dict(continuity_proof)
-    continuity_proof["artifact_run_id"] = run_id
-    continuity_proof["artifact_commit"] = verification["commit"]
+    # Preserve the Gemini run that produced the exchange. Publication has its own
+    # provenance so a later Pages rebuild cannot masquerade as the model source.
+    continuity_proof.setdefault("artifact_run_id", run_id)
+    continuity_proof.setdefault("artifact_commit", verification["commit"])
+    continuity_proof["projection_run_id"] = run_id
+    continuity_proof["projection_commit"] = verification["commit"]
     export_site(
         kernel,
         ROOT / "site",
