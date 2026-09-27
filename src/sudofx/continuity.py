@@ -34,7 +34,7 @@ from pathlib import Path
 from typing import Any
 
 from .kernel import Kernel
-from .models import Operation, Proposal
+from .models import Context, Operation, Proposal
 from .providers import CommandIntelligence
 from .record import Record
 from .storage import GENESIS_HASH, canonical_json
@@ -544,3 +544,207 @@ def run_model_continuity_probe(
         },
     }
 
+
+
+def run_compressed_model_continuity_probe(
+    record_path: str | Path,
+    work_id: str,
+    provider_command: tuple[str, ...],
+    *,
+    provider: str,
+    model: str,
+    recent_result_limit: int = 4,
+    receipt_limit: int = 8,
+) -> dict[str, Any]:
+    """
+    Test semantic continuation from a deliberately compressed derived Context.
+
+    Authoritative SQLite remains unchanged and complete. Compression happens only
+    at the provider boundary: the model receives the current work identity,
+    objective, constraints, frontier, a small tail of accepted milestones, and
+    hashes/counts anchoring omitted history. The proposal is still governed
+    against a temporary full-record snapshot, so compression can reduce evidence
+    but can never weaken deterministic authority.
+    """
+    if recent_result_limit < 1:
+        raise ValueError("recent_result_limit must be positive")
+    if receipt_limit < 0:
+        raise ValueError("receipt_limit cannot be negative")
+
+    source = Kernel(Record(record_path))
+    source_history_before = source.record.history()
+    source_head_before = (
+        source_history_before[-1]["event_hash"] if source_history_before else GENESIS_HASH
+    )
+    full = source.context(work_id=work_id, receipt_limit=100)
+    work_key = f"work:{work_id}"
+    work = full.state.get(work_key)
+    if not isinstance(work, dict):
+        raise ValueError(f"work item does not exist: {work_id}")
+    if work.get("status") != "open":
+        raise ValueError(f"work item is not open: {work_id}")
+
+    prior_results = work.get("accepted_results", [])
+    if not isinstance(prior_results, list) or not all(isinstance(item, str) for item in prior_results):
+        raise AssertionError("work projection has invalid accepted_results")
+    starting_work_revision = int(work.get("work_revision", 0))
+    recent_results = prior_results[-recent_result_limit:]
+    omitted_results = prior_results[:-recent_result_limit]
+    omitted_digest = hashlib.sha256(canonical_json(omitted_results).encode()).hexdigest()
+
+    compressed_work = dict(work)
+    compressed_work.pop("accepted_results", None)
+    compressed_work["accepted_results_recent"] = recent_results
+    compressed_work["accepted_result_count"] = len(prior_results)
+    compressed_work["omitted_accepted_results_count"] = len(omitted_results)
+    compressed_work["omitted_accepted_results_digest"] = omitted_digest
+    compressed_receipts = tuple(full.recent_receipts[-receipt_limit:]) if receipt_limit else ()
+    compressed = Context(
+        revision=full.revision,
+        state={work_key: compressed_work},
+        recent_receipts=compressed_receipts,
+    )
+
+    full_payload = {
+        "revision": full.revision,
+        "state": full.state,
+        "recent_receipts": full.recent_receipts,
+    }
+    compressed_payload = {
+        "revision": compressed.revision,
+        "state": compressed.state,
+        "recent_receipts": compressed.recent_receipts,
+    }
+    full_bytes = len(canonical_json(full_payload).encode())
+    compressed_bytes = len(canonical_json(compressed_payload).encode())
+    digest = _context_digest(compressed)
+
+    with tempfile.TemporaryDirectory() as temporary:
+        snapshot_path = Path(temporary) / "compressed-model-probe.sqlite"
+        _sqlite_snapshot(record_path, snapshot_path)
+        probe_kernel = Kernel(Record(snapshot_path))
+        intelligence = CommandIntelligence(provider_command, timeout_seconds=90)
+        proposal = intelligence.propose(compressed)
+        result_receipt = probe_kernel.submit(proposal)
+        if result_receipt.status != "accepted":
+            raise AssertionError(f"compressed model probe proposal was {result_receipt.status}")
+
+        reopened = Kernel(Record(snapshot_path))
+        after = reopened.context(work_id=work_id, receipt_limit=100)
+        after_work = after.state[work_key]
+        accepted_results = after_work.get("accepted_results", [])
+        obligations = after_work.get("open_obligations", [])
+        if int(after_work["work_revision"]) != starting_work_revision + 1:
+            raise AssertionError("compressed snapshot replay did not advance work revision")
+        if not isinstance(accepted_results, list) or len(accepted_results) != len(prior_results) + 1:
+            raise AssertionError("compressed snapshot replay did not append exactly one result")
+        if not isinstance(obligations, list):
+            raise AssertionError("compressed model snapshot replay produced invalid obligations")
+        candidate_result = accepted_results[-1]
+
+    source_after = Kernel(Record(record_path))
+    source_history_after = source_after.record.history()
+    source_head_after = (
+        source_history_after[-1]["event_hash"] if source_history_after else GENESIS_HASH
+    )
+    source_work_after = source_after.context(work_id=work_id).state[work_key]
+    source_unchanged = (
+        source_head_before == source_head_after
+        and int(source_work_after["work_revision"]) == starting_work_revision
+        and len(source_work_after.get("accepted_results", [])) == len(prior_results)
+    )
+    if not source_unchanged:
+        raise AssertionError("production record changed during compressed model continuity probe")
+
+    return {
+        "passed": True,
+        "assessment_status": "semantic_review_pending",
+        "kind": "compressed real-model disposable continuity candidate",
+        "scope": "compressed derived Context over a temporary snapshot of authoritative record",
+        "work_id": work_id,
+        "provider": provider,
+        "model": model,
+        "context_digest": digest,
+        "source_event_head": source_head_before,
+        "revision_before_provider": full.revision,
+        "revision_after_provider_on_snapshot": result_receipt.revision_after,
+        "starting_work_revision": starting_work_revision,
+        "candidate_result": candidate_result,
+        "candidate_rationale": proposal.rationale,
+        "candidate_open_obligations": obligations,
+        "compression": {
+            "full_context_bytes": full_bytes,
+            "compressed_context_bytes": compressed_bytes,
+            "bytes_removed": full_bytes - compressed_bytes,
+            "reduction_ratio": round(1 - (compressed_bytes / full_bytes), 4) if full_bytes else 0.0,
+            "accepted_result_count": len(prior_results),
+            "accepted_results_exposed": len(recent_results),
+            "accepted_results_omitted": len(omitted_results),
+            "omitted_accepted_results_digest": omitted_digest,
+            "receipt_count_exposed": len(compressed_receipts),
+        },
+        "semantic_review": {
+            "version": 1,
+            "status": "pending",
+            "decision_options": ["pass", "fail", "uncertain"],
+            "criteria": [
+                {
+                    "id": "objective_fidelity",
+                    "question": "Does the reconstruction preserve the stated objective from compressed context?",
+                    "status": "pending",
+                },
+                {
+                    "id": "history_fidelity",
+                    "question": "Does it respect the exposed accepted milestones without inventing omitted history?",
+                    "status": "pending",
+                },
+                {
+                    "id": "frontier_fidelity",
+                    "question": "Does the proposed next step follow the current open frontier?",
+                    "status": "pending",
+                },
+                {
+                    "id": "compression_awareness",
+                    "question": "Does it avoid pretending the omitted history digest contains readable facts?",
+                    "status": "pending",
+                },
+                {
+                    "id": "unsupported_claims",
+                    "question": "Does it avoid claiming knowledge or work absent from the compressed record?",
+                    "status": "pending",
+                },
+                {
+                    "id": "actionability",
+                    "question": "Is the proposed next step concrete enough to continue the work?",
+                    "status": "pending",
+                },
+            ],
+            "evidence": {
+                "objective": work.get("objective"),
+                "constraints": work.get("constraints", []),
+                "accepted_result_count": len(prior_results),
+                "accepted_results_recent": recent_results,
+                "omitted_accepted_results_count": len(omitted_results),
+                "omitted_accepted_results_digest": omitted_digest,
+                "open_obligations": work.get("open_obligations", []),
+                "candidate_result": candidate_result,
+                "candidate_open_obligations": obligations,
+                "context_digest": digest,
+            },
+        },
+        "receipt": {
+            "proposal_id": result_receipt.proposal_id,
+            "status": result_receipt.status,
+            "event_hash": result_receipt.event_hash,
+        },
+        "checks": {
+            "source_record_verified": True,
+            "provider_is_fresh_external_process": True,
+            "full_accepted_history_not_exposed": "accepted_results" not in compressed_work,
+            "omitted_history_anchored_by_digest": bool(omitted_digest),
+            "proposal_crossed_normal_governance_on_snapshot": result_receipt.status == "accepted",
+            "snapshot_replay_advanced_exactly_once": True,
+            "production_record_head_unchanged": source_head_before == source_head_after,
+            "production_state_mutated": False,
+        },
+    }
