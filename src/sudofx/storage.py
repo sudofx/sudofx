@@ -114,3 +114,18 @@ class RecordStore(Protocol):
     def write_transaction(self) -> ContextManager[WriteTransaction]: ...
 
     def history(self) -> tuple[dict[str, Any], ...]: ...
+
+    def projection_snapshot(
+        self, history_limit: int = 50
+    ) -> tuple[
+        int,
+        dict[str, JsonValue],
+        tuple[dict[str, Any], ...],
+        dict[str, int | float | str],
+    ]:
+        """
+        Return one verified state/history/health view for bounded presentation.
+
+        Backends choose their snapshot mechanism. The result is derived evidence,
+        not a mutation surface or permission for presentation to become authority.
+        """

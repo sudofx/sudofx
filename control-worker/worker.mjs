@@ -20,6 +20,7 @@
 
 const API_VERSION = "2026-03-10";
 const WORKFLOW = "prove-model.yml";
+const OPERATIONS_WORKFLOW = "sudofx.yml";
 const SESSION_SECONDS = 60 * 60 * 7;
 const OAUTH_SECONDS = 60 * 10;
 
@@ -143,6 +144,31 @@ async function workflowStatus(env, token, githubFetch) {
   };
 }
 
+async function maintenanceStatus(env, token, githubFetch) {
+  /**
+   * Read repository-backed storage risk without downloading SQLite contents.
+   *
+   * GitHub metadata is operational evidence, not database authority. Keeping
+   * this behind the owner session avoids advertising storage topology on the
+   * public page while giving the operator a truthful privacy/protection signal.
+   */
+  const [repositoryResponse, branchResponse, databaseResponse] = await Promise.all([
+    github(`/repos/${env.REPOSITORY}`, token, {}, githubFetch),
+    github(`/repos/${env.REPOSITORY}/branches/sudofx-state`, token, {}, githubFetch),
+    github(`/repos/${env.REPOSITORY}/contents/sudofx.sqlite?ref=sudofx-state`, token, {}, githubFetch),
+  ]);
+  const repository = await repositoryResponse.json();
+  const branch = await branchResponse.json();
+  const database = await databaseResponse.json();
+  return {
+    repositoryVisibility: repository.visibility || (repository.private ? "private" : "public"),
+    stateBranchProtected: Boolean(branch.protected),
+    stateBranchHead: String(branch.commit?.sha || ""),
+    databaseBytes: Number(database.size || 0),
+    databaseBlob: String(database.sha || ""),
+  };
+}
+
 async function login(request, env) {
   const verifier = randomToken(48);
   const challengeBytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier));
@@ -252,6 +278,26 @@ async function stop(env, session, githubFetch) {
   return { enabled: false, cancelledRuns: status.activeRuns.length, message: "Continuous operation is stopped." };
 }
 
+async function backup(env, session, githubFetch) {
+  /**Request one verified, finite-retention recovery artifact.
+   *
+   * The Worker only dispatches the named maintenance action. The workflow and
+   * storage adapter own restore, verification, snapshotting, and retention, so
+   * browser authentication never becomes database authority.
+   */
+  await github(
+    `/repos/${env.REPOSITORY}/actions/workflows/${OPERATIONS_WORKFLOW}/dispatches`,
+    session.accessToken,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ref: "master", inputs: { action: "backup" } }),
+    },
+    githubFetch,
+  );
+  return { message: "Verified recovery backup requested." };
+}
+
 export async function handleRequest(request, env, githubFetch = fetch) {
   if (!configured(env)) return new Response("Control service is not configured.", { status: 503 });
   const url = new URL(request.url);
@@ -272,10 +318,21 @@ export async function handleRequest(request, env, githubFetch = fetch) {
     if (request.headers.get("Origin") !== pagesOrigin(env)) return json(env, { error: "origin rejected" }, 403);
     const session = await authorizedSession(request, env);
     if (url.pathname === "/api/session" && request.method === "GET") {
-      return json(env, { authorized: true, login: session.login, ...(await workflowStatus(env, session.accessToken, githubFetch)) });
+      const [workflow, maintenance] = await Promise.all([
+        workflowStatus(env, session.accessToken, githubFetch),
+        // Storage diagnostics require Contents read permission added after the
+        // original control deployment. Missing optional evidence must not take
+        // Start/Stop authority offline during that permission rollout.
+        maintenanceStatus(env, session.accessToken, githubFetch).catch((error) => ({
+          unavailable: true,
+          error: error instanceof Error ? error.message : "storage diagnostics unavailable",
+        })),
+      ]);
+      return json(env, { authorized: true, login: session.login, ...workflow, maintenance });
     }
     if (url.pathname === "/api/start" && request.method === "POST") return json(env, await start(env, session, githubFetch));
     if (url.pathname === "/api/stop" && request.method === "POST") return json(env, await stop(env, session, githubFetch));
+    if (url.pathname === "/api/backup" && request.method === "POST") return json(env, await backup(env, session, githubFetch));
     return json(env, { error: "not found" }, 404);
   } catch (error) {
     const message = error instanceof Error ? error.message : "control request failed";

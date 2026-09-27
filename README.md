@@ -188,6 +188,11 @@ The storage contract should remain backend-independent so SQLite can later be re
 
 **One authoritative database → everything else is a view, query, or export.**
 
+The current `sudofx-state` branch is public because the repository is public.
+Authentication protects owner controls and retained recovery artifacts, not Git
+branch visibility. Until state moves to private persistence, durable proposal
+content must be treated as public data.
+
 ## Repository structure
 
 ```text

@@ -37,13 +37,22 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from contextlib import contextmanager
+import time
+from contextlib import closing, contextmanager
 from pathlib import Path
 from typing import Any, Iterator
 
 from .models import JsonValue
 from .governance import work_key
 from .storage import EventAppend, GENESIS_HASH, canonical_json, hash_event
+
+
+# These header values identify the file before table-level parsing begins. The
+# application ID prevents an arbitrary SQLite file from being accepted as a
+# sudofx record; user_version gives storage evolution one ordered owner instead
+# of scattering opportunistic CREATE/ALTER statements through runtime paths.
+APPLICATION_ID = 0x53444658  # "SDFX"
+SCHEMA_VERSION = 1
 
 
 def apply_operation(state: dict[str, JsonValue], operation: dict[str, Any]) -> None:
@@ -112,6 +121,10 @@ class IntegrityError(RuntimeError):
     Callers must not recover by skipping the row or trusting a cached projection.
     Repair requires an explicit recovery process with stronger evidence.
     """
+
+
+class StorageVersionError(IntegrityError):
+    """Reject a database whose identity or schema cannot be interpreted safely."""
 
 
 class _SQLiteTransaction:
@@ -187,7 +200,7 @@ class Record:
     """
     def __init__(self, path: str | Path) -> None:
         self.path = str(path)
-        self._initialize()
+        self.schema_changed = self._initialize()
 
     @contextmanager
     def connect(self) -> Iterator[sqlite3.Connection]:
@@ -238,15 +251,31 @@ class Record:
             else:
                 connection.commit()
 
-    def _initialize(self) -> None:
+    def _initialize(self) -> bool:
         """
-        Create storage idempotently without creating semantic state.
+        Create or migrate storage idempotently without creating semantic state.
 
         Initialization may establish the empty schema, but the first meaningful
-        revision exists only after an accepted proposal is appended.
+        revision exists only after an accepted proposal is appended. Migrations
+        are storage-authority changes and are reported to the caller so a cloud
+        adapter can checkpoint them before publishing a projection.
         """
         with self.connect() as connection:
+            application_id = int(connection.execute("PRAGMA application_id").fetchone()[0])
+            version = int(connection.execute("PRAGMA user_version").fetchone()[0])
+            if application_id not in (0, APPLICATION_ID):
+                raise StorageVersionError("database application identity is not sudofx")
+            if version > SCHEMA_VERSION:
+                raise StorageVersionError(
+                    f"database schema {version} is newer than supported schema {SCHEMA_VERSION}"
+                )
+
+            # Journal configuration is allowed only after file identity and
+            # compatibility pass. Even a harmless header write would otherwise
+            # mutate an unrelated or future database before rejecting it.
             connection.execute("PRAGMA journal_mode=WAL")
+            changed = application_id != APPLICATION_ID or version != SCHEMA_VERSION
+            connection.execute("BEGIN IMMEDIATE")
             # WAL supports readers alongside the serialized writer. Kernel.submit
             # still uses BEGIN IMMEDIATE so two writers cannot govern from the
             # same revision and both commit conflicting accepted transitions.
@@ -267,7 +296,137 @@ class Record:
                 )
                 """
             )
+            # Version zero is the only legacy shape and is structurally identical
+            # to v1. Recording identity/version makes that fact explicit; future
+            # versions must add ordered migration steps here rather than guessing
+            # from whichever tables happen to exist.
+            connection.execute(f"PRAGMA application_id = {APPLICATION_ID}")
+            connection.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
             connection.commit()
+            return changed
+
+    def backup_to(self, destination: str | Path) -> None:
+        """
+        Write one transactionally coherent, verified SQLite snapshot.
+
+        Copying the main file bytes can omit WAL-resident changes. SQLite's
+        backup API owns that boundary and produces a complete destination view.
+        The snapshot is then checked physically and semantically before callers
+        may publish it as a checkpoint or recovery artifact.
+        """
+        destination = Path(destination)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        # sqlite3.Connection's context manager owns commit/rollback but does not
+        # close the handle. ``closing`` prevents backup verification from
+        # leaking descriptors as maintenance frequency grows.
+        with self.connect() as source, closing(sqlite3.connect(destination)) as target:
+            source.backup(target)
+        with closing(sqlite3.connect(destination)) as check:
+            result = check.execute("PRAGMA quick_check").fetchone()[0]
+            if result != "ok":
+                raise IntegrityError(f"snapshot failed SQLite quick_check: {result}")
+        Record(destination).replay()
+
+    def health(self) -> dict[str, int | float | str]:
+        """
+        Return bounded maintenance evidence derived from a verified snapshot.
+
+        This is diagnostic projection data, never authority. It deliberately
+        excludes proposal content so it can be shown without leaking durable
+        context while still revealing growth and replay cost.
+        """
+        started = time.perf_counter()
+        revision, _ = self.replay()
+        replay_ms = (time.perf_counter() - started) * 1000
+        with self.connect() as connection:
+            event_count = int(connection.execute("SELECT COUNT(*) FROM events").fetchone()[0])
+            page_size = int(connection.execute("PRAGMA page_size").fetchone()[0])
+            page_count = int(connection.execute("PRAGMA page_count").fetchone()[0])
+            free_pages = int(connection.execute("PRAGMA freelist_count").fetchone()[0])
+            quick_check = str(connection.execute("PRAGMA quick_check").fetchone()[0])
+        return {
+            "schema_version": SCHEMA_VERSION,
+            "revision": revision,
+            "event_count": event_count,
+            "database_bytes": page_size * page_count,
+            "free_bytes": page_size * free_pages,
+            "replay_ms": round(replay_ms, 3),
+            "quick_check": quick_check,
+        }
+
+    def projection_snapshot(
+        self, history_limit: int = 50
+    ) -> tuple[int, dict[str, JsonValue], tuple[dict[str, Any], ...], dict[str, int | float | str]]:
+        """
+        Build state, bounded history, and health from one verified read snapshot.
+
+        Presentation used to replay independently for state, history, and health.
+        That multiplied linear work and could mix adjacent revisions. This method
+        keeps the public projection internally coherent while preserving the
+        kernel's backend-neutral transaction contract for provider work.
+        """
+        started = time.perf_counter()
+        with self.connect() as connection:
+            connection.execute("BEGIN")
+            revision, state = self.replay(connection)
+            rows = list(
+                connection.execute(
+                    "SELECT * FROM events ORDER BY sequence DESC LIMIT ?",
+                    (max(0, history_limit),),
+                )
+            )
+            event_count = int(connection.execute("SELECT COUNT(*) FROM events").fetchone()[0])
+            page_size = int(connection.execute("PRAGMA page_size").fetchone()[0])
+            page_count = int(connection.execute("PRAGMA page_count").fetchone()[0])
+            free_pages = int(connection.execute("PRAGMA freelist_count").fetchone()[0])
+            quick_check = str(connection.execute("PRAGMA quick_check").fetchone()[0])
+        rows.reverse()
+        health: dict[str, int | float | str] = {
+            "schema_version": SCHEMA_VERSION,
+            "revision": revision,
+            "event_count": event_count,
+            "database_bytes": page_size * page_count,
+            "free_bytes": page_size * free_pages,
+            "replay_ms": round((time.perf_counter() - started) * 1000, 3),
+            "quick_check": quick_check,
+        }
+        return revision, state, tuple(self._event_from_row(row) for row in rows), health
+
+    def history_tail(self, limit: int = 50) -> tuple[dict[str, Any], ...]:
+        """
+        Verify the complete chain but materialize only the newest receipt window.
+
+        Verification remains exhaustive because a corrupt predecessor invalidates
+        every later hash. Presentation is bounded independently so page size and
+        browser work do not grow with authoritative history.
+        """
+        with self.connect() as connection:
+            connection.execute("BEGIN")
+            self.replay(connection)
+            rows = list(
+                connection.execute(
+                    "SELECT * FROM events ORDER BY sequence DESC LIMIT ?", (max(0, limit),)
+                )
+            )
+        rows.reverse()
+        return tuple(self._event_from_row(row) for row in rows)
+
+    @staticmethod
+    def _event_from_row(row: sqlite3.Row) -> dict[str, Any]:
+        """Translate one verified storage row into the backend-neutral receipt view."""
+        return {
+            "sequence": row["sequence"],
+            "receipt_id": row["receipt_id"],
+            "proposal_id": row["proposal_id"],
+            "status": row["status"],
+            "revision_before": row["revision_before"],
+            "revision_after": row["revision_after"],
+            "proposal": json.loads(row["payload"]),
+            "reasons": json.loads(row["reasons"]),
+            "previous_hash": row["previous_hash"],
+            "event_hash": row["event_hash"],
+            "created_at": row["created_at"],
+        }
 
     @staticmethod
     def hash_event(previous_hash: str, event: dict[str, Any]) -> str:
@@ -381,19 +540,4 @@ class Record:
             connection.execute("BEGIN")
             self.replay(connection)
             rows = self.rows(connection)
-        return tuple(
-            {
-                "sequence": row["sequence"],
-                "receipt_id": row["receipt_id"],
-                "proposal_id": row["proposal_id"],
-                "status": row["status"],
-                "revision_before": row["revision_before"],
-                "revision_after": row["revision_after"],
-                "proposal": json.loads(row["payload"]),
-                "reasons": json.loads(row["reasons"]),
-                "previous_hash": row["previous_hash"],
-                "event_hash": row["event_hash"],
-                "created_at": row["created_at"],
-            }
-            for row in rows
-        )
+        return tuple(self._event_from_row(row) for row in rows)

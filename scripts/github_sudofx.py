@@ -33,10 +33,12 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sqlite3
 import subprocess
 import sys
 import tempfile
 import uuid
+from contextlib import closing
 from pathlib import Path
 
 from sudofx import Kernel, Operation, Proposal
@@ -67,24 +69,53 @@ def git(*args: str, capture: bool = False, check: bool = True) -> subprocess.Com
     )
 
 
-def restore() -> bool:
+def restore() -> tuple[bool, bool]:
     """
     Restore the remote durable database when the state branch exists.
 
-    Missing state is valid only before the first mutation and returns False.
+    Missing state is valid only before the first mutation and returns
+    ``(False, False)``. The second result reports a storage migration that must
+    be checkpointed before projections can claim the new schema is durable.
     Other fetch or extraction failures remain exceptions; silently initializing
     after a damaged/unreadable branch would erase continuity.
     """
-    fetched = git("fetch", "origin", STATE_BRANCH, check=False, capture=True)
-    if fetched.returncode != 0:
-        return False
+    # Absence is a valid first-run state; provider, permission, and transport
+    # failures are not. Conflating them would let a temporary GitHub outage
+    # silently replace durable continuity with a new empty record.
+    remote = git("ls-remote", "--exit-code", "--heads", "origin", STATE_BRANCH, check=False, capture=True)
+    if remote.returncode == 2:
+        return False, False
+    if remote.returncode != 0:
+        raise RuntimeError(f"could not inspect durable state branch: {remote.stderr.strip()}")
+    git("fetch", "origin", f"refs/heads/{STATE_BRANCH}:refs/remotes/origin/{STATE_BRANCH}")
+
     DATA.parent.mkdir(parents=True, exist_ok=True)
-    with DATA.open("wb") as destination:
+    # Restore into the destination directory so os.replace is atomic on the same
+    # filesystem. The live path remains untouched unless both SQLite structure
+    # and sudofx event replay verify successfully.
+    with tempfile.NamedTemporaryFile(dir=DATA.parent, prefix="restore-", suffix=".sqlite", delete=False) as candidate:
+        candidate_path = Path(candidate.name)
         subprocess.run(
             ["git", "show", f"origin/{STATE_BRANCH}:sudofx.sqlite"],
-            cwd=ROOT, check=True, stdout=destination,
+            cwd=ROOT, check=True, stdout=candidate,
         )
-    return True
+    try:
+        with closing(sqlite3.connect(candidate_path)) as connection:
+            result = connection.execute("PRAGMA quick_check").fetchone()[0]
+            if result != "ok":
+                raise RuntimeError(f"restored database failed SQLite quick_check: {result}")
+        candidate_record = Record(candidate_path)
+        candidate_record.replay()
+        schema_changed = candidate_record.schema_changed
+        # A stale WAL belongs to the replaced database identity and must never be
+        # replayed against the new main file. This adapter is the sole process in
+        # its Actions workspace, so sidecar removal is an owned recovery action.
+        for suffix in ("-wal", "-shm"):
+            Path(f"{DATA}{suffix}").unlink(missing_ok=True)
+        os.replace(candidate_path, DATA)
+    finally:
+        candidate_path.unlink(missing_ok=True)
+    return True, schema_changed
 
 
 def checkpoint() -> None:
@@ -96,6 +127,11 @@ def checkpoint() -> None:
     of durable state. No-change checkpoints return without empty commits.
     """
     with tempfile.TemporaryDirectory() as temporary:
+        snapshot = Path(temporary) / "verified.sqlite"
+        # Snapshot through SQLite rather than copying the main file. This keeps
+        # WAL-resident committed pages inside the checkpoint and verifies both
+        # file structure and semantic replay before Git can publish new authority.
+        Record(DATA).backup_to(snapshot)
         checkout = Path(temporary) / "state"
         branch_exists = git("rev-parse", "--verify", f"origin/{STATE_BRANCH}", check=False, capture=True).returncode == 0
         if branch_exists:
@@ -114,7 +150,7 @@ def checkpoint() -> None:
             # it also repairs older contaminated state heads without rewriting
             # history or changing the database bytes.
             git("-C", str(checkout), "rm", "-rf", "--ignore-unmatch", ".")
-            (checkout / "sudofx.sqlite").write_bytes(DATA.read_bytes())
+            (checkout / "sudofx.sqlite").write_bytes(snapshot.read_bytes())
             git("-C", str(checkout), "add", "sudofx.sqlite")
             if git("-C", str(checkout), "diff", "--cached", "--quiet", check=False).returncode == 0:
                 return
@@ -148,6 +184,7 @@ def main() -> int:
     parser.add_argument("--prove-work")
     parser.add_argument("--prove-model")
     parser.add_argument("--export-handoff")
+    parser.add_argument("--backup")
     parser.add_argument("--auto", action="store_true")
     parser.add_argument(
         "--action", choices=("set", "delete", "work-create", "work-advance", "work-complete")
@@ -156,11 +193,25 @@ def main() -> int:
     parser.add_argument("--value", default="null")
     args = parser.parse_args()
 
-    restored = restore()
+    restored, restored_schema_changed = restore()
     # A first-ever run has no state branch, so the database parent must exist
     # before SQLite can create the empty authoritative record.
     DATA.parent.mkdir(parents=True, exist_ok=True)
-    kernel = Kernel(Record(DATA))
+    record = Record(DATA)
+    kernel = Kernel(record)
+    if restored and (restored_schema_changed or record.schema_changed):
+        # Storage migrations are system-owned authority changes. Persist them
+        # before any projection or semantic operation uses the newer schema.
+        checkpoint()
+        record = Record(DATA)
+        kernel = Kernel(record)
+    if args.backup:
+        if not restored:
+            raise RuntimeError("a recovery backup requires an existing authoritative record")
+        backup_path = Path(args.backup)
+        record.backup_to(backup_path)
+        print(json.dumps({"backup": str(backup_path), "health": record.health()}, sort_keys=True))
+        return 0
 
     # Observer-mode automation: one stable operator command advances the current
     # milestone without asking the human to shuttle IDs or long text between devices.

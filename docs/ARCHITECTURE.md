@@ -61,6 +61,36 @@ Stores the cloud checkpoint of the authoritative SQLite file.
 
 The branch is operational persistence, not a second state model. The database remains the state authority.
 
+The current repository is public, so the branch and every historical database
+blob are publicly retrievable. Owner authentication protects controls and
+private recovery artifacts; it cannot make a public Git ref confidential.
+Proposal material must remain public-safe until authority migrates to private
+durable storage.
+
+Checkpoint creation uses SQLite's backup API, verifies SQLite structure, and
+replays the complete event chain before Git receives new database bytes. Restore
+downloads to a temporary sibling file, verifies it, removes sidecars belonging
+to the replaced identity, and atomically installs the candidate. Missing remote
+state is accepted only when the branch is genuinely absent; provider failures
+stop instead of initializing empty authority.
+
+### Schema and maintenance
+
+The SQLite header carries a sudofx application ID and an ordered user schema
+version. Version zero is the supported legacy shape; unknown identities and
+newer schemas fail closed. Storage migrations are checkpointed before a newer
+projection is published.
+
+The complete event chain remains append-only. Public presentation materializes
+only a bounded recent window and exports content-free health evidence such as
+database bytes, event count, replay duration, and integrity status. This bounds
+browser growth without deleting the history needed for replay or audit.
+
+An authenticated owner may request a verified recovery snapshot. GitHub Actions
+retains that artifact for 30 days outside Pages. It is a recovery copy, not
+authority, and does not replace the need for private independent storage as the
+record becomes sensitive or operationally valuable.
+
 ### GitHub Pages
 
 Owns presentation only.

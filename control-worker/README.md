@@ -6,7 +6,9 @@ for the public GitHub Pages observer.
 It is intentionally independent from sudofx durable state.
 
 The Worker can control only `prove-model.yml`. It cannot edit source, work
-items, receipts, SQLite state, repository secrets, or arbitrary workflows.
+items, receipts, SQLite state, repository secrets, or arbitrary workflows. It
+may dispatch the exact `backup` action in `sudofx.yml`; that workflow produces a
+verified, finite-retention recovery artifact without mutating the record.
 
 ## Authority
 
@@ -45,9 +47,11 @@ after the owner has asked the system to stop.
 
 ## Live status
 
-For an authenticated owner, `/api/session` returns the workflow enabled state and
-current active runs. The Pages observer treats that authenticated evidence as
-stronger than anonymous GitHub telemetry or an older static artifact.
+For an authenticated owner, `/api/session` returns the workflow enabled state,
+current active runs, and storage-maintenance metadata: repository visibility,
+state-branch protection, state head, and database blob size. It never downloads
+or exposes database contents. The Pages observer treats that authenticated
+evidence as stronger than anonymous GitHub telemetry or an older static artifact.
 
 Provider and OAuth failures are translated inside the Worker request boundary so
 the browser receives an explicit error instead of an escaped runtime failure.
@@ -60,6 +64,7 @@ repository, and configured with:
 - Homepage: `https://sudofx.github.io/sudofx/`
 - Callback: `https://<worker-host>/auth/callback`
 - Repository permission: Actions — read and write
+- Repository permission: Contents — read (for authenticated storage diagnostics)
 - Webhooks: disabled
 
 ## Worker configuration

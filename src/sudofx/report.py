@@ -21,6 +21,7 @@ import json
 from pathlib import Path
 
 from .kernel import Kernel
+from .models import Context
 
 
 def _escape(value: object) -> str:
@@ -176,8 +177,14 @@ def render(
     The hidden theme control has an explicit 1px box: global form-control width
     rules must not make an invisible element widen the mobile viewport.
     """
-    context = kernel.context(receipt_limit=0)
-    history = kernel.record.history()
+    # Replay remains exhaustive, but a phone projection must not grow one DOM
+    # subtree per durable event forever. The newest bounded window preserves
+    # useful audit navigation while the database retains the complete chain.
+    # State, history, and health share one verified SQLite snapshot so growth
+    # does not multiply replay work or mix adjacent revisions in one page.
+    revision, state, history, health = kernel.record.projection_snapshot(50)
+    context = Context(revision=revision, state=state, recent_receipts=())
+    total_receipts = int(health["event_count"])
     work_items = [value for key, value in context.state.items() if key.startswith("work:")]
     open_work = sum(isinstance(item, dict) and item.get("status") == "open" for item in work_items)
     verification = verification or {}
@@ -239,7 +246,7 @@ def render(
             <div class="owner-controls" data-owner-controls hidden aria-live="polite">
               <span data-owner-identity></span>
               <span data-owner-control-status>Checking controls…</span>
-              <div><button type="button" data-owner-start>Start</button><button type="button" data-owner-stop>Stop</button></div>
+              <div><button type="button" data-owner-start>Start</button><button type="button" data-owner-stop>Stop</button><button type="button" data-owner-backup>Backup</button></div>
             </div>
           </div>''' if control_url else ''}
         </section>
@@ -305,7 +312,7 @@ def render(
     .owner-controls {{ display:grid; grid-template-columns:1fr auto; gap:8px 14px; align-items:center }}
     .owner-controls[hidden] {{ display:none }}
     .owner-controls>[data-owner-control-status] {{ color:var(--muted) }}
-    .owner-controls>div {{ grid-column:1/-1; display:grid; grid-template-columns:1fr 1fr; gap:8px }}
+    .owner-controls>div {{ grid-column:1/-1; display:grid; grid-template-columns:repeat(3,1fr); gap:8px }}
     .owner-controls button {{ min-height:44px; border:1px solid var(--line); background:var(--paper); color:var(--ink); font:800 12px var(--mono); cursor:pointer }}
     .owner-controls [data-owner-start] {{ border-color:var(--green); color:var(--green) }}
     .owner-controls [data-owner-stop] {{ border-color:#f7768e; color:#f7768e }}
@@ -399,10 +406,10 @@ def render(
   {_exchange_panel(continuity_proof)}
   <section><div class="toolbar"><div><span class="eyebrow">{open_work} open</span><h2>Current work</h2></div></div>
     <div class="work-grid">{_work_cards(context.state)}</div></section>
-  <details class="history"><summary>Activity history · {len(history)} receipts</summary>
+  <details class="history"><summary>Activity history · showing {len(history)} of {total_receipts} receipts</summary>
     <div class="history-tools"><input id="search" type="search" placeholder="Filter activity…" aria-label="Filter activity history"></div>
     <div class="receipts" id="receipts">{_receipt_rows(history)}</div></details>
-  <footer>Verified durable record · revision {context.revision} · Pages is a read-only view.</footer>
+  <footer>Verified durable record · revision {context.revision} · {int(health['database_bytes'])} database bytes · {health['replay_ms']} ms replay · Pages is a read-only view.</footer>
 </main><script>
 const observer=document.querySelector('.observer-console');
 const observerState=document.querySelector('[data-observer-state]');
@@ -422,6 +429,7 @@ const ownerIdentity=document.querySelector('[data-owner-identity]');
 const ownerControlStatus=document.querySelector('[data-owner-control-status]');
 const ownerStart=document.querySelector('[data-owner-start]');
 const ownerStop=document.querySelector('[data-owner-stop]');
+const ownerBackup=document.querySelector('[data-owner-backup]');
 const ownerSessionKey='sudofx-owner-session';
 const ownerFragment='#sudofx-control=';
 // OAuth returns encrypted session ciphertext in the fragment. Fragments never
@@ -468,9 +476,15 @@ const refreshOwnerControls=async()=>{{
     ownerLogin.hidden=true;
     ownerControls.hidden=false;
     ownerIdentity.textContent='Signed in as '+state.login;
-    ownerControlStatus.textContent=state.enabled?(state.activeRuns.length?'Running now':'Enabled · next cycle starting'):'Stopped';
+    const maintenance=state.maintenance||{{}};
+    const databaseSize=Number(maintenance.databaseBytes||0);
+    const storageRisk=maintenance.repositoryVisibility==='public'?'public state':maintenance.repositoryVisibility||'unknown visibility';
+    const protection=maintenance.stateBranchProtected?'protected':'unprotected';
+    const workflowLabel=state.enabled?(state.activeRuns.length?'Running now':'Enabled · next cycle starting'):'Stopped';
+    ownerControlStatus.textContent=workflowLabel+' · DB '+databaseSize+' bytes · '+storageRisk+' · '+protection;
     ownerStart.disabled=state.enabled;
     ownerStop.disabled=!state.enabled;
+    if(ownerBackup)ownerBackup.disabled=false;
     applyOwnerWorkflowState(state);
     return state;
   }}catch{{
@@ -481,12 +495,13 @@ const refreshOwnerControls=async()=>{{
   }}
 }};
 const operateOwnerControl=async(path)=>{{
-  ownerStart.disabled=true;ownerStop.disabled=true;ownerControlStatus.textContent='Updating…';
+  ownerStart.disabled=true;ownerStop.disabled=true;if(ownerBackup)ownerBackup.disabled=true;ownerControlStatus.textContent='Updating…';
   try{{const result=await ownerRequest(path,'POST');ownerControlStatus.textContent=result.message;await refreshOwnerControls();}}
-  catch(error){{ownerControlStatus.textContent=error.message;ownerStart.disabled=false;ownerStop.disabled=false;}}
+  catch(error){{ownerControlStatus.textContent=error.message;ownerStart.disabled=false;ownerStop.disabled=false;if(ownerBackup)ownerBackup.disabled=false;}}
 }};
 if(ownerStart)ownerStart.addEventListener('click',()=>operateOwnerControl('/api/start'));
 if(ownerStop)ownerStop.addEventListener('click',()=>operateOwnerControl('/api/stop'));
+if(ownerBackup)ownerBackup.addEventListener('click',()=>operateOwnerControl('/api/backup'));
 // The workflow owns a success-only successor chain. This field describes that
 // lifecycle rather than estimating a wall-clock time that no longer exists.
 const updateNextCheck=(state)=>{{
@@ -631,6 +646,13 @@ def export_site(
             json.dumps(continuity_proof, indent=2, sort_keys=True),
             encoding="utf-8",
         )
+    # Health is a replaceable, content-free projection. It reveals growth and
+    # integrity signals without exposing proposal payloads or becoming an input
+    # to restore, governance, or maintenance decisions.
+    (destination / "database-health.json").write_text(
+        json.dumps(kernel.record.health(), indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
     (destination / ".nojekyll").write_text("", encoding="utf-8")
     # The local operator loop must make its continuation decision from the same
     # verified artifact the human sees, never from workflow success alone. A

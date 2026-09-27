@@ -28,7 +28,7 @@ on:
       action:
         description: Verify only, or run one governed operation
         type: choice
-        options: [auto, verify, prove-work, prove-model, export-handoff, work-create, work-advance, work-complete, set, delete]
+        options: [auto, verify, backup, prove-work, prove-model, export-handoff, work-create, work-advance, work-complete, set, delete]
         default: auto
         required: true
       key:
@@ -90,7 +90,7 @@ jobs:
       - name: Apply governed operation
         # Only a manual dispatch enters the mutation path. The adapter restores
         # and verifies sudofx-state, appends one receipt, checkpoints, and renders.
-        if: github.event_name == 'workflow_dispatch' && inputs.action != 'auto' && inputs.action != 'verify' && inputs.action != 'prove-work' && inputs.action != 'prove-model' && inputs.action != 'export-handoff'
+        if: github.event_name == 'workflow_dispatch' && inputs.action != 'auto' && inputs.action != 'verify' && inputs.action != 'backup' && inputs.action != 'prove-work' && inputs.action != 'prove-model' && inputs.action != 'export-handoff'
         env:
           ACTION: ${{ inputs.action }}
           KEY: ${{ inputs.key }}
@@ -121,11 +121,27 @@ jobs:
         env:
           KEY: ${{ inputs.key }}
         run: PYTHONPATH=src python scripts/github_sudofx.py --export-handoff "$KEY"
+      - name: Create verified recovery backup
+        # A backup is a finite-retention recovery copy, not another authority.
+        # The script restores, physically checks, semantically replays, and
+        # snapshots SQLite before Actions is allowed to retain the artifact.
+        if: github.event_name == 'workflow_dispatch' && inputs.action == 'backup'
+        run: PYTHONPATH=src python scripts/github_sudofx.py --backup recovery/sudofx.sqlite
+      - name: Retain authenticated recovery backup
+        # Workflow artifacts require authenticated repository access and are
+        # never uploaded to Pages. Thirty days provides rollback depth without
+        # turning every historical snapshot into permanent duplicate authority.
+        if: github.event_name == 'workflow_dispatch' && inputs.action == 'backup'
+        uses: actions/upload-artifact@v4
+        with:
+          name: sudofx-recovery-${{ github.run_id }}
+          path: recovery/sudofx.sqlite
+          retention-days: 30
       - name: Render verified record
         # Code pushes and explicit phone-triggered verify runs are read-only
         # consumers of state. Publication occurs only after the test step above
         # succeeds, so Pages can truthfully identify the commit/run it reflects.
-        if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.action == 'verify')
+        if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && (inputs.action == 'verify' || inputs.action == 'backup'))
         env:
           SUDOFX_CONTROL_URL: ${{ vars.SUDOFX_CONTROL_URL }}
         run: PYTHONPATH=src python scripts/github_sudofx.py --publish-only

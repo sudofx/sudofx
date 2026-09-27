@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import subprocess
 import sys
 import tempfile
 import unittest
+from contextlib import closing
 from pathlib import Path
 
 from sudofx import (
@@ -16,7 +18,7 @@ from sudofx import (
     Proposal,
     ProviderError,
 )
-from sudofx.record import IntegrityError, Record
+from sudofx.record import APPLICATION_ID, SCHEMA_VERSION, IntegrityError, Record, StorageVersionError
 from sudofx.continuity import run_continuity_proof, run_model_continuity_probe, run_work_continuity_probe
 from sudofx.report import export_site, render
 from sudofx.handoff import build_handoff_packet, export_handoff_packet
@@ -48,6 +50,9 @@ class ContractOnlyStore:
 
     def history(self):
         return self._record.history()
+
+    def projection_snapshot(self, history_limit=50):
+        return self._record.projection_snapshot(history_limit)
 
 
 class KernelTests(unittest.TestCase):
@@ -101,7 +106,7 @@ class KernelTests(unittest.TestCase):
             )
             original_restore = adapter.restore
             original_export = adapter.export_site
-            adapter.restore = lambda: False
+            adapter.restore = lambda: (False, False)
             adapter.export_site = lambda *args, **kwargs: Path(self.tempdir.name) / "index.html"
             original_argv = sys.argv
             try:
@@ -114,6 +119,54 @@ class KernelTests(unittest.TestCase):
         finally:
             adapter.run_work_continuity_probe = original
         self.assertEqual(seen, ["first-workflow"])
+
+    def test_restore_provider_failure_cannot_initialize_empty_authority(self) -> None:
+        """A network or permission failure is not evidence that state is absent."""
+        import scripts.github_sudofx as adapter
+
+        original_git = adapter.git
+        try:
+            adapter.git = lambda *args, **kwargs: subprocess.CompletedProcess(
+                args, 1, stdout="", stderr="provider unavailable"
+            )
+            with self.assertRaisesRegex(RuntimeError, "could not inspect durable state"):
+                adapter.restore()
+        finally:
+            adapter.git = original_git
+
+    def test_corrupt_restore_candidate_preserves_last_known_good_database(self) -> None:
+        """Failed verification must leave the installed database bytes untouched."""
+        import scripts.github_sudofx as adapter
+
+        existing = Path(self.tempdir.name) / "installed.sqlite"
+        source = Record(existing)
+        Kernel(source).submit(Proposal("existing", 0, (Operation("set", "safe", True),)))
+        before = existing.read_bytes()
+        original_data = adapter.DATA
+        original_git = adapter.git
+        original_run = adapter.subprocess.run
+        try:
+            adapter.DATA = existing
+
+            def fake_git(*args, **kwargs):
+                return subprocess.CompletedProcess(args, 0, stdout="state-head\n", stderr="")
+
+            def fake_run(args, **kwargs):
+                # Only the git-show extraction crosses this seam. Supplying an
+                # invalid SQLite body exercises verification before replacement.
+                kwargs["stdout"].write(b"not a sqlite database")
+                return subprocess.CompletedProcess(args, 0)
+
+            adapter.git = fake_git
+            adapter.subprocess.run = fake_run
+            with self.assertRaises(sqlite3.DatabaseError):
+                adapter.restore()
+        finally:
+            adapter.DATA = original_data
+            adapter.git = original_git
+            adapter.subprocess.run = original_run
+        self.assertEqual(existing.read_bytes(), before)
+        self.assertEqual(Kernel(Record(existing)).context().state, {"safe": True})
 
     def test_real_work_continuity_probe_uses_snapshot_without_mutating_source(self) -> None:
         """
@@ -348,7 +401,7 @@ json.dump({
     def test_hash_chain_detects_tampering(self) -> None:
         """Changing stored payload bytes must make complete replay unavailable."""
         self.kernel.submit(Proposal("p1", 0, (Operation("set", "x", 1),)))
-        with sqlite3.connect(self.path) as connection:
+        with closing(sqlite3.connect(self.path)) as connection:
             connection.execute("UPDATE events SET payload = ? WHERE sequence = 1", ('{}',))
             connection.commit()
         with self.assertRaises(IntegrityError):
@@ -449,6 +502,9 @@ json.dump({
         self.assertIn('data-owner-controls hidden', page)
         self.assertIn('data-owner-start>Start</button>', page)
         self.assertIn('data-owner-stop>Stop</button>', page)
+        self.assertIn('data-owner-backup>Backup</button>', page)
+        self.assertIn("'/api/backup'", page)
+        self.assertIn("public state", page)
         self.assertIn("sessionStorage.setItem(ownerSessionKey", page)
         self.assertNotIn("GITHUB_CLIENT_SECRET", page)
 
@@ -489,6 +545,17 @@ json.dump({
         self.assertIn("gh workflow run prove-model.yml", workflow)
         self.assertNotIn("cron:", workflow)
         self.assertNotIn("\n  push:", workflow)
+
+    def test_recovery_workflow_retains_verified_backup_outside_pages(self) -> None:
+        """Owner backup must be finite, authenticated, and excluded from public output."""
+        workflow = (Path(__file__).parents[1] / ".github/workflows/sudofx.yml").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("inputs.action == 'backup'", workflow)
+        self.assertIn("--backup recovery/sudofx.sqlite", workflow)
+        self.assertIn("actions/upload-artifact@v4", workflow)
+        self.assertIn("retention-days: 30", workflow)
+        self.assertNotIn("path: recovery\n", workflow)
 
 
     def test_handoff_packet_is_bounded_and_portable(self) -> None:
@@ -548,6 +615,58 @@ json.dump({
         nested.parent.mkdir(parents=True)
         kernel = Kernel(Record(nested))
         self.assertEqual(kernel.context().revision, 0)
+
+    def test_record_migrates_legacy_header_and_rejects_unknown_future_schema(self) -> None:
+        """
+        Storage identity must be explicit before later schema changes accumulate.
+
+        Version zero is the one supported legacy shape. A newer version must
+        fail closed so older code cannot reinterpret data it does not understand.
+        """
+        with closing(sqlite3.connect(self.path)) as connection:
+            connection.execute("PRAGMA application_id = 0")
+            connection.execute("PRAGMA user_version = 0")
+        migrated = Record(self.path)
+        self.assertTrue(migrated.schema_changed)
+        with closing(sqlite3.connect(self.path)) as connection:
+            self.assertEqual(connection.execute("PRAGMA application_id").fetchone()[0], APPLICATION_ID)
+            self.assertEqual(connection.execute("PRAGMA user_version").fetchone()[0], SCHEMA_VERSION)
+            connection.execute(f"PRAGMA user_version = {SCHEMA_VERSION + 1}")
+        with self.assertRaises(StorageVersionError):
+            Record(self.path)
+
+    def test_snapshot_includes_committed_wal_pages_and_replays(self) -> None:
+        """A checkpoint snapshot must include commits not yet folded into the main file."""
+        # Holding a reader snapshot prevents WAL reset while another connection
+        # appends. A raw main-file copy can miss that append; SQLite backup must
+        # produce a complete snapshot that reconstructs the newer revision.
+        with closing(sqlite3.connect(self.path)) as reader:
+            reader.execute("BEGIN")
+            reader.execute("SELECT COUNT(*) FROM events").fetchone()
+            self.kernel.submit(Proposal("wal-event", 0, (Operation("set", "safe", True),)))
+            snapshot = Path(self.tempdir.name) / "snapshot.sqlite"
+            self.kernel.record.backup_to(snapshot)
+        recovered = Kernel(Record(snapshot)).context()
+        self.assertEqual(recovered.revision, 1)
+        self.assertEqual(recovered.state, {"safe": True})
+
+    def test_projection_history_is_bounded_without_pruning_authority(self) -> None:
+        """A growing record must not create an unbounded public page or lose receipts."""
+        for revision in range(60):
+            self.kernel.submit(
+                Proposal(
+                    f"event-{revision}",
+                    revision,
+                    (Operation("set", "counter", revision),),
+                )
+            )
+        page = render(self.kernel)
+        self.assertEqual(len(self.kernel.record.history()), 60)
+        self.assertEqual(len(self.kernel.record.history_tail(50)), 50)
+        self.assertIn("showing 50 of 60 receipts", page)
+        self.assertNotIn("proposal event-0", page)
+        self.assertIn("proposal event-59", page)
+        self.assertEqual(self.kernel.record.health()["quick_check"], "ok")
 
     def test_disposable_intelligences_advance_one_durable_work_item(self) -> None:
         """Independent invocations must append results to the same governed objective."""

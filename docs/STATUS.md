@@ -99,6 +99,8 @@ The architecture is directionally aligned, but several risks remain open:
 5. **Operational coupling:** GitHub and Cloudflare currently provide execution/control infrastructure even though neither owns sudofx state.
 6. **Storage evolution:** SQLite is correct for the current scale; migration to another backend must not leak storage specifics into kernel contracts.
 7. **Projection trust:** the observer must continue clearly distinguishing live telemetry, generated artifacts, and authoritative state.
+8. **State confidentiality:** `sudofx-state` is currently a public Git ref; no private or identifying durable material may enter it before migration to private storage.
+9. **Independent recovery:** authenticated 30-day Actions backups improve rollback, but they still share the repository/account failure domain.
 
 ## Next objectives
 
@@ -109,6 +111,8 @@ Near-term work should remain narrow:
 - make reconstruction quality comparable over time
 - preserve provenance for every derived context unit
 - keep all durable operational truth in the database
+- migrate authoritative persistence out of the public Git ref before storing private context
+- establish a second-provider/private backup target and periodically prove restoration
 - resist adding product breadth that weakens the kernel experiment
 
 ## Bottom line

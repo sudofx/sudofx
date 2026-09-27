@@ -29,6 +29,7 @@ import json
 import sqlite3
 import sys
 import tempfile
+from contextlib import closing
 from pathlib import Path
 from typing import Any
 
@@ -219,8 +220,11 @@ def _sqlite_snapshot(source: str | Path, destination: Path) -> None:
     untouched. This helper is intentionally experiment infrastructure; Kernel
     remains storage-backend independent.
     """
-    with sqlite3.connect(str(source)) as source_connection:
-        with sqlite3.connect(str(destination)) as destination_connection:
+    # Connection context managers commit or roll back but do not close. These
+    # probes may run continuously, so explicit ownership prevents descriptor
+    # growth from becoming a maintenance failure of the experiment itself.
+    with closing(sqlite3.connect(str(source))) as source_connection:
+        with closing(sqlite3.connect(str(destination))) as destination_connection:
             source_connection.backup(destination_connection)
 
 
