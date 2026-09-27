@@ -69,6 +69,11 @@ jobs:
     # rather than leaving an ambiguous operation active indefinitely.
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    env:
+      # Every derived site artifact must know the public owner-control endpoint.
+      # Keeping this at job scope prevents finite proof paths from accidentally
+      # publishing an observer without the Owner sign-in control.
+      SUDOFX_CONTROL_URL: ${{ vars.SUDOFX_CONTROL_URL }}
     steps:
       - uses: actions/checkout@v7
         with:
