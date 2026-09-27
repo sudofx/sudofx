@@ -28,7 +28,7 @@ on:
       action:
         description: Verify only, or run one governed operation
         type: choice
-        options: [auto, verify, backup, operator-stop, prove-work, prove-model, export-handoff, work-create, work-advance, work-complete, set, delete]
+        options: [auto, verify, backup, operator-stop, prove-work, prove-model, export-handoff, work-create, work-advance, record-assessment, work-complete, set, delete]
         default: auto
         required: true
       key:
