@@ -208,6 +208,37 @@ def render(
         """
 
     continuity_proof = continuity_proof or {}
+    observer_waiting = continuity_proof.get("assessment_status") == "semantic_review_pending"
+    observer_static_state = "WAITING FOR YOU" if observer_waiting else "IDLE"
+    observer_static_activity = (
+        "Human semantic review required"
+        if observer_waiting
+        else "No bounded operation currently running"
+    )
+    observer_console_html = f"""
+        <section class="observer-console" aria-label="Development observer"
+                 data-repository="{_escape(repository)}"
+                 data-workflow="prove-model.yml">
+          <div class="observer-head">
+            <div>
+              <span class="eyebrow">Observer mode</span>
+              <h2>Development status</h2>
+            </div>
+            <span class="observer-state" data-observer-state>{observer_static_state}</span>
+          </div>
+          <p class="observer-note">Live workflow telemetry comes from GitHub. Durable work, receipts, and decisions still come from the SQLite record.</p>
+          <div class="observer-grid">
+            <div class="observer-cell"><span>Current activity</span><strong data-current-activity>{_escape(observer_static_activity)}</strong></div>
+            <div class="observer-cell"><span>Tests</span><strong data-test-status>Last published build passed</strong></div>
+            <div class="observer-cell"><span>Current step</span><strong data-current-step>None</strong></div>
+            <div class="observer-cell"><span>Latest run</span><strong data-latest-run>{_escape(verification.get("run_id", "unknown"))}</strong></div>
+          </div>
+          <div class="observer-detail">
+            <span data-observer-detail>Checking live workflow status…</span>
+            <a href="https://github.com/{_escape(repository)}/actions/workflows/prove-model.yml">Open workflow ↗</a>
+          </div>
+        </section>
+        """
     proof_passed = continuity_proof.get("passed") is True
     proof_checks = continuity_proof.get("checks", {})
     if not isinstance(proof_checks, dict):
@@ -300,6 +331,20 @@ def render(
     .verification {{ display:flex; align-items:center; justify-content:space-between; gap:20px; margin:0 0 44px;
       padding:18px 20px; border:1px solid var(--line); border-left:4px solid var(--green); background:var(--surface) }}
     .verification h2 {{ margin:5px 0 8px; font-size:18px }}
+    .observer-console {{ margin:0 0 22px; padding:20px; border:1px solid var(--line); background:var(--surface) }}
+    .observer-head {{ display:flex; align-items:flex-start; justify-content:space-between; gap:18px }}
+    .observer-head h2 {{ margin:5px 0 0; font-size:24px }}
+    .observer-state {{ padding:6px 9px; border:1px solid var(--line); font:800 11px var(--mono); letter-spacing:.04em }}
+    .observer-state.working {{ color:var(--green); border-color:var(--green) }}
+    .observer-state.failed {{ color:var(--hot); border-color:var(--hot) }}
+    .observer-state.waiting {{ color:var(--accent); border-color:var(--accent) }}
+    .observer-note {{ margin:12px 0 16px; color:var(--muted); font-size:13px }}
+    .observer-grid {{ display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:var(--line); border:1px solid var(--line) }}
+    .observer-cell {{ min-width:0; padding:14px; background:var(--paper) }}
+    .observer-cell span {{ display:block; color:var(--muted); font:700 9px var(--mono); letter-spacing:.08em; text-transform:uppercase }}
+    .observer-cell strong {{ display:block; margin-top:7px; font-size:13px; line-height:1.25; overflow-wrap:anywhere }}
+    .observer-detail {{ display:flex; justify-content:space-between; gap:14px; margin-top:12px; color:var(--muted); font:11px var(--mono) }}
+    .observer-detail a {{ color:var(--accent); text-decoration:none; white-space:nowrap }}
 
 
     .continuity-challenge {{ margin:0 0 44px; padding:20px; border:1px solid var(--line); border-top:4px solid var(--accent); background:var(--surface) }}
@@ -394,6 +439,7 @@ def render(
     .theme-switch input:focus-visible + .data-switch-track {{ outline:3px solid var(--green); outline-offset:3px }}
     @media(max-width:600px) {{ header {{ column-gap:16px; row-gap:24px }}
       .metrics {{ grid-template-columns:1fr }} .verification {{ align-items:flex-start; flex-direction:column }}
+      .observer-grid {{ grid-template-columns:1fr 1fr }} .observer-detail {{ align-items:flex-start; flex-direction:column }}
       .toolbar {{ align-items:flex-end }}
       .receipt {{ grid-template-columns:38px 76px 1fr }} .revision {{ grid-column:3 }} .receipt-detail {{ grid-column:1/-1 }} }}
   </style>
@@ -409,6 +455,7 @@ def render(
     <div class="metric"><span class="eyebrow">Accepted</span><strong>{accepted}</strong></div>
     <div class="metric"><span class="eyebrow">Rejected</span><strong>{rejected}</strong></div>
   </section>
+  {observer_console_html}
   {verification_html}
   {continuity_challenge_html}
   {continuity_html}
@@ -421,6 +468,43 @@ def render(
     <div class="receipts" id="receipts">{_receipt_rows(history)}</div></section>
   <footer>Hash-linked and replay-verified before publication · Pages is a projection, never the authority.</footer>
 </main><script>
+const observer=document.querySelector('.observer-console');
+const observerState=document.querySelector('[data-observer-state]');
+const currentActivity=document.querySelector('[data-current-activity]');
+const testStatus=document.querySelector('[data-test-status]');
+const currentStep=document.querySelector('[data-current-step]');
+const latestRun=document.querySelector('[data-latest-run]');
+const observerDetail=document.querySelector('[data-observer-detail]');
+const refreshObserver=async()=>{{
+  if(!observer)return;
+  const repo=observer.dataset.repository, workflow=observer.dataset.workflow;
+  try{{
+    const response=await fetch('https://api.github.com/repos/'+repo+'/actions/workflows/'+workflow+'/runs?per_page=1',{{cache:'no-store'}});
+    if(!response.ok)throw new Error('HTTP '+response.status);
+    const data=await response.json(), run=Array.isArray(data.workflow_runs)?data.workflow_runs[0]:null;
+    if(!run)throw new Error('No workflow run');
+    latestRun.textContent='#'+String(run.run_number||run.id);
+    const running=run.status!=='completed';
+    observerState.className='observer-state '+(running?'working':(run.conclusion==='failure'?'failed':''));
+    observerState.textContent=running?'WORKING':(run.conclusion==='failure'?'FAILED':{json.dumps(observer_static_state)});
+    currentActivity.textContent=running?'Bounded development cycle running':(run.conclusion==='failure'?'Workflow needs inspection':{json.dumps(observer_static_activity)});
+    const jobsResponse=await fetch(run.jobs_url,{{cache:'no-store'}});
+    if(jobsResponse.ok){{
+      const jobsData=await jobsResponse.json(), jobs=Array.isArray(jobsData.jobs)?jobsData.jobs:[];
+      const steps=jobs.flatMap(job=>Array.isArray(job.steps)?job.steps:[]);
+      const active=steps.find(step=>step.status==='in_progress')||steps.find(step=>step.status==='queued');
+      const verify=steps.find(step=>step.name==='Verify the kernel');
+      currentStep.textContent=active?active.name:(run.status==='completed'?'Complete':'Starting');
+      if(verify)testStatus.textContent=verify.status==='completed'?(verify.conclusion==='success'?'PASS':'FAIL'):'RUNNING';
+    }}
+    const updated=new Date(run.updated_at||run.created_at);
+    observerDetail.textContent='GitHub updated '+updated.toLocaleString()+' · auto-refreshes every 15s';
+  }}catch(error){{
+    observerDetail.textContent='Live GitHub telemetry unavailable · showing last published durable state';
+  }}
+}};
+refreshObserver();
+setInterval(refreshObserver,15000);
 const search=document.querySelector('#search');
 search.addEventListener('input',()=>{{const q=search.value.toLowerCase();document.querySelectorAll('.receipt').forEach(r=>r.hidden=!r.dataset.search.toLowerCase().includes(q))}});
 document.querySelectorAll('.receipt').forEach(r=>r.addEventListener('click',()=>r.setAttribute('aria-expanded',r.classList.contains('open'))));
