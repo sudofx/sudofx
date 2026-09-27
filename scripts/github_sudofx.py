@@ -393,17 +393,6 @@ def main() -> int:
             provider="Google Gemini",
             model=model,
         )
-    elif prove_model_full_id:
-        model = os.environ.get("GEMINI_MODEL", "").strip()
-        if not model:
-            parser.error("GEMINI_MODEL is required for --prove-model-full")
-        continuity_proof = run_model_continuity_probe(
-            DATA,
-            prove_model_full_id,
-            (sys.executable, str(ROOT / "scripts" / "gemini_provider.py")),
-            provider="Google Gemini",
-            model=model,
-        )
     elif prove_model_compressed_id:
         model = os.environ.get("GEMINI_MODEL", "").strip()
         if not model:
