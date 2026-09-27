@@ -38,7 +38,7 @@ from __future__ import annotations
 
 from .models import GovernanceDecision, JsonValue, Proposal
 
-WORK_ACTIONS = {"create_work", "advance_work", "complete_work"}
+WORK_ACTIONS = {"create_work", "advance_work", "record_assessment", "complete_work"}
 
 # Work state occupies an explicit namespace inside the generic JSON state map.
 # The prefix prevents a work identifier from colliding with an operator's plain
@@ -126,7 +126,7 @@ class Governance:
             # semantics unsurprising.
             if operation.action == "create_work":
                 self._validate_create(operation.key, operation.value, current_state, reasons)
-            elif operation.action in {"advance_work", "complete_work"}:
+            elif operation.action in {"advance_work", "record_assessment", "complete_work"}:
                 self._validate_transition(operation.action, operation.key, operation.value, current_state, reasons)
 
         return GovernanceDecision(accepted=not reasons, reasons=tuple(reasons))
@@ -199,6 +199,8 @@ class Governance:
                 isinstance(obligation, str) and obligation.strip() for obligation in obligations
             ):
                 reasons.append("open obligations must be non-empty strings")
+        elif action == "record_assessment":
+            Governance._validate_assessment(value, reasons)
         # Completion requires an explicit final result. Merely toggling a status
         # would leave future readers unable to tell what outcome was accepted.
         elif (
@@ -207,3 +209,80 @@ class Governance:
             or not value["result"].strip()
         ):
             reasons.append("complete_work requires a non-empty final result")
+
+    @staticmethod
+    def _validate_assessment(value: JsonValue, reasons: list[str]) -> None:
+        """Validate one structured human semantic judgment and its provenance."""
+        if not isinstance(value, dict):
+            reasons.append("record_assessment requires an object")
+            return
+
+        verdict = value.get("verdict")
+        if verdict not in {"pass", "fail", "uncertain"}:
+            reasons.append("assessment verdict must be pass, fail, or uncertain")
+
+        criteria = value.get("criteria")
+        allowed_criteria = {
+            "objective_fidelity",
+            "history_fidelity",
+            "frontier_fidelity",
+            "compression_awareness",
+            "unsupported_claims",
+            "actionability",
+        }
+        if (
+            not isinstance(criteria, dict)
+            or not criteria
+            or any(
+                key not in allowed_criteria
+                or result not in {"pass", "fail", "uncertain"}
+                for key, result in criteria.items()
+            )
+        ):
+            reasons.append("assessment criteria must contain recognized pass/fail/uncertain judgments")
+
+        metrics = value.get("metrics")
+        required_metrics = {
+            "context_bytes",
+            "full_context_bytes",
+            "compression_ratio",
+            "accepted_results_exposed",
+            "receipt_count_exposed",
+        }
+        if not isinstance(metrics, dict) or not required_metrics.issubset(metrics):
+            reasons.append("assessment metrics are incomplete")
+        elif (
+            any(isinstance(metrics[key], bool) for key in required_metrics)
+            or not isinstance(metrics["context_bytes"], int)
+            or not isinstance(metrics["full_context_bytes"], int)
+            or not isinstance(metrics["compression_ratio"], (int, float))
+            or not isinstance(metrics["accepted_results_exposed"], int)
+            or not isinstance(metrics["receipt_count_exposed"], int)
+            or metrics["context_bytes"] < 0
+            or metrics["full_context_bytes"] < 0
+            or not 0 <= float(metrics["compression_ratio"]) <= 1
+            or metrics["accepted_results_exposed"] < 0
+            or metrics["receipt_count_exposed"] < 0
+        ):
+            reasons.append("assessment metrics contain invalid values")
+
+        provenance = value.get("provenance")
+        required_provenance = {
+            "artifact_run_id",
+            "artifact_commit",
+            "context_digest",
+            "provider",
+            "model",
+        }
+        if (
+            not isinstance(provenance, dict)
+            or any(
+                not isinstance(provenance.get(key), str) or not provenance[key].strip()
+                for key in required_provenance
+            )
+        ):
+            reasons.append("assessment provenance is incomplete")
+
+        note = value.get("note")
+        if note is not None and (not isinstance(note, str) or not note.strip()):
+            reasons.append("assessment note must be a non-empty string when supplied")
