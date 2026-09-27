@@ -500,15 +500,15 @@ const ownerBackup=document.querySelector('[data-owner-backup]');
 const ownerSessionKey='sudofx-owner-session';
 const ownerFragment='#sudofx-control=';
 // OAuth returns encrypted session ciphertext in the fragment. Fragments never
-// reach Pages or referrer headers; move it to sessionStorage and immediately
+// reach Pages or referrer headers; move it to origin-persistent localStorage and immediately
 // remove it from the address bar before making an authenticated request.
 if(controlUrl && location.hash.startsWith(ownerFragment)){{
   try{{
-    sessionStorage.setItem(ownerSessionKey,decodeURIComponent(location.hash.slice(ownerFragment.length)));
+    localStorage.setItem(ownerSessionKey,decodeURIComponent(location.hash.slice(ownerFragment.length)));
     history.replaceState(null,'',location.pathname+location.search);
   }}catch{{}}
 }}
-const ownerSession=()=>{{try{{return sessionStorage.getItem(ownerSessionKey)||''}}catch{{return ''}}}};
+const ownerSession=()=>{{try{{return localStorage.getItem(ownerSessionKey)||''}}catch{{return ''}}}};
 const ownerRequest=async(path,method='GET')=>{{
   const response=await fetch(controlUrl+path,{{method,headers:{{Authorization:'Bearer '+ownerSession()}}}});
   const body=await response.json().catch(()=>({{}}));
@@ -555,7 +555,7 @@ const refreshOwnerControls=async()=>{{
     applyOwnerWorkflowState(state);
     return state;
   }}catch{{
-    try{{sessionStorage.removeItem(ownerSessionKey)}}catch{{}}
+    try{{localStorage.removeItem(ownerSessionKey)}}catch{{}}
     ownerControls.hidden=true;
     ownerLogin.hidden=false;
     return null;
