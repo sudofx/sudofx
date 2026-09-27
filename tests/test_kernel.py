@@ -643,29 +643,24 @@ json.dump({
             },
             control_url="https://control.example",
         )
-        self.assertLess(page.index("What sudofx is doing"), page.index("Current work"))
+        # Public visitors see the experiment before any operator-only technical
+        # material. The technical view is present in the static artifact but must
+        # remain hidden until the authenticated control service validates a session.
+        self.assertLess(page.index("Latest exchange"), page.index("Technical view"))
         self.assertIn("CHECKING…", page)
-        self.assertIn("Loading live workflow status…", page)
-        # A successful bounded result now hands directly to its successor. The
-        # page must describe that lifecycle rather than inventing a future clock
-        # time or implying that human review pauses the authorized test chain.
+        self.assertIn("Loading current status…", page)
         self.assertIn('data-fallback-state="CONTINUOUS"', page)
-        self.assertIn("next cycle starts automatically", page)
-        self.assertIn("Continuous mode is active", page)
-        self.assertIn("Next cycle", page)
-        self.assertIn("Immediately after this cycle", page)
+        self.assertIn("The experiment is running", page)
         self.assertNotIn("expectedHeartbeat", page)
         self.assertNotIn('data-fallback-state="WAITING FOR YOU"', page)
         self.assertIn("What Gemini was asked", page)
-        self.assertIn("Preserve the work across model replacement", page)
-        self.assertIn("Bounded context reached Gemini", page)
-        self.assertIn("Inspect the frontier", page)
-        self.assertIn("Do not mutate production during proof", page)
-        self.assertIn("Gemini responded", page)
-        self.assertIn("Reconstruction: continue safely", page)
-        self.assertIn("Why: The durable objective identifies the frontier.", page)
-        self.assertIn("What sudofx did", page)
-        self.assertIn("isolated verification snapshot", page)
+        self.assertIn("What Gemini responded", page)
+        self.assertIn("What happened", page)
+        self.assertIn("Gemini understood: continue safely.", page)
+        self.assertNotIn("Why: The durable objective identifies the frontier.", page)
+        self.assertIn('data-owner-technical hidden', page)
+        self.assertIn("if(ownerTechnical)ownerTechnical.hidden=false", page)
+        self.assertIn("if(ownerTechnical)ownerTechnical.hidden=true", page)
         self.assertIn("data-exchange-response", page)
         self.assertIn("continuity-proof.json?ts=", page)
         self.assertIn("setInterval(refreshExchange,15000)", page)
@@ -771,7 +766,7 @@ json.dump({
         self.assertIn("needs: deploy", workflow)
         self.assertIn("gh workflow run prove-model.yml", workflow)
         self.assertIn("operator_start:", workflow)
-        self.assertIn("--operator-transition start", workflow)
+        self.assertIn("--operator-start", workflow)
         self.assertNotIn("cron:", workflow)
         self.assertNotIn("\n  push:", workflow)
 
