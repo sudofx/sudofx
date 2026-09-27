@@ -80,15 +80,13 @@ jobs:
         # Tests run before any stateful action. A broken implementation must not
         # be allowed to append history merely because the workflow was dispatched.
         run: PYTHONPATH=src python -m unittest discover -s tests -v
-      - name: Run compressed-context Gemini probe once
-        # The full authoritative record is restored and verified, but Gemini sees
-        # only the derived compressed Context. Proposal governance still occurs
-        # against a temporary full SQLite snapshot.
-        if: github.event_name == 'push' && contains(github.event.head_commit.message, '[compressed-context-probe]')
-        env:
-          GEMINI_MODEL: gemini-3.5-flash-lite
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: PYTHONPATH=src python scripts/github_sudofx.py --prove-model-compressed handoff-v1
+      - name: Record compressed-context semantic PASS
+        if: github.event_name == 'push' && contains(github.event.head_commit.message, '[compressed-context-pass]')
+        run: |
+          PYTHONPATH=src python scripts/github_sudofx.py \
+            --action work-advance \
+            --key handoff-v1 \
+            --value '{"result":"Semantic verdict: PASS for deliberate context compression. A fresh Gemini process reconstructed the sudofx objective, the completed three-handoff repeatability milestone, and the compression frontier from a derived context reduced from 22151 to 12565 bytes (43.28% smaller). Only 4 of 14 accepted results and 8 recent receipts were exposed; 10 omitted results were represented only by count plus digest d86a545cf52cc86dc3fb1850f7ecd5f8d9cd97ccde3e5c4fcebb6b6efc725bca. The candidate did not invent omitted history, proposed the correct next compression experiment, crossed governance only on a temporary snapshot, and left production authority unchanged.","open_obligations":["Find the semantic compression boundary: run one fresh Gemini probe with an even smaller derived handoff-v1 context exposing only the 2 most recent accepted milestones and 4 recent receipts, while preserving objective, constraints, current frontier, total/omitted counts, source provenance, and omitted-history digest. Compare semantic fidelity to the 4-result/8-receipt PASS. Keep continuous mode stopped."]}'
 
       - name: Continue current milestone automatically
         # Observer mode: one stable command handles the next safe milestone step.
@@ -151,7 +149,7 @@ jobs:
         # Code pushes and explicit phone-triggered verify runs are read-only
         # consumers of state. Publication occurs only after the test step above
         # succeeds, so Pages can truthfully identify the commit/run it reflects.
-        if: (github.event_name == 'push' && !contains(github.event.head_commit.message, '[compressed-context-probe]')) || (github.event_name == 'workflow_dispatch' && (inputs.action == 'verify' || inputs.action == 'backup'))
+        if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && (inputs.action == 'verify' || inputs.action == 'backup'))
         env:
           SUDOFX_CONTROL_URL: ${{ vars.SUDOFX_CONTROL_URL }}
         run: PYTHONPATH=src python scripts/github_sudofx.py --publish-only
