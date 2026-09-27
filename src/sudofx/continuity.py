@@ -546,6 +546,36 @@ def run_model_continuity_probe(
 
 
 
+DEFAULT_MODEL_RECENT_RESULT_LIMIT = 1
+DEFAULT_MODEL_RECEIPT_LIMIT = 0
+
+
+def run_default_model_continuity_probe(
+    record_path: str | Path,
+    work_id: str,
+    provider_command: tuple[str, ...],
+    *,
+    provider: str,
+    model: str,
+) -> dict[str, Any]:
+    """
+    Run the normal live-model handoff using the smallest proven semantic slice.
+
+    Full SQLite history remains authoritative. The provider sees only the current
+    work objective/constraints/frontier, the most recent accepted milestone,
+    counts plus a digest for omitted accepted history, and zero receipt prose.
+    """
+    return run_compressed_model_continuity_probe(
+        record_path,
+        work_id,
+        provider_command,
+        provider=provider,
+        model=model,
+        recent_result_limit=DEFAULT_MODEL_RECENT_RESULT_LIMIT,
+        receipt_limit=DEFAULT_MODEL_RECEIPT_LIMIT,
+    )
+
+
 def run_compressed_model_continuity_probe(
     record_path: str | Path,
     work_id: str,
