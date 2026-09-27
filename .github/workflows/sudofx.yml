@@ -55,12 +55,11 @@ permissions:
   id-token: write
 
 concurrency:
-  # One group serializes all runs that could touch durable state. Push-triggered
-  # read-only publications also join the group for a simple initial operational
-  # model. Kernel revision checks remain the correctness backstop if workflow
-  # coordination changes later.
-  group: sudofx-durable-state
-  cancel-in-progress: false
+  # Read-only source-change publications must never occupy the authoritative
+  # mutation lane. Manual operations still serialize with the Gemini continuity
+  # workflow, while replaceable projection refreshes use their own lane.
+  group: ${{ github.event_name == 'push' && 'sudofx-projection' || 'sudofx-authority-v2' }}
+  cancel-in-progress: ${{ github.event_name == 'push' }}
 
 jobs:
   build:
