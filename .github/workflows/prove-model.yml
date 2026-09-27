@@ -38,9 +38,10 @@ permissions:
   id-token: write
 
 concurrency:
-  # One serialized lane owns both authoritative observation recording and the
-  # next provider snapshot. Pages deployment has its own replaceable queue below.
-  group: sudofx-durable-state
+  # Continuity observations share the authoritative lane with manual governed
+  # mutations, but never with read-only projection refreshes. The v2 group also
+  # abandons any stale scheduler lock left behind by the earlier shared lane.
+  group: sudofx-authority-v2
   cancel-in-progress: false
 
 jobs:
