@@ -1,16 +1,9 @@
 name: sudofx — publish Pages
 
 on:
-  workflow_dispatch:
-    inputs:
-      source_run_id:
-        description: Optional run that requested this publication
-        type: string
-        required: false
   push:
     branches: [master]
     paths:
-      - 'scripts/github_sudofx.py'
       - 'src/sudofx/report.py'
       - '.github/workflows/pages.yml'
 
