@@ -293,6 +293,9 @@ def main() -> int:
         repository=repository,
         verification=verification,
         continuity_proof=continuity_proof,
+        # Public configuration only. The GitHub App client secret and encrypted
+        # session key remain exclusively in the control service environment.
+        control_url=os.environ.get("SUDOFX_CONTROL_URL", ""),
     )
     export_id = handoff_id or auto_handoff_id
     if export_id:

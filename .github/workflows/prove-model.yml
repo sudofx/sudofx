@@ -55,6 +55,7 @@ jobs:
         env:
           GEMINI_MODEL: gemini-3.5-flash-lite
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          SUDOFX_CONTROL_URL: ${{ vars.SUDOFX_CONTROL_URL }}
         run: PYTHONPATH=src python scripts/github_sudofx.py --auto
       - name: Configure Pages
         uses: actions/configure-pages@v5

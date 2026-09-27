@@ -356,6 +356,13 @@ It also shows whether the continuous chain is working, between successful cycles
 or stopped on failure. There is no scheduled gap: every successfully published
 Gemini cycle dispatches its successor immediately.
 
+Owner controls use a separately deployed GitHub App control service. The public
+page shows only an owner sign-in link until that service verifies GitHub user ID
+`14032554`; Start and Stop are then revealed for that browser session. Stop
+disables the continuation workflow before cancelling active runs, while Start
+re-enables it and dispatches one bootstrap. GitHub credentials and encryption
+keys never enter the Pages artifact.
+
 In GitHub, the `sudofx — operate & publish` workflow is the authenticated control
 plane. A manual run accepts a `set` or `delete` proposal, applies deterministic
 governance, checkpoints the SQLite record to the `sudofx-state` branch, verifies it,

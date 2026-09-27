@@ -1,0 +1,127 @@
+/**
+ * Contract tests for the confidential control boundary.
+ *
+ * These tests use synthetic tokens and an in-memory GitHub surface. They prove
+ * identity rejection and operation ordering; they do not claim that production
+ * OAuth credentials or Cloudflare deployment exist.
+ */
+
+import assert from "node:assert/strict";
+import test from "node:test";
+import { handleRequest } from "./worker.mjs";
+
+const env = {
+  GITHUB_CLIENT_ID: "client",
+  GITHUB_CLIENT_SECRET: "secret",
+  SESSION_SECRET: "test-only-session-secret",
+  OWNER_GITHUB_ID: "14032554",
+  PAGES_URL: "https://sudofx.github.io/sudofx/",
+  REPOSITORY: "sudofx/sudofx",
+};
+
+async function ownerSession() {
+  const loginResponse = await handleRequest(new Request("https://control.example/auth/login"), env);
+  const authorization = new URL(loginResponse.headers.get("Location"));
+  const callback = new URL("https://control.example/auth/callback");
+  callback.searchParams.set("code", "authorized-code");
+  callback.searchParams.set("state", authorization.searchParams.get("state"));
+  const callbackResponse = await handleRequest(
+    new Request(callback),
+    env,
+    async (url) => {
+      if (url === "https://github.com/login/oauth/access_token") {
+        return Response.json({ access_token: "owner-token", expires_in: 3600 });
+      }
+      if (url === "https://api.github.com/user") {
+        return Response.json({ id: 14032554, login: "sudofx" });
+      }
+      throw new Error(`unexpected OAuth request: ${url}`);
+    },
+  );
+  assert.equal(callbackResponse.status, 302);
+  const fragment = new URL(callbackResponse.headers.get("Location")).hash;
+  return decodeURIComponent(fragment.slice("#sudofx-control=".length));
+}
+
+test("unauthenticated API calls never reveal owner controls", async () => {
+  const response = await handleRequest(
+    new Request("https://control.example/api/session", {
+      headers: { Origin: "https://sudofx.github.io" },
+    }),
+    env,
+  );
+  assert.equal(response.status, 401);
+});
+
+test("an unrelated web origin is rejected before GitHub is contacted", async () => {
+  let contacted = false;
+  const response = await handleRequest(
+    new Request("https://control.example/api/session", {
+      headers: { Origin: "https://attacker.example", Authorization: "Bearer invalid" },
+    }),
+    env,
+    async () => { contacted = true; return new Response(); },
+  );
+  assert.equal(response.status, 403);
+  assert.equal(contacted, false);
+});
+
+test("login uses GitHub OAuth with PKCE and the exact callback", async () => {
+  const response = await handleRequest(new Request("https://control.example/auth/login"), env);
+  assert.equal(response.status, 302);
+  const target = new URL(response.headers.get("Location"));
+  assert.equal(target.origin, "https://github.com");
+  assert.equal(target.pathname, "/login/oauth/authorize");
+  assert.equal(target.searchParams.get("client_id"), "client");
+  assert.equal(target.searchParams.get("redirect_uri"), "https://control.example/auth/callback");
+  assert.equal(target.searchParams.get("code_challenge_method"), "S256");
+  assert.ok(target.searchParams.get("state"));
+  assert.ok(target.searchParams.get("code_challenge"));
+});
+
+test("Start enables the workflow before dispatching one bootstrap", async () => {
+  const session = await ownerSession();
+  const operations = [];
+  const response = await handleRequest(
+    new Request("https://control.example/api/start", {
+      method: "POST",
+      headers: { Origin: "https://sudofx.github.io", Authorization: `Bearer ${session}` },
+    }),
+    env,
+    async (url, init) => {
+      operations.push([url, init.method]);
+      return new Response(null, { status: 204 });
+    },
+  );
+  assert.equal(response.status, 200);
+  assert.deepEqual(operations.map(([url, method]) => [new URL(url).pathname, method]), [
+    ["/repos/sudofx/sudofx/actions/workflows/prove-model.yml/enable", "PUT"],
+    ["/repos/sudofx/sudofx/actions/workflows/prove-model.yml/dispatches", "POST"],
+  ]);
+});
+
+test("Stop disables the workflow before discovering and cancelling active runs", async () => {
+  const session = await ownerSession();
+  const operations = [];
+  const response = await handleRequest(
+    new Request("https://control.example/api/stop", {
+      method: "POST",
+      headers: { Origin: "https://sudofx.github.io", Authorization: `Bearer ${session}` },
+    }),
+    env,
+    async (url, init) => {
+      const path = new URL(url).pathname;
+      operations.push([path, init.method || "GET"]);
+      if (path.endsWith("/prove-model.yml")) return Response.json({ state: "disabled_manually" });
+      if (path.endsWith("/runs")) return Response.json({ workflow_runs: [{ id: 42, status: "in_progress", html_url: "https://example/run/42" }] });
+      return new Response(null, { status: 204 });
+    },
+  );
+  assert.equal(response.status, 200);
+  assert.deepEqual(operations, [
+    ["/repos/sudofx/sudofx/actions/workflows/prove-model.yml/disable", "PUT"],
+    ["/repos/sudofx/sudofx/actions/workflows/prove-model.yml", "GET"],
+    ["/repos/sudofx/sudofx/actions/workflows/prove-model.yml/runs", "GET"],
+    ["/repos/sudofx/sudofx/actions/runs/42/cancel", "POST"],
+  ]);
+});

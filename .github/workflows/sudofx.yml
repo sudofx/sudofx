@@ -84,6 +84,8 @@ jobs:
         # Observer mode: one stable command handles the next safe milestone step.
         # The operator should not have to carry work IDs or long context between devices.
         if: github.event_name == 'workflow_dispatch' && inputs.action == 'auto'
+        env:
+          SUDOFX_CONTROL_URL: ${{ vars.SUDOFX_CONTROL_URL }}
         run: PYTHONPATH=src python scripts/github_sudofx.py --auto
       - name: Apply governed operation
         # Only a manual dispatch enters the mutation path. The adapter restores
@@ -124,6 +126,8 @@ jobs:
         # consumers of state. Publication occurs only after the test step above
         # succeeds, so Pages can truthfully identify the commit/run it reflects.
         if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.action == 'verify')
+        env:
+          SUDOFX_CONTROL_URL: ${{ vars.SUDOFX_CONTROL_URL }}
         run: PYTHONPATH=src python scripts/github_sudofx.py --publish-only
       - name: Configure Pages
         # Native Pages configuration supplies the correct base path and deployment

@@ -166,6 +166,7 @@ def render(
     repository: str = "sudofx/sudofx",
     verification: dict[str, str] | None = None,
     continuity_proof: dict[str, object] | None = None,
+    control_url: str = "",
 ) -> str:
     """
     Produce one complete HTML document from a verified kernel snapshot.
@@ -181,6 +182,10 @@ def render(
     open_work = sum(isinstance(item, dict) and item.get("status") == "open" for item in work_items)
     verification = verification or {}
     continuity_proof = continuity_proof or {}
+    # The control service URL is public configuration, not a credential. An
+    # absent URL removes the authentication affordance entirely so local exports
+    # and partially configured deployments never imply controls are available.
+    control_url = control_url.rstrip("/")
     observer_continuous = continuity_proof.get("assessment_status") == "semantic_review_pending"
     # A semantic review result remains evidence rather than authoritative state,
     # but continuous test authorization means it no longer pauses the observer.
@@ -229,6 +234,14 @@ def render(
             <span data-observer-detail>Connecting to GitHub…</span>
             <a href="https://github.com/{_escape(repository)}/actions/workflows/prove-model.yml">Open workflow ↗</a>
           </div>
+          {f'''<div class="owner-access" data-owner-access>
+            <a class="owner-login" data-owner-login href="{_escape(control_url)}/auth/login">Owner sign in</a>
+            <div class="owner-controls" data-owner-controls hidden aria-live="polite">
+              <span data-owner-identity></span>
+              <span data-owner-control-status>Checking controls…</span>
+              <div><button type="button" data-owner-start>Start</button><button type="button" data-owner-stop>Stop</button></div>
+            </div>
+          </div>''' if control_url else ''}
         </section>
         """
     return f"""<!doctype html>
@@ -287,6 +300,16 @@ def render(
     .observer-cell strong {{ display:block; margin-top:7px; font-size:13px; line-height:1.25; overflow-wrap:anywhere }}
     .observer-detail {{ display:flex; justify-content:space-between; gap:14px; margin-top:12px; color:var(--muted); font:11px var(--mono) }}
     .observer-detail a {{ color:var(--accent); text-decoration:none; white-space:nowrap }}
+    .owner-access {{ margin-top:14px; padding-top:14px; border-top:1px solid var(--line); font:11px var(--mono) }}
+    .owner-login {{ color:var(--muted); text-decoration:none }}
+    .owner-controls {{ display:grid; grid-template-columns:1fr auto; gap:8px 14px; align-items:center }}
+    .owner-controls[hidden] {{ display:none }}
+    .owner-controls>[data-owner-control-status] {{ color:var(--muted) }}
+    .owner-controls>div {{ grid-column:1/-1; display:grid; grid-template-columns:1fr 1fr; gap:8px }}
+    .owner-controls button {{ min-height:44px; border:1px solid var(--line); background:var(--paper); color:var(--ink); font:800 12px var(--mono); cursor:pointer }}
+    .owner-controls [data-owner-start] {{ border-color:var(--green); color:var(--green) }}
+    .owner-controls [data-owner-stop] {{ border-color:#f7768e; color:#f7768e }}
+    .owner-controls button:disabled {{ opacity:.45; cursor:wait }}
     .machine-activity {{ margin-top:12px; border:1px solid var(--line); background:var(--paper); overflow:hidden }}
     .machine-activity[hidden] {{ display:none }}
     .machine-lights {{ display:grid; grid-template-columns:repeat(8,1fr); gap:6px; padding:10px 12px 8px }}
@@ -392,6 +415,55 @@ const observerDetail=document.querySelector('[data-observer-detail]');
 const machineActivity=document.querySelector('[data-machine-activity]');
 const machineText=document.querySelector('[data-machine-text]');
 const exchangeStatus=document.querySelector('[data-exchange-status]');
+const controlUrl={json.dumps(control_url)};
+const ownerLogin=document.querySelector('[data-owner-login]');
+const ownerControls=document.querySelector('[data-owner-controls]');
+const ownerIdentity=document.querySelector('[data-owner-identity]');
+const ownerControlStatus=document.querySelector('[data-owner-control-status]');
+const ownerStart=document.querySelector('[data-owner-start]');
+const ownerStop=document.querySelector('[data-owner-stop]');
+const ownerSessionKey='sudofx-owner-session';
+const ownerFragment='#sudofx-control=';
+// OAuth returns encrypted session ciphertext in the fragment. Fragments never
+// reach Pages or referrer headers; move it to sessionStorage and immediately
+// remove it from the address bar before making an authenticated request.
+if(controlUrl && location.hash.startsWith(ownerFragment)){{
+  try{{
+    sessionStorage.setItem(ownerSessionKey,decodeURIComponent(location.hash.slice(ownerFragment.length)));
+    history.replaceState(null,'',location.pathname+location.search);
+  }}catch{{}}
+}}
+const ownerSession=()=>{{try{{return sessionStorage.getItem(ownerSessionKey)||''}}catch{{return ''}}}};
+const ownerRequest=async(path,method='GET')=>{{
+  const response=await fetch(controlUrl+path,{{method,headers:{{Authorization:'Bearer '+ownerSession()}}}});
+  const body=await response.json().catch(()=>({{}}));
+  if(!response.ok)throw new Error(body.error||'Owner control request failed');
+  return body;
+}};
+const refreshOwnerControls=async()=>{{
+  if(!controlUrl||!ownerControls||!ownerSession())return;
+  try{{
+    const state=await ownerRequest('/api/session');
+    ownerLogin.hidden=true;
+    ownerControls.hidden=false;
+    ownerIdentity.textContent='Signed in as '+state.login;
+    ownerControlStatus.textContent=state.enabled?(state.activeRuns.length?'Running now':'Enabled · next cycle starting'):'Stopped';
+    ownerStart.disabled=state.enabled;
+    ownerStop.disabled=!state.enabled;
+  }}catch{{
+    try{{sessionStorage.removeItem(ownerSessionKey)}}catch{{}}
+    ownerControls.hidden=true;
+    ownerLogin.hidden=false;
+  }}
+}};
+const operateOwnerControl=async(path)=>{{
+  ownerStart.disabled=true;ownerStop.disabled=true;ownerControlStatus.textContent='Updating…';
+  try{{const result=await ownerRequest(path,'POST');ownerControlStatus.textContent=result.message;await refreshOwnerControls();}}
+  catch(error){{ownerControlStatus.textContent=error.message;ownerStart.disabled=false;ownerStop.disabled=false;}}
+}};
+if(ownerStart)ownerStart.addEventListener('click',()=>operateOwnerControl('/api/start'));
+if(ownerStop)ownerStop.addEventListener('click',()=>operateOwnerControl('/api/stop'));
+refreshOwnerControls();
 // The workflow owns a success-only successor chain. This field describes that
 // lifecycle rather than estimating a wall-clock time that no longer exists.
 const updateNextCheck=(state)=>{{
@@ -526,6 +598,7 @@ def export_site(
     repository: str = "sudofx/sudofx",
     verification: dict[str, str] | None = None,
     continuity_proof: dict[str, object] | None = None,
+    control_url: str = "",
 ) -> Path:
     """
     Write the derived Pages artifact and disable Jekyll processing.
@@ -542,6 +615,7 @@ def export_site(
             repository=repository,
             verification=verification,
             continuity_proof=continuity_proof,
+            control_url=control_url,
         ),
         encoding="utf-8",
     )

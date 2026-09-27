@@ -379,6 +379,7 @@ json.dump({
                     }
                 },
             },
+            control_url="https://control.example",
         )
         self.assertLess(page.index("What sudofx is doing"), page.index("Current work"))
         self.assertIn("CHECKING…", page)
@@ -434,6 +435,14 @@ json.dump({
         self.assertIn("grid-area:theme; justify-self:end", page)
         self.assertIn('class="brand" href="./"', page)
         self.assertIn('href="https://sudofx.github.io/wake/" target="_blank"', page)
+        # Public markup exposes only a login affordance. Start and Stop remain
+        # hidden until the control service verifies the encrypted owner session.
+        self.assertIn('href="https://control.example/auth/login"', page)
+        self.assertIn('data-owner-controls hidden', page)
+        self.assertIn('data-owner-start>Start</button>', page)
+        self.assertIn('data-owner-stop>Stop</button>', page)
+        self.assertIn("sessionStorage.setItem(ownerSessionKey", page)
+        self.assertNotIn("GITHUB_CLIENT_SECRET", page)
 
     def test_exported_runner_state_continues_after_bounded_model_review(self) -> None:
         """
