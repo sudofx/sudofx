@@ -416,20 +416,20 @@ def render(
     .observer-head {{ display:flex; align-items:flex-start; justify-content:space-between; gap:18px }}
     .observer-head h1 {{ margin:6px 0 16px; font-size:clamp(24px,6vw,34px); line-height:1; letter-spacing:-.04em }}
     .observer-signal {{ display:flex; align-items:center; gap:9px }}
-    .status-led {{ width:12px; height:12px; border-radius:50%; flex:0 0 12px; animation:led-blink 1.1s ease-in-out infinite }}
-    .status-led.checking {{ background:var(--accent); box-shadow:0 0 9px var(--accent) }}
+    .status-led {{ width:9px; height:9px; border-radius:50%; flex:0 0 9px; animation:none }}
+    .status-led.checking {{ background:var(--accent); box-shadow:none }}
     .status-led.idle {{ background:#f7768e; box-shadow:0 0 10px #f7768e }}\n    .status-led.waiting {{ background:#e0af68; box-shadow:0 0 8px #e0af68 }}
-    .status-led.continuous {{ background:var(--green); box-shadow:0 0 10px var(--green) }}
-    .status-led.working {{ background:var(--green); box-shadow:0 0 10px var(--green) }}
+    .status-led.continuous {{ background:var(--green); box-shadow:none }}
+    .status-led.working {{ background:var(--green); box-shadow:none }}
     .status-led.failed {{ background:#f7768e; box-shadow:0 0 10px #f7768e }}
     @keyframes led-blink {{ 0%,100% {{ opacity:.25 }} 50% {{ opacity:1 }} }}
-    .observer-state {{ padding:6px 9px; border:1px solid var(--line); font:800 11px var(--mono); letter-spacing:.04em }}
-    .observer-state.working {{ color:var(--green); border-color:var(--green) }}
-    .observer-state.idle {{ color:#f7768e; border-color:#f7768e }}
-    .observer-state.failed {{ color:var(--hot); border-color:var(--hot) }}
-    .observer-state.waiting {{ color:var(--accent); border-color:var(--accent) }}
-    .observer-state.continuous {{ color:var(--green); border-color:var(--green) }}
-    .observer-state.checking {{ color:var(--accent); border-color:var(--accent) }}
+    .observer-state {{ padding:0; border:0; font:700 10px var(--mono); letter-spacing:.08em; text-transform:uppercase }}
+    .observer-state.working {{ color:var(--green) }}
+    .observer-state.idle {{ color:#f7768e }}
+    .observer-state.failed {{ color:var(--hot) }}
+    .observer-state.waiting {{ color:var(--accent) }}
+    .observer-state.continuous {{ color:var(--green) }}
+    .observer-state.checking {{ color:var(--accent) }}
     .observer-grid {{ display:grid; grid-template-columns:2fr 1fr 1fr; gap:1px; background:var(--line); border:1px solid var(--line) }}
     .observer-cell {{ min-width:0; padding:14px; background:var(--paper) }}
     .observer-cell span {{ display:block; color:var(--muted); font:700 9px var(--mono); letter-spacing:.08em; text-transform:uppercase }}
@@ -489,27 +489,27 @@ def render(
     @keyframes machine-pulse {{ 0%,24% {{ opacity:1; box-shadow:0 0 8px var(--green) }} 25%,100% {{ opacity:.18; box-shadow:none }} }}
     @keyframes machine-scroll {{ from {{ transform:translateX(0) }} to {{ transform:translateX(-200%) }} }}
     @media (prefers-reduced-motion: reduce) {{ .machine-activity.working .machine-lights i,.machine-track span {{ animation:none }} }}
-    .exchange {{ margin:0 0 38px; padding:18px; border:1px solid var(--line); background:var(--surface) }}
-    .exchange-head {{ display:flex; align-items:flex-start; justify-content:space-between; gap:16px }}
+    .exchange {{ margin:0 0 48px; padding:24px; border:1px solid var(--line); background:var(--surface) }}
+    .exchange-head {{ display:flex; align-items:flex-start; justify-content:space-between; gap:22px; margin-bottom:22px }}
     .exchange-head h2 {{ margin-top:6px }}
-    .exchange-status {{ padding:5px 8px; border:1px solid var(--line); color:var(--muted); font:800 10px var(--mono); letter-spacing:.04em; white-space:nowrap }}
-    .exchange-status.working {{ color:var(--green); border-color:var(--green) }}
+    .exchange-status {{ padding:0; border:0; color:var(--muted); font:700 9px var(--mono); letter-spacing:.08em; text-transform:uppercase; white-space:nowrap }}
+    .exchange-status.working {{ color:var(--green) }}
     .question {{ margin:18px 0; padding:14px; border-left:4px solid var(--accent); background:var(--paper); font-size:16px; font-weight:650 }}
     .context-brief {{ display:grid; gap:1px; margin:0; background:var(--line); border:1px solid var(--line) }}
     .context-brief>div {{ display:grid; grid-template-columns:140px 1fr; gap:14px; padding:12px; background:var(--paper) }}
     .context-brief dt,.exchange-answer>span,.exchange-action>span {{ color:var(--accent); font:700 10px var(--mono); letter-spacing:.08em; text-transform:uppercase }}
     .context-brief dd {{ margin:0; font-size:14px; overflow-wrap:anywhere }}
     .context-brief ul {{ margin:0; padding-left:18px }}
-    .exchange-window {{ margin-top:14px; padding:18px; border:1px solid var(--line); background:var(--paper) }}
+    .exchange-window {{ margin-top:20px; padding:22px; border:1px solid var(--line); background:var(--paper) }}
     .exchange-window>span {{ color:var(--accent); font:700 10px var(--mono); letter-spacing:.08em; text-transform:uppercase }}
-    .exchange-window p {{ margin:8px 0 0; font-size:16px; line-height:1.55; overflow-wrap:anywhere }}
+    .exchange-window p {{ margin:12px 0 0; font-size:16px; line-height:1.65; overflow-wrap:anywhere }}
     .exchange-question {{ border-left:4px solid var(--accent) }}
     .exchange-answer {{ border-left:4px solid var(--green) }}
     .exchange-action {{ border-left:4px solid var(--hot) }}
     .exchange-answer small {{ display:block; margin-top:10px; color:var(--muted); line-height:1.45 }}
-    .observer-compact {{ padding:10px 0 18px; border:0; border-bottom:1px solid var(--line); background:transparent; margin-bottom:22px }}
-    .observer-compact .observer-signal {{ justify-content:flex-start; flex-wrap:wrap }}
-    .observer-compact [data-current-activity] {{ color:var(--muted); font-size:12px; font-weight:600 }}
+    .observer-compact {{ padding:18px 0 26px; border:0; border-bottom:1px solid var(--line); background:transparent; margin-bottom:34px }}
+    .observer-compact .observer-signal {{ justify-content:flex-start; flex-wrap:wrap; gap:12px }}
+    .observer-compact [data-current-activity] {{ color:var(--ink); font-size:14px; font-weight:650 }}
     .quiet-footer {{ margin-top:34px; padding-top:18px; border-top:1px solid var(--line); color:var(--muted); font:11px/1.5 var(--mono) }}
     .owner-technical[hidden] {{ display:none!important }}
     .owner-technical {{ margin-top:42px; padding-top:28px; border-top:2px solid var(--accent) }}
@@ -522,7 +522,16 @@ def render(
     .technical-stats strong {{ display:block; margin-top:5px; font:700 13px var(--mono); overflow-wrap:anywhere }}
     .technical-provenance {{ display:grid; grid-template-columns:130px minmax(0,1fr); gap:8px 14px; margin-top:24px; padding:14px; border:1px solid var(--line); background:var(--surface) }}
     .technical-provenance code {{ overflow-wrap:anywhere }}
-    @media(max-width:600px) {{ .technical-stats {{ grid-template-columns:1fr 1fr }} .technical-provenance {{ grid-template-columns:1fr }} }}
+    @media(max-width:600px) {{
+      .technical-stats {{ grid-template-columns:1fr 1fr }}
+      .technical-provenance {{ grid-template-columns:1fr }}
+      main {{ padding:18px 16px 34px }}
+      header {{ padding:40px 0 22px }}
+      .observer-compact {{ margin-bottom:38px }}
+      .exchange {{ padding:20px; margin-bottom:54px }}
+      .exchange-head {{ gap:16px; margin-bottom:24px }}
+      .exchange-window {{ margin-top:22px; padding:22px 20px }}
+    }}
     .toolbar {{ display:flex; gap:10px; align-items:center; justify-content:space-between; margin:0 0 18px }}
     h2 {{ margin:0; font-size:23px; letter-spacing:-.03em }}
     .work-grid {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:14px; margin-bottom:52px }}
@@ -720,7 +729,7 @@ const applyOwnerWorkflowState=(state)=>{{
   const visualState=running?'working':(state.enabled?'continuous':'idle');
   observer.className='observer-console '+visualState;
   observerState.className='observer-state '+visualState;
-  observerState.textContent=running?'WORKING':(state.enabled?'CONTINUOUS':'STOPPED');
+  observerState.textContent=running?'Live':(state.enabled?'Running':'Stopped');
   currentActivity.textContent=running
     ?'Waiting for Gemini and governing its response'
     :(state.enabled?'Continuous runner enabled; next cycle is starting':'Continuous tests stopped by owner');
@@ -730,7 +739,7 @@ const applyOwnerWorkflowState=(state)=>{{
     ?'Authenticated owner control confirms continuous operation is enabled.'
     :'Authenticated owner control confirms the workflow is disabled and no new cycle can start.';
   if(statusLed)statusLed.className='status-led '+visualState;
-  if(machineActivity){{machineActivity.hidden=!running;machineActivity.classList.toggle('working',running);}}
+  if(machineActivity){{machineActivity.hidden=true;machineActivity.classList.remove('working');}}
   if(exchangeStatus){{exchangeStatus.textContent=running?'WAITING ON GEMINI':'LAST EXCHANGE';exchangeStatus.className='exchange-status '+(running?'working':'');}}
 }};
 const refreshOwnerControls=async()=>{{
@@ -832,25 +841,18 @@ const refreshObserver=async()=>{{
     const visualState=running?'working':(run.conclusion==='failure'?'failed':({json.dumps(observer_static_state)}==='CONTINUOUS'?'continuous':'idle'));
     observer.className='observer-console '+visualState;
     observerState.className='observer-state '+visualState;
-    observerState.textContent=running?'LIVE':(run.conclusion==='failure'?'PAUSED':({json.dumps(observer_static_state)}==='CONTINUOUS'?'RUNNING':'STOPPED'));
+    observerState.textContent=running?'Live':(run.conclusion==='failure'?'Paused':({json.dumps(observer_static_state)}==='CONTINUOUS'?'Running':'Stopped'));
     if(statusLed)statusLed.className='status-led '+visualState;
     currentActivity.textContent=running?'Gemini is answering now':(run.conclusion==='failure'?'The last test stopped unexpectedly':{json.dumps(observer_static_activity)});
     updateNextCheck(visualState);
-    if(exchangeStatus){{exchangeStatus.textContent=running?'GEMINI IS ANSWERING':'LATEST';exchangeStatus.className='exchange-status '+(running?'working':'');}}
+    if(exchangeStatus){{exchangeStatus.textContent=running?'Updating':'Latest';exchangeStatus.className='exchange-status '+(running?'working':'');}}
     const jobsResponse=await fetch(run.jobs_url,{{cache:'no-store'}});
     if(jobsResponse.ok){{
       const jobsData=await jobsResponse.json(), jobs=Array.isArray(jobsData.jobs)?jobsData.jobs:[];
       const steps=jobs.flatMap(job=>Array.isArray(job.steps)?job.steps:[]);
       const active=steps.find(step=>step.status==='in_progress')||steps.find(step=>step.status==='queued');
       currentStep.textContent=active?active.name:(run.status==='completed'?'Complete':'Starting');
-      if(machineActivity){{
-        machineActivity.hidden=!running;
-        machineActivity.classList.toggle('working',running);
-      }}
-      if(machineText && running){{
-        const stepName=active?active.name:'Starting bounded development cycle';
-        machineText.textContent='ACTIVE · '+stepName+' · RUN '+String(run.run_number||run.id)+' · VERIFIED TELEMETRY';
-      }}
+      if(machineActivity){{machineActivity.hidden=true;machineActivity.classList.remove('working');}}
     }}
     observerDetail.textContent=running
       ? 'Started by GitHub · live status refreshes every 15 seconds'
@@ -863,7 +865,7 @@ const refreshObserver=async()=>{{
     const fallbackVisualState=observer.dataset.fallbackState==='CONTINUOUS'?'continuous':'idle';
     observer.className='observer-console '+fallbackVisualState;
     observerState.className='observer-state '+fallbackVisualState;
-    observerState.textContent=observer.dataset.fallbackState==='CONTINUOUS'?'RUNNING':'STOPPED';
+    observerState.textContent=observer.dataset.fallbackState==='CONTINUOUS'?'Running':'Stopped';
     currentActivity.textContent=observer.dataset.fallbackActivity;
     currentStep.textContent='Live detail unavailable';
     updateNextCheck(fallbackVisualState);
