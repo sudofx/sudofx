@@ -311,6 +311,7 @@ def _probe(
             "provider_is_fresh_external_process": True,
             "previous_model_output_labeled_untrusted": True,
             "older_observations_not_exposed_as_transcript": True,
+            "packet_exposure_selected_by_system_not_model": True,
             "proposal_crossed_governance_only_on_snapshot": True,
             "production_work_mutated_by_model": False,
         },
