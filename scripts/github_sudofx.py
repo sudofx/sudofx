@@ -49,7 +49,6 @@ ROOT = Path(__file__).resolve().parents[1]
 DATA = ROOT / "data" / "sudofx.sqlite"
 STATE_BRANCH = "sudofx-state"
 AUTO_HANDOFF_ID = "handoff-v1"
-AUTO_OBSERVER_KEY = "observer:handoff-v1"
 AUTO_HANDOFF_OBJECTIVE = (
     "Test whether a fresh intelligence with no prior conversation can reconstruct sudofx: "
     "durable governed context must survive model replacement; WAKE✳︎ was the experimental "
@@ -262,44 +261,24 @@ def main() -> int:
     elif prove_work_id:
         continuity_proof = run_work_continuity_probe(DATA, prove_work_id)
     elif auto_handoff_id:
-        # Observer mode advances as far as it safely can without operator input.
-        # A fresh model reconstruction is evidence, not an accepted work result,
-        # so it is recorded under a separate pending-review state key. Repeated
-        # one-tap runs reuse that durable evidence instead of spending another
-        # model call or quietly changing the experiment beneath the reviewer.
-        current = kernel.context()
-        stored_proof = current.state.get(AUTO_OBSERVER_KEY)
-        if isinstance(stored_proof, dict) and stored_proof.get("assessment_status") == "semantic_review_pending":
-            continuity_proof = dict(stored_proof)
-        else:
-            model = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash-lite").strip()
-            if not os.environ.get("GEMINI_API_KEY", "").strip():
-                raise RuntimeError("GEMINI_API_KEY is required for observer-mode handoff")
-            continuity_proof = run_model_continuity_probe(
-                DATA,
-                auto_handoff_id,
-                (sys.executable, str(ROOT / "scripts" / "gemini_provider.py")),
-                provider="Google Gemini",
-                model=model,
-            )
-            if continuity_proof.get("assessment_status") != "semantic_review_pending":
-                raise AssertionError("observer model probe did not reach semantic review")
-            durable_proof = dict(continuity_proof)
-            durable_proof.pop("artifact_run_id", None)
-            durable_proof.pop("artifact_commit", None)
-            context = kernel.context()
-            receipt = kernel.submit(
-                Proposal(
-                    str(uuid.uuid4()),
-                    context.revision,
-                    (Operation("set", AUTO_OBSERVER_KEY, durable_proof),),
-                    "Observer mode stopped at required human semantic review",
-                )
-            )
-            if receipt.status != "accepted":
-                raise RuntimeError(f"observer evidence receipt was {receipt.status}")
-            checkpoint()
-            kernel = Kernel(Record(DATA))
+        # Continuous observer mode deliberately asks a fresh Gemini invocation
+        # on every bounded cycle. Its proposal is evaluated only on a temporary
+        # snapshot, so nonstop testing cannot silently advance authoritative work.
+        # The proof is published for inspection but is not appended to SQLite;
+        # otherwise an around-the-clock probe would manufacture unbounded durable
+        # history whose only meaning was that another test happened to run.
+        model = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash-lite").strip()
+        if not os.environ.get("GEMINI_API_KEY", "").strip():
+            raise RuntimeError("GEMINI_API_KEY is required for observer-mode handoff")
+        continuity_proof = run_model_continuity_probe(
+            DATA,
+            auto_handoff_id,
+            (sys.executable, str(ROOT / "scripts" / "gemini_provider.py")),
+            provider="Google Gemini",
+            model=model,
+        )
+        if continuity_proof.get("assessment_status") != "semantic_review_pending":
+            raise AssertionError("observer model probe did not reach semantic review")
     else:
         continuity_proof = run_continuity_proof()
     # Projection metadata binds a disposable proof artifact to the exact Actions

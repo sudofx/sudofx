@@ -383,15 +383,15 @@ json.dump({
         self.assertLess(page.index("What sudofx is doing"), page.index("Current work"))
         self.assertIn("CHECKING…", page)
         self.assertIn("Loading live workflow status…", page)
-        # A human-review stop must identify the action, not merely announce that
-        # the machine is waiting. The schedule is also visible before a run is
-        # queued, closing the phone interface's former background-work blind spot.
-        self.assertIn('data-fallback-state="REVIEW NEEDED"', page)
-        self.assertIn("Automation is paused for your review", page)
-        self.assertIn("Review Gemini&#x27;s response and what sudofx did below", page)
-        self.assertIn("Next automatic check", page)
-        self.assertIn("review still required", page)
-        self.assertIn("expectedHeartbeat", page)
+        # A successful bounded result now hands directly to its successor. The
+        # page must describe that lifecycle rather than inventing a future clock
+        # time or implying that human review pauses the authorized test chain.
+        self.assertIn('data-fallback-state="CONTINUOUS"', page)
+        self.assertIn("next cycle starts automatically", page)
+        self.assertIn("Continuous mode is active", page)
+        self.assertIn("Next cycle", page)
+        self.assertIn("Immediately after this cycle", page)
+        self.assertNotIn("expectedHeartbeat", page)
         self.assertNotIn('data-fallback-state="WAITING FOR YOU"', page)
         self.assertIn("What Gemini was asked", page)
         self.assertIn("Preserve the work across model replacement", page)
@@ -433,15 +433,15 @@ json.dump({
         self.assertIn('grid-template-areas:"brand theme" "tagline tagline"', page)
         self.assertIn("grid-area:theme; justify-self:end", page)
         self.assertIn('class="brand" href="./"', page)
-        self.assertIn('href="https://sudofx.github.io/wake/">Inspired by WAKE', page)
+        self.assertIn('href="https://sudofx.github.io/wake/" target="_blank"', page)
 
-    def test_exported_runner_state_stops_at_human_review_boundary(self) -> None:
+    def test_exported_runner_state_continues_after_bounded_model_review(self) -> None:
         """
-        The Mac loop must continue from verified artifact meaning, not run color.
+        The cloud chain must continue from verified artifact meaning, not run color.
 
-        A successful cloud cycle that needs semantic judgment is deliberately a
-        stop condition: automatically dispatching again would spend a model call
-        without new authority and could bypass the human-owned decision boundary.
+        Continuous testing is explicitly authorized, while the model proposal is
+        still isolated from durable state. A completed review proof therefore
+        authorizes another test cycle without authorizing the proposed mutation.
         """
         destination = Path(self.tempdir.name) / "site"
         export_site(
@@ -458,8 +458,20 @@ json.dump({
             (destination / "runner-state.json").read_text(encoding="utf-8")
         )
         self.assertEqual(state["schema_version"], 1)
-        self.assertEqual(state["disposition"], "WAITING FOR YOU")
+        self.assertEqual(state["disposition"], "CONTINUE")
         self.assertEqual(state["artifact_run_id"], "456")
+
+    def test_continuation_workflow_is_a_single_success_only_cloud_chain(self) -> None:
+        """Continuous operation must self-dispatch once and stop on any failed gate."""
+        workflow = (Path(__file__).parents[1] / ".github/workflows/prove-model.yml").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("actions: write", workflow)
+        self.assertIn("continue-again:", workflow)
+        self.assertIn("needs: deploy", workflow)
+        self.assertIn("gh workflow run prove-model.yml", workflow)
+        self.assertNotIn("cron:", workflow)
+        self.assertNotIn("\n  push:", workflow)
 
 
     def test_handoff_packet_is_bounded_and_portable(self) -> None:

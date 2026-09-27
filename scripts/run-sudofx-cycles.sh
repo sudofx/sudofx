@@ -7,8 +7,8 @@
 # the durable authority, and the downloaded Pages artifact supplies the verified
 # decision about whether another cycle is safe.
 #
-# The runner never guesses from a green checkmark. It stops visibly at exactly
-# one terminal product state: WAITING FOR YOU, FAILED, or NO MORE SAFE WORK.
+# The runner never guesses from a green checkmark. It continues only from an
+# artifact-bound CONTINUE decision and stops visibly on failure or exhaustion.
 set -uo pipefail
 
 readonly REPOSITORY="sudofx/sudofx"
@@ -68,7 +68,7 @@ read_json_field() {
   python3 -c 'import json,sys; print(json.load(sys.stdin).get(sys.argv[1], ""))' "$1"
 }
 
-echo "sudofx: continuous runner active; the 30-minute schedule remains a backup heartbeat."
+echo "sudofx: local recovery runner active; the cloud workflow normally owns continuous operation."
 cycle=0
 while true; do
   if (( max_cycles > 0 && cycle >= max_cycles )); then
@@ -170,7 +170,7 @@ while true; do
     CONTINUE)
       echo "[cycle $cycle] CONTINUE — $reason"
       ;;
-    "WAITING FOR YOU"|"NO MORE SAFE WORK")
+    "NO MORE SAFE WORK")
       echo "$decision — $reason"
       exit 0
       ;;

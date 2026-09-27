@@ -132,7 +132,7 @@ def _exchange_panel(proof: dict[str, object]) -> str:
     rationale = proof.get("candidate_rationale", "")
     action = (
         "Governance accepted the proposal on an isolated verification snapshot. "
-        "The durable record was not changed; the result is waiting for human judgment."
+        "The durable record was not changed; the next test cycle starts automatically."
         if proof.get("assessment_status") == "semantic_review_pending"
         else "No governed Gemini proposal has been published yet."
     )
@@ -181,29 +181,28 @@ def render(
     open_work = sum(isinstance(item, dict) and item.get("status") == "open" for item in work_items)
     verification = verification or {}
     continuity_proof = continuity_proof or {}
-    observer_waiting = continuity_proof.get("assessment_status") == "semantic_review_pending"
-    # The runner keeps ``WAITING FOR YOU`` as its machine-facing stop token, but
-    # that phrase is a poor instruction to a person: it resembles a generic
-    # notification without saying why progress stopped. This projection names
-    # the action instead; it never changes the governed runner disposition.
-    observer_static_state = "REVIEW NEEDED" if observer_waiting else "IDLE"
+    observer_continuous = continuity_proof.get("assessment_status") == "semantic_review_pending"
+    # A semantic review result remains evidence rather than authoritative state,
+    # but continuous test authorization means it no longer pauses the observer.
+    # The presentation therefore describes execution truth without pretending
+    # that Gemini's proposal was applied to the durable work item.
+    observer_static_state = "CONTINUOUS" if observer_continuous else "IDLE"
     observer_static_activity = (
-        "Automation is paused for your review"
-        if observer_waiting
+        "Latest Gemini cycle complete; next cycle starts automatically"
+        if observer_continuous
         else "No bounded operation currently running"
     )
     observer_static_detail = (
-        "Review Gemini's response and what sudofx did below. The next automatic check will not continue the work until you decide."
-        if observer_waiting
-        else "No work is running. The next automatic check can look for another safe bounded step."
+        "Continuous mode is active. Every successful published cycle immediately starts another bounded Gemini test."
+        if observer_continuous
+        else "No continuous cycle is active. Start the continuation workflow to resume."
     )
     observer_console_html = f"""
         <section class="observer-console checking" aria-label="Development status"
                  data-repository="{_escape(repository)}" data-workflow="prove-model.yml"
                  data-fallback-state="{observer_static_state}"
                  data-fallback-activity="{_escape(observer_static_activity)}"
-                 data-fallback-detail="{_escape(observer_static_detail)}"
-                 data-heartbeat-minutes="30">
+                 data-fallback-detail="{_escape(observer_static_detail)}">
           <div class="observer-head">
             <div>
               <span class="eyebrow">Live development</span>
@@ -218,7 +217,7 @@ def render(
             <div class="observer-cell primary"><span>Current activity</span><strong data-current-activity>Loading live workflow status…</strong></div>
             <div class="observer-cell"><span>Current step</span><strong data-current-step>Checking GitHub…</strong></div>
             <div class="observer-cell"><span>Latest run</span><strong data-latest-run>{_escape(verification.get("run_id", "unknown"))}</strong></div>
-            <div class="observer-cell"><span>Next automatic check</span><strong data-next-check>Calculating…</strong></div>
+            <div class="observer-cell"><span>Next cycle</span><strong data-next-check>Checking chain…</strong></div>
           </div>
           <div class="machine-activity" data-machine-activity hidden aria-live="polite">
             <div class="machine-lights" aria-hidden="true">
@@ -272,6 +271,7 @@ def render(
     .status-led {{ width:12px; height:12px; border-radius:50%; flex:0 0 12px; animation:led-blink 1.1s ease-in-out infinite }}
     .status-led.checking {{ background:var(--accent); box-shadow:0 0 9px var(--accent) }}
     .status-led.idle,.status-led.waiting {{ background:#e0af68; box-shadow:0 0 8px #e0af68 }}
+    .status-led.continuous {{ background:var(--green); box-shadow:0 0 10px var(--green) }}
     .status-led.working {{ background:var(--green); box-shadow:0 0 10px var(--green) }}
     .status-led.failed {{ background:#f7768e; box-shadow:0 0 10px #f7768e }}
     @keyframes led-blink {{ 0%,100% {{ opacity:.25 }} 50% {{ opacity:1 }} }}
@@ -279,6 +279,7 @@ def render(
     .observer-state.working {{ color:var(--green); border-color:var(--green) }}
     .observer-state.failed {{ color:var(--hot); border-color:var(--hot) }}
     .observer-state.waiting {{ color:var(--accent); border-color:var(--accent) }}
+    .observer-state.continuous {{ color:var(--green); border-color:var(--green) }}
     .observer-state.checking {{ color:var(--accent); border-color:var(--accent) }}
     .observer-grid {{ display:grid; grid-template-columns:2fr 1fr 1fr; gap:1px; background:var(--line); border:1px solid var(--line) }}
     .observer-cell {{ min-width:0; padding:14px; background:var(--paper) }}
@@ -391,22 +392,13 @@ const observerDetail=document.querySelector('[data-observer-detail]');
 const machineActivity=document.querySelector('[data-machine-activity]');
 const machineText=document.querySelector('[data-machine-text]');
 const exchangeStatus=document.querySelector('[data-exchange-status]');
-// GitHub's cron heartbeat is aligned to the wall-clock interval, not to the
-// visitor's page load. This is an expectation rather than a countdown promise:
-// GitHub may queue a scheduled run after its nominal time. The local-time label
-// gives a phone operator useful orientation without claiming provider precision.
-const expectedHeartbeat=()=>{{
-  const minutes=Number(observer?.dataset.heartbeatMinutes)||30;
-  const now=new Date(), next=new Date(now);
-  next.setSeconds(0,0);
-  next.setMinutes(Math.floor(now.getMinutes()/minutes)*minutes+minutes);
-  return 'Around '+next.toLocaleTimeString([],{{hour:'numeric',minute:'2-digit'}});
-}};
+// The workflow owns a success-only successor chain. This field describes that
+// lifecycle rather than estimating a wall-clock time that no longer exists.
 const updateNextCheck=(state)=>{{
   if(!nextCheck)return;
   if(state==='working'){{nextCheck.textContent='In progress now';return;}}
-  const consequence=state==='waiting'?' · review still required':(state==='failed'?' · failure still needs inspection':'');
-  nextCheck.textContent=expectedHeartbeat()+consequence;
+  if(state==='continuous'){{nextCheck.textContent='Immediately after this cycle';return;}}
+  nextCheck.textContent=state==='failed'?'Paused until repaired':'Not currently queued';
 }};
 const refreshObserver=async()=>{{
   if(!observer)return;
@@ -418,7 +410,7 @@ const refreshObserver=async()=>{{
     if(!run)throw new Error('No workflow run');
     latestRun.textContent='#'+String(run.run_number||run.id);
     const running=run.status!=='completed';
-    const visualState=running?'working':(run.conclusion==='failure'?'failed':({json.dumps(observer_static_state)}==='REVIEW NEEDED'?'waiting':'idle'));
+    const visualState=running?'working':(run.conclusion==='failure'?'failed':({json.dumps(observer_static_state)}==='CONTINUOUS'?'continuous':'idle'));
     observer.className='observer-console '+visualState;
     observerState.className='observer-state '+visualState;
     observerState.textContent=running?'WORKING':(run.conclusion==='failure'?'FAILED':{json.dumps(observer_static_state)});
@@ -449,7 +441,7 @@ const refreshObserver=async()=>{{
     // in the published artifact. The prefix discloses staleness; the durable
     // explanation still tells the person whether action is actually required.
     observerDetail.textContent='Live status unavailable. '+observer.dataset.fallbackDetail;
-    const fallbackVisualState=observer.dataset.fallbackState==='REVIEW NEEDED'?'waiting':'idle';
+    const fallbackVisualState=observer.dataset.fallbackState==='CONTINUOUS'?'continuous':'idle';
     observer.className='observer-console '+fallbackVisualState;
     observerState.className='observer-state '+fallbackVisualState;
     observerState.textContent=observer.dataset.fallbackState;
@@ -486,7 +478,7 @@ const refreshExchange=async()=>{{
     rationale.textContent=proof.candidate_rationale?'Why: '+String(proof.candidate_rationale):'';
     rationale.hidden=!proof.candidate_rationale;
     document.querySelector('[data-exchange-action]').textContent=proof.assessment_status==='semantic_review_pending'
-      ?'Governance accepted the proposal on an isolated verification snapshot. The durable record was not changed; the result is waiting for human judgment.'
+      ?'Governance accepted the proposal on an isolated verification snapshot. The durable record was not changed; the next test cycle starts automatically.'
       :'No governed Gemini proposal was published.';
     if(exchangeStatus){{exchangeStatus.textContent='UPDATED · RUN '+runId;exchangeStatus.className='exchange-status';}}
   }}catch(error){{/* Keep the last published exchange visible while Pages catches up. */}}
@@ -569,8 +561,8 @@ def export_site(
     proof = continuity_proof or {}
     assessment_status = proof.get("assessment_status")
     if assessment_status == "semantic_review_pending":
-        disposition = "WAITING FOR YOU"
-        reason = "Human semantic review is required before another safe cycle."
+        disposition = "CONTINUE"
+        reason = "The verified cycle is complete and continuous testing is authorized."
     elif assessment_status == "safe_work_available":
         disposition = "CONTINUE"
         reason = "The verified observer artifact identifies another safe bounded cycle."

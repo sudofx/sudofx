@@ -1,8 +1,8 @@
 name: sudofx — continue
 
-# A caller-supplied token gives the local runner an exact identity to discover.
-# Scheduled and one-tap runs need no token; GitHub's immutable run ID remains a
-# truthful display identity for those entry points.
+# A caller-supplied token gives an operator an exact identity to discover.
+# The cloud continuation chain uses its predecessor's immutable run ID so every
+# successor remains attributable without introducing a second state authority.
 run-name: sudofx continue · ${{ inputs.dispatch_token || github.run_id }}
 
 # Stable one-tap device entry point.
@@ -12,20 +12,9 @@ run-name: sudofx continue · ${{ inputs.dispatch_token || github.run_id }}
 # does not carry work IDs, model IDs, or long context between devices.
 
 on:
-  # Source changes advance the current bounded milestone automatically. The
-  # Shortcut remains a manual nudge, not a required part of ordinary progress.
-  push:
-    branches: [master]
-    paths:
-      - 'src/**'
-      - 'tests/**'
-      - 'scripts/github_sudofx.py'
-      - 'scripts/gemini_provider.py'
-      - '.github/workflows/prove-model.yml'
-  schedule:
-    # Heartbeat only. Observer mode is idempotent at a human-review boundary,
-    # so this wakes the system without spending another model call unnecessarily.
-    - cron: '*/30 * * * *'
+  # One manual dispatch starts or repairs the chain. Successful runs create one
+  # successor themselves; omitting push and cron triggers prevents independent
+  # chains from multiplying while continuous operation is already healthy.
   workflow_dispatch:
     inputs:
       dispatch_token:
@@ -35,6 +24,10 @@ on:
 
 permissions:
   contents: write
+  # The final job may dispatch this workflow and nothing else. GitHub permits
+  # workflow_dispatch events created with GITHUB_TOKEN while suppressing other
+  # recursive event types, which is the narrow native primitive needed here.
+  actions: write
   pages: write
   id-token: write
 
@@ -85,3 +78,16 @@ jobs:
       - name: Publish interface
         id: deployment
         uses: actions/deploy-pages@v4
+
+  continue-again:
+    # A successor exists only after the complete bounded cycle—including its
+    # human-visible publication—succeeds. Any failure prevents this job and ends
+    # the chain instead of replaying a broken or ambiguous operation forever.
+    needs: deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Start the next cycle immediately
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PREVIOUS_RUN_ID: ${{ github.run_id }}
+        run: gh workflow run prove-model.yml --repo "$GITHUB_REPOSITORY" --ref master -f "dispatch_token=continuous-$PREVIOUS_RUN_ID"

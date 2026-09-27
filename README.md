@@ -352,9 +352,9 @@ receipt chain is preserved in a collapsed, searchable history instead of
 dominating the operating view. The page polls live workflow state and published
 artifact identity; when a coherent newer artifact appears, it reloads itself so
 status, exchanges, work, and history update without operator intervention.
-It also shows the next expected 30-minute heartbeat in the viewer's local time.
-When human judgment is required, the page says `REVIEW NEEDED`, explains what to
-review, and makes clear that a scheduled check cannot bypass that decision.
+It also shows whether the continuous chain is working, between successful cycles,
+or stopped on failure. There is no scheduled gap: every successfully published
+Gemini cycle dispatches its successor immediately.
 
 In GitHub, the `sudofx — operate & publish` workflow is the authenticated control
 plane. A manual run accepts a `set` or `delete` proposal, applies deterministic
@@ -362,11 +362,16 @@ governance, checkpoints the SQLite record to the `sudofx-state` branch, verifies
 and publishes the resulting projection to Pages. The browser never holds a GitHub
 token and the Pages output is never treated as authoritative state.
 
-### Continuous Mac Runner
+### Continuous Cloud Runner
 
-The 30-minute GitHub schedule is a backup heartbeat. For immediate sequential
-development cycles, run this from a clean `master` checkout with an authenticated
-GitHub CLI:
+The `sudofx — continue` workflow is a success-only cloud chain. One manual
+dispatch starts it; each completed deployment immediately dispatches exactly one
+successor. Verification, Gemini, governance, or deployment failure stops the
+chain visibly rather than spending calls in a broken loop. The workflow uses
+GitHub concurrency to keep cycles sequential and needs no awake Mac.
+
+The local runner remains available as an operator recovery tool from a clean
+`master` checkout with an authenticated GitHub CLI:
 
 ```bash
 scripts/run-sudofx-cycles.sh
@@ -375,8 +380,8 @@ scripts/run-sudofx-cycles.sh
 The runner fast-forwards local source, dispatches one bounded cloud cycle, waits
 for its exact tokenized run, and reads the verified decision from that run's Pages
 artifact. It repeats only when the artifact explicitly says `CONTINUE`; otherwise
-it stops at `WAITING FOR YOU`, `FAILED`, or `NO MORE SAFE WORK`. Pass a positive
-number to cap the run, for example `scripts/run-sudofx-cycles.sh 3`.
+it stops at `FAILED` or `NO MORE SAFE WORK`. Pass a positive number to cap the
+run, for example `scripts/run-sudofx-cycles.sh 3`.
 
 ## Durable Work Items
 
