@@ -103,10 +103,16 @@ targeted authoritative SQLite, and supplied an observable snapshot integrity
 check without claiming the action had already been performed. That human
 semantic verdict is now recorded in authoritative work history.
 
-The continuous runner remains intentionally stopped. The new frontier is narrower
-and executable: test the accepted maintenance candidate through a governed path,
-verify the derived SQLite snapshot physically and semantically, and preserve the
-original SQLite record as sole operational authority.
+The accepted maintenance candidate has now been executed as a finite governed
+proof. A temporary `VACUUM INTO` snapshot passed SQLite integrity checking and
+full sudofx semantic replay, while the authoritative SQLite revision, state, and
+event head remained unchanged. Only after those checks passed did a governed
+work transition record the successful proof.
+
+The continuous runner remains intentionally stopped. The next frontier is
+provider substitution: present the same bounded `handoff-v1` frontier to a
+materially different real model/provider and compare whether useful semantic
+continuation survives without changing the authority contract.
 
 Every continuous cycle is deliberately a test, not a state mutation.
 
@@ -136,11 +142,10 @@ The architecture is directionally aligned, but several risks remain open:
 
 The next governed experiment should remain narrow:
 
-- record one concrete maintenance-focused obligation in `handoff-v1`
-- run exactly one fresh-intelligence cycle before re-enabling continuous operation
-- record an honest semantic verdict about whether the candidate advanced that obligation
+- test the same bounded `handoff-v1` frontier with a materially different real model/provider
+- compare semantic continuation evidence across providers without ranking models
 - measure continuity quality instead of merely cycle success
-- test replacement across more than one real model/provider
+- keep continuous operation stopped until that cross-provider result is judged
 - make reconstruction quality comparable over time
 - preserve provenance for every derived context unit
 - keep all durable operational truth in the database
