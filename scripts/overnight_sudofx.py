@@ -159,8 +159,12 @@ def _probe(
     directive = build_trial_directive(previous_experiment)
     exposure = directive.get("exposure", {})
     result_limit = exposure.get("accepted_results_limit", 1)
-    if result_limit not in (0, 1):
+    if result_limit not in (0, 1, 2):
         raise RuntimeError("overnight exposure profile has invalid accepted_results_limit")
+    include_counts = exposure.get("include_counts", True)
+    include_digests = exposure.get("include_digests", True)
+    if not isinstance(include_counts, bool) or not isinstance(include_digests, bool):
+        raise RuntimeError("overnight exposure profile has invalid count/digest controls")
 
     # The experiment now changes the packet itself, not merely the question.
     # Zero deliberately removes the last readable milestone while preserving its
@@ -172,15 +176,17 @@ def _probe(
     compressed_work.pop("accepted_results", None)
     compressed_work.pop("semantic_assessments", None)
     compressed_work["accepted_results_recent"] = recent
-    compressed_work["accepted_result_count"] = len(results)
-    compressed_work["omitted_accepted_results_count"] = len(omitted)
-    compressed_work["omitted_accepted_results_digest"] = hashlib.sha256(
-        canonical_json(omitted).encode()
-    ).hexdigest()
-    compressed_work["semantic_assessment_count"] = len(assessments)
-    compressed_work["semantic_assessments_digest"] = hashlib.sha256(
-        canonical_json(assessments).encode()
-    ).hexdigest()
+    if include_counts:
+        compressed_work["accepted_result_count"] = len(results)
+        compressed_work["omitted_accepted_results_count"] = len(omitted)
+        compressed_work["semantic_assessment_count"] = len(assessments)
+    if include_digests:
+        compressed_work["omitted_accepted_results_digest"] = hashlib.sha256(
+            canonical_json(omitted).encode()
+        ).hexdigest()
+        compressed_work["semantic_assessments_digest"] = hashlib.sha256(
+            canonical_json(assessments).encode()
+        ).hexdigest()
     compressed_work["continuity_trial"] = directive
 
     bounded = Context(
