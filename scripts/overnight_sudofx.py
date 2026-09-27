@@ -156,9 +156,17 @@ def _probe(
     if not isinstance(assessments, list) or not all(isinstance(item, dict) for item in assessments):
         raise RuntimeError("handoff semantic assessments are malformed")
 
-    recent = results[-1:]
-    omitted = results[:-1]
     directive = build_trial_directive(previous_experiment)
+    exposure = directive.get("exposure", {})
+    result_limit = exposure.get("accepted_results_limit", 1)
+    if result_limit not in (0, 1):
+        raise RuntimeError("overnight exposure profile has invalid accepted_results_limit")
+
+    # The experiment now changes the packet itself, not merely the question.
+    # Zero deliberately removes the last readable milestone while preserving its
+    # count and digest so the model cannot confuse absence with nonexistence.
+    recent = results[-result_limit:] if result_limit else []
+    omitted = results[:-result_limit] if result_limit else list(results)
 
     compressed_work = dict(work)
     compressed_work.pop("accepted_results", None)
@@ -255,6 +263,7 @@ def _probe(
         "candidate_rationale": proposal.rationale,
         "candidate_open_obligations": obligations,
         "overnight_trial": directive,
+        "exposure_profile": exposure,
         "compression": {
             "full_context_bytes": full_bytes,
             "compressed_context_bytes": bounded_bytes,
@@ -264,6 +273,9 @@ def _probe(
             "accepted_results_exposed": len(recent),
             "accepted_results_omitted": len(omitted),
             "receipt_count_exposed": 0,
+            "previous_model_observation_exposed": bool(
+                exposure.get("include_previous_observation", True)
+            ),
         },
         "semantic_review": {
             "version": 1,
@@ -287,6 +299,7 @@ def _probe(
                 "context_digest": digest,
                 "trial_cycle": directive["cycle"],
                 "trial_phase": directive["phase"],
+                "exposure_profile": exposure,
             },
         },
         "receipt": {
