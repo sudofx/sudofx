@@ -437,26 +437,27 @@ def main() -> int:
         run_id=run_id,
     )
 
-    verification = {
-        "commit": os.environ.get("GITHUB_SHA", ""),
-        "run_id": run_id,
-        "run_url": (
-            f"{os.environ.get('GITHUB_SERVER_URL', 'https://github.com')}/"
-            f"{repository}/actions/runs/{run_id}"
-            if run_id
-            else ""
-        ),
-    }
-    cloud.export_site(
-        kernel,
-        cloud.ROOT / "site",
-        repository=repository,
-        verification=verification,
-        continuity_proof=proof,
-        control_url=os.environ.get("SUDOFX_CONTROL_URL", ""),
-    )
-    cloud.export_handoff_packet(kernel, cloud.ROOT / "site", cloud.AUTO_HANDOFF_ID)
-    _patch_projection(proof)
+    # Runtime cycles never rebuild or deploy GitHub Pages. They refresh one
+    # replaceable public-safe projection after SQLite has been checkpointed.
+    # Projection failure is visible in logs but cannot stop authoritative work
+    # or the next fresh-model cycle.
+    live_projection = dict(proof)
+    live_projection["projection_schema"] = 1
+    live_projection["projection_kind"] = "disposable-live-view"
+    live_projection["source_run_id"] = run_id
+    try:
+        cloud.publish_live_projection(live_projection)
+    except Exception as error:
+        print(
+            json.dumps(
+                {
+                    "live_projection_updated": False,
+                    "live_projection_error": str(error),
+                },
+                sort_keys=True,
+            ),
+            file=sys.stderr,
+        )
 
     print(
         json.dumps(
