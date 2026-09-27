@@ -34,14 +34,12 @@ permissions:
   # workflow_dispatch events created with GITHUB_TOKEN while suppressing other
   # recursive event types, which is the narrow native primitive needed here.
   actions: write
-  pages: write
-  id-token: write
 
 concurrency:
   # Continuity observations share the authoritative lane with manual governed
   # mutations, but never with read-only projection refreshes. The v2 group also
   # abandons any stale scheduler lock left behind by the earlier shared lane.
-  group: sudofx-authority-v2
+  group: sudofx-authority-v3
   cancel-in-progress: false
 
 jobs:
@@ -72,34 +70,23 @@ jobs:
             args+=(--operator-start)
           fi
           PYTHONPATH=src python scripts/overnight_sudofx.py "${args[@]}"
-      - name: Configure Pages
-        uses: actions/configure-pages@v6
-        with:
-          enablement: true
-      - name: Upload observer interface
-        uses: actions/upload-pages-artifact@v5
-        with:
-          path: site
-
-  deploy:
+  request-publication:
+    # Publication is derived and replaceable. Dispatch it after authoritative
+    # observation recording, but never make the next model wait for Pages.
     needs: continue
     runs-on: ubuntu-latest
-    concurrency:
-      group: pages
-      cancel-in-progress: true
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+    continue-on-error: true
     steps:
-      - name: Publish interface
-        id: deployment
-        uses: actions/deploy-pages@v5
+      - name: Request latest observer publication
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_RUN_ID: ${{ github.run_id }}
+        run: gh workflow run pages.yml --repo "$GITHUB_REPOSITORY" --ref master -f "source_run_id=$SOURCE_RUN_ID"
 
   continue-again:
-    # A successor exists only after the complete bounded cycle—including durable
-    # observation recording and human-visible publication—succeeds. Any failure
-    # stops the chain rather than teaching the next model from ambiguous state.
-    needs: deploy
+    # A successor depends only on the completed governed continuity cycle.
+    # Pages has its own cancel-stale lane and cannot throttle stateful work.
+    needs: continue
     runs-on: ubuntu-latest
     steps:
       - name: Start the next fresh Gemini cycle immediately
