@@ -24,6 +24,11 @@ _ALLOWED_WORK_FIELDS = (
     "work_revision",
 )
 
+# Manual transport must not quietly receive more semantic evidence than the
+# automated Gemini baseline. One accepted milestone and no receipt prose are
+# the promoted provider-facing policy; counts and digests disclose omissions.
+_MANUAL_RECENT_RESULT_LIMIT = 1
+
 
 def build_handoff_packet(kernel: Kernel, work_id: str = HANDOFF_WORK_ID) -> dict[str, Any]:
     """Build a portable packet from one governed work item only.
@@ -44,17 +49,19 @@ def build_handoff_packet(kernel: Kernel, work_id: str = HANDOFF_WORK_ID) -> dict
         for field in _ALLOWED_WORK_FIELDS
         if field in work
     }
-    receipts = []
-    for receipt in context.recent_receipts:
-        receipts.append(
-            {
-                "proposal_id": receipt.get("proposal_id"),
-                "status": receipt.get("status"),
-                "revision_before": receipt.get("revision_before"),
-                "revision_after": receipt.get("revision_after"),
-                "event_hash": receipt.get("event_hash"),
-            }
-        )
+    accepted_results = projected_work.pop("accepted_results", [])
+    if not isinstance(accepted_results, list) or not all(
+        isinstance(result, str) for result in accepted_results
+    ):
+        raise ValueError("work item has invalid accepted results")
+    recent_results = accepted_results[-_MANUAL_RECENT_RESULT_LIMIT:]
+    omitted_results = accepted_results[:-_MANUAL_RECENT_RESULT_LIMIT]
+    projected_work["accepted_results_recent"] = recent_results
+    projected_work["accepted_result_count"] = len(accepted_results)
+    projected_work["omitted_accepted_results_count"] = len(omitted_results)
+    projected_work["omitted_accepted_results_digest"] = hashlib.sha256(
+        canonical_json(omitted_results).encode()
+    ).hexdigest()
 
     history = kernel.record.history()
     source_event_head = history[-1]["event_hash"] if history else GENESIS_HASH
@@ -64,7 +71,10 @@ def build_handoff_packet(kernel: Kernel, work_id: str = HANDOFF_WORK_ID) -> dict
         "record_revision": context.revision,
         "source_event_head": source_event_head,
         "work": projected_work,
-        "receipt_provenance": receipts,
+        # A human may carry this packet, but that does not expand the provider's
+        # evidence. Source head and packet digest retain provenance without
+        # exposing receipt prose that Gemini did not receive.
+        "receipt_provenance": [],
         "instructions": {
             "assumption": "You have no prior conversation or hidden project context.",
             "task": (
@@ -72,8 +82,8 @@ def build_handoff_packet(kernel: Kernel, work_id: str = HANDOFF_WORK_ID) -> dict
                 "identify the current frontier, and propose exactly one next action."
             ),
             "grounding_rule": (
-                "Use only this packet. Distinguish packet evidence from inference and "
-                "do not invent missing history."
+                "Use only this packet. Distinguish packet evidence from inference, "
+                "treat digests as unreadable commitments, and do not invent omitted history."
             ),
         },
     }

@@ -791,7 +791,6 @@ json.dump({
         self.assertIn("retention-days: 30", workflow)
         self.assertNotIn("path: recovery\n", workflow)
 
-
     def test_handoff_packet_is_bounded_and_portable(self) -> None:
         """Handoff v1 must export one governed work item without unrelated state."""
         self.kernel.submit(
@@ -831,8 +830,12 @@ json.dump({
         self.assertEqual(packet["handoff_version"], 1)
         self.assertEqual(packet["work_id"], "handoff-v1")
         self.assertEqual(packet["work"]["objective"], "Continue the project from durable context")
-        self.assertEqual(packet["work"]["accepted_results"], ["Defined the north star"])
         self.assertEqual(packet["work"]["open_obligations"], ["Run a fresh-model handoff"])
+        self.assertEqual(packet["work"]["accepted_results_recent"], ["Defined the north star"])
+        self.assertEqual(packet["work"]["accepted_result_count"], 1)
+        self.assertEqual(packet["work"]["omitted_accepted_results_count"], 0)
+        self.assertNotIn("accepted_results", packet["work"])
+        self.assertEqual(packet["receipt_provenance"], [])
         self.assertNotIn("private", str(packet))
         self.assertEqual(len(packet["packet_digest"]), 64)
 
@@ -842,6 +845,21 @@ json.dump({
             self.assertTrue(prompt_path.exists())
             self.assertIn("SUDOFX_HANDOFF v1", prompt_path.read_text())
             self.assertIn('"packet_digest"', json_path.read_text())
+
+        page = render(self.kernel, control_url="https://control.example")
+        # Manual provider use belongs to the authenticated operator surface. The
+        # four destinations share one provider-neutral packet, and pasted output
+        # remains transient until the owner deliberately carries it to Codex.
+        self.assertIn("Manual AI handoff", page)
+        for provider in ("ChatGPT", "Claude", "Gemini", "DeepSeek"):
+            self.assertIn(f'data-handoff-provider="{provider}"', page)
+        self.assertIn("accepted_results_recent", page)
+        self.assertIn("omitted_accepted_results_digest", page)
+        self.assertNotIn('"accepted_results":', page)
+        self.assertIn("navigator.clipboard.writeText", page)
+        self.assertIn("Paste the complete response here", page)
+        self.assertIn("Copy for Codex analysis", page)
+        self.assertIn("Response is waiting only in this page", page)
 
     def test_record_initializes_inside_an_existing_empty_directory(self) -> None:
         """A first cloud run may create a record once its explicit parent exists."""

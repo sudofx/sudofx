@@ -20,6 +20,7 @@ import html
 import json
 from pathlib import Path
 
+from .handoff import HANDOFF_WORK_ID, build_handoff_packet
 from .kernel import Kernel
 from .models import Context
 
@@ -240,6 +241,28 @@ def render(
     # absent URL removes the authentication affordance entirely so local exports
     # and partially configured deployments never imply controls are available.
     control_url = control_url.rstrip("/")
+    # The manual exchange is a derived, provider-neutral view of the same
+    # compressed handoff used for automated continuity tests. It is embedded in
+    # the current public-safe projection but stays inaccessible through normal
+    # UI interaction until the confidential service authenticates the owner.
+    # Private persistence will require moving delivery behind that service too;
+    # presentation gating alone is deliberately not claimed as confidentiality.
+    manual_prompt = ""
+    try:
+        manual_packet = build_handoff_packet(kernel, HANDOFF_WORK_ID)
+        manual_prompt = (
+            "SUDOFX MANUAL CONTINUITY TEST\n"
+            "You are a fresh intelligence with no prior conversation, memory, files, tools, or hidden context.\n"
+            "Use only the bounded durable packet below. Treat digests as unreadable commitments, not readable history.\n"
+            "Return exactly these labeled sections: objective, recovered_history, current_frontier, next_action, evidence_vs_inference.\n"
+            "Do not claim you performed work or inspected anything outside the packet.\n\n"
+            + json.dumps(manual_packet, indent=2, sort_keys=True)
+        )
+    except ValueError:
+        # A projection without the experiment work item remains valid; the
+        # authenticated workbench simply stays unavailable instead of inventing
+        # a prompt from unrelated state.
+        pass
     observer_continuous = continuity_proof.get("assessment_status") == "semantic_review_pending"
     # A semantic review result remains evidence rather than authoritative state,
     # but continuous test authorization means it no longer pauses the observer.
@@ -270,6 +293,7 @@ def render(
       <div class="owner-controls" data-owner-controls hidden aria-live="polite">
         <div class="owner-control-heading"><strong>Operator controls</strong><span data-owner-identity></span><span data-owner-control-status>Checking controls…</span></div>
         <div class="owner-control-actions"><button type="button" data-owner-start>Start</button><button type="button" data-owner-stop>Stop</button><button type="button" data-owner-backup hidden>Backup</button></div>
+        <button class="owner-handoff" type="button" data-owner-handoff {'disabled' if not manual_prompt else ''}>Manual AI handoff</button>
         <button class="owner-signout" type="button" data-owner-signout>Sign out</button>
       </div>
     </div>'''
@@ -390,6 +414,20 @@ def render(
     .owner-controls button:disabled {{ opacity:.45; cursor:wait }}
     .owner-controls button[hidden] {{ display:none }}
     .owner-controls .owner-signout {{ width:100%; border-color:var(--line); color:var(--muted); background:transparent }}
+    .owner-controls .owner-handoff {{ width:100%; border-color:var(--accent); color:var(--accent) }}
+    .handoff-dialog {{ width:min(720px,calc(100vw - 24px)); max-height:calc(100vh - 24px); padding:0; border:1px solid var(--line); background:var(--surface); color:var(--ink); box-shadow:0 22px 70px #0007 }}
+    .handoff-dialog::backdrop {{ background:#111a }}
+    .handoff-shell {{ display:grid; gap:14px; padding:18px }}
+    .handoff-head {{ display:flex; justify-content:space-between; align-items:start; gap:16px }}
+    .handoff-head h2 {{ margin:4px 0 0 }}
+    .handoff-head button,.handoff-actions button,.provider-buttons button {{ border:1px solid var(--line); border-radius:4px; background:var(--surface); color:var(--ink); padding:9px 11px; font:800 11px var(--mono); cursor:pointer }}
+    .provider-buttons {{ display:grid; grid-template-columns:repeat(4,1fr); gap:7px }}
+    .provider-buttons button[aria-pressed=true] {{ color:var(--green); border-color:var(--green) }}
+    .handoff-field {{ display:grid; gap:6px; color:var(--muted); font:700 10px var(--mono); letter-spacing:.05em; text-transform:uppercase }}
+    .handoff-field textarea {{ width:100%; min-height:170px; resize:vertical; border:1px solid var(--line); background:var(--paper); color:var(--ink); padding:12px; font:12px/1.45 var(--mono); text-transform:none; letter-spacing:normal }}
+    .handoff-actions {{ display:flex; flex-wrap:wrap; gap:8px }}
+    .handoff-actions [data-handoff-copy],.handoff-actions [data-handoff-analyze] {{ border-color:var(--accent); color:var(--accent) }}
+    .handoff-note {{ min-height:1.5em; margin:0; color:var(--muted); font:11px/1.45 var(--mono) }}
     .machine-activity {{ margin-top:12px; border:1px solid var(--line); background:var(--paper); overflow:hidden }}
     .machine-activity[hidden] {{ display:none }}
     .machine-lights {{ display:grid; grid-template-columns:repeat(8,1fr); gap:6px; padding:10px 12px 8px }}
@@ -479,6 +517,7 @@ def render(
       .owner-control-actions {{ grid-template-columns:1fr 1fr; gap:8px }}
       .owner-control-actions [data-owner-backup] {{ grid-column:1/-1 }}
       .owner-controls button {{ min-height:42px }}
+      .provider-buttons {{ grid-template-columns:1fr 1fr }}
       .observer-head {{ gap:12px }} .observer-signal {{ align-items:flex-start }}
       .observer-state {{ max-width:112px; text-align:center }}
       .observer-grid {{ grid-template-columns:1fr 1fr }} .observer-cell.primary {{ grid-column:1/-1 }}
@@ -495,6 +534,19 @@ def render(
     <label class="theme-switch" title="Follow system theme"><input id="theme-toggle" type="checkbox" role="switch" aria-label="Use dark theme"><span class="data-switch-track" aria-hidden="true"><i></i></span></label>
     <div class="tagline">Durable, accountable work across interchangeable intelligences.</div>
     {owner_access_html}</header>
+  <dialog class="handoff-dialog" data-handoff-dialog>
+    <div class="handoff-shell">
+      <div class="handoff-head"><div><span class="eyebrow">Owner-only transport</span><h2>Manual AI handoff</h2></div><button type="button" data-handoff-close aria-label="Close manual handoff">Close</button></div>
+      <div class="provider-buttons" aria-label="Choose destination">
+        <button type="button" data-handoff-provider="ChatGPT">ChatGPT</button><button type="button" data-handoff-provider="Claude">Claude</button><button type="button" data-handoff-provider="Gemini">Gemini</button><button type="button" data-handoff-provider="DeepSeek">DeepSeek</button>
+      </div>
+      <label class="handoff-field">Prompt to paste<textarea data-handoff-prompt readonly>{_escape(manual_prompt)}</textarea></label>
+      <div class="handoff-actions"><button type="button" data-handoff-copy>Copy prompt</button></div>
+      <label class="handoff-field">Paste the response<textarea data-handoff-response placeholder="Paste the complete response here. It remains only in this browser page."></textarea></label>
+      <div class="handoff-actions"><button type="button" data-handoff-wait>Keep it here</button><button type="button" data-handoff-analyze>Copy for Codex analysis</button></div>
+      <p class="handoff-note" data-handoff-status>Select a destination. The prompt will be copied automatically when the browser permits it.</p>
+    </div>
+  </dialog>
   {observer_console_html}
   {_exchange_panel(continuity_proof)}
   <section><div class="toolbar"><div><span class="eyebrow">{open_work} open</span><h2>Current work</h2></div></div>
@@ -525,7 +577,13 @@ const ownerControlStatus=document.querySelector('[data-owner-control-status]');
 const ownerStart=document.querySelector('[data-owner-start]');
 const ownerStop=document.querySelector('[data-owner-stop]');
 const ownerBackup=document.querySelector('[data-owner-backup]');
+const ownerHandoff=document.querySelector('[data-owner-handoff]');
 const ownerSignout=document.querySelector('[data-owner-signout]');
+const handoffDialog=document.querySelector('[data-handoff-dialog]');
+const handoffPrompt=document.querySelector('[data-handoff-prompt]');
+const handoffResponse=document.querySelector('[data-handoff-response]');
+const handoffStatus=document.querySelector('[data-handoff-status]');
+let handoffProvider='';
 const ownerSessionKey='sudofx-owner-session';
 const ownerFragment='#sudofx-control=';
 try{{
@@ -559,6 +617,8 @@ const setOwnerMenu=(open)=>{{
   ownerMenuToggle.setAttribute('aria-expanded',String(open));
 }};
 const showOwnerSignedOut=()=>{{
+  if(handoffDialog?.open)handoffDialog.close();
+  if(handoffResponse)handoffResponse.value='';
   setOwnerMenu(false);
   if(ownerMenuToggle)ownerMenuToggle.hidden=true;
   if(ownerLogin)ownerLogin.hidden=false;
@@ -618,6 +678,33 @@ const operateOwnerControl=async(path)=>{{
 if(ownerStart)ownerStart.addEventListener('click',()=>operateOwnerControl('/api/start'));
 if(ownerStop)ownerStop.addEventListener('click',()=>operateOwnerControl('/api/stop'));
 if(ownerBackup)ownerBackup.addEventListener('click',()=>operateOwnerControl('/api/backup'));
+const copyText=async(value)=>{{
+  await navigator.clipboard.writeText(value);
+}};
+const selectHandoffProvider=async(button)=>{{
+  handoffProvider=button.dataset.handoffProvider||'';
+  document.querySelectorAll('[data-handoff-provider]').forEach(candidate=>candidate.setAttribute('aria-pressed',String(candidate===button)));
+  try{{await copyText(handoffPrompt.value);handoffStatus.textContent=handoffProvider+' selected · prompt copied. Open it, paste, then return with the complete response.';}}
+  catch{{handoffPrompt.focus();handoffPrompt.select();handoffStatus.textContent='Automatic clipboard access was blocked. The prompt is selected for manual copying.';}}
+}};
+if(ownerHandoff)ownerHandoff.addEventListener('click',()=>{{
+  setOwnerMenu(false);
+  if(handoffDialog&&!ownerHandoff.disabled)handoffDialog.showModal();
+}});
+document.querySelectorAll('[data-handoff-provider]').forEach(button=>button.addEventListener('click',()=>selectHandoffProvider(button)));
+document.querySelector('[data-handoff-copy]')?.addEventListener('click',async()=>{{
+  try{{await copyText(handoffPrompt.value);handoffStatus.textContent='Prompt copied.';}}
+  catch{{handoffPrompt.focus();handoffPrompt.select();handoffStatus.textContent='Clipboard access was blocked; the prompt is selected.';}}
+}});
+document.querySelector('[data-handoff-wait]')?.addEventListener('click',()=>{{handoffStatus.textContent='Response is waiting only in this page. Do not reload or sign out.';}});
+document.querySelector('[data-handoff-analyze]')?.addEventListener('click',async()=>{{
+  const response=handoffResponse.value.trim();
+  if(!response){{handoffStatus.textContent='Paste the complete response first.';return;}}
+  const packet='Analyze this manual sudofx continuity response. Destination: '+(handoffProvider||'unspecified')+'\n\n'+response;
+  try{{await copyText(packet);handoffStatus.textContent='Analysis packet copied. Return to Codex and paste it into the sudofx chat.';}}
+  catch{{handoffResponse.focus();handoffResponse.select();handoffStatus.textContent='Clipboard access was blocked. The response is selected for manual copying.';}}
+}});
+document.querySelector('[data-handoff-close]')?.addEventListener('click',()=>handoffDialog?.close());
 if(ownerMenuToggle)ownerMenuToggle.addEventListener('click',(event)=>{{event.stopPropagation();setOwnerMenu(ownerControls.hidden);}});
 if(ownerControls)ownerControls.addEventListener('click',(event)=>event.stopPropagation());
 if(ownerSignout)ownerSignout.addEventListener('click',()=>{{try{{localStorage.removeItem(ownerSessionKey)}}catch{{}}showOwnerSignedOut();}});

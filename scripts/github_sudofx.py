@@ -452,7 +452,10 @@ def main() -> int:
         model = os.environ.get("ANTHROPIC_MODEL", "").strip()
         if not model:
             parser.error("ANTHROPIC_MODEL is required for --prove-anthropic")
-        continuity_proof = run_model_continuity_probe(
+        # Provider substitution must change only the intelligence boundary. Use
+        # the same promoted one-milestone, zero-receipt handoff policy as Gemini
+        # so a result cannot be explained by Anthropic receiving richer history.
+        continuity_proof = run_default_model_continuity_probe(
             DATA,
             prove_anthropic_id,
             (sys.executable, str(ROOT / "scripts" / "anthropic_provider.py")),
