@@ -528,16 +528,23 @@ const ownerBackup=document.querySelector('[data-owner-backup]');
 const ownerSignout=document.querySelector('[data-owner-signout]');
 const ownerSessionKey='sudofx-owner-session';
 const ownerFragment='#sudofx-control=';
+try{{
+  if(!localStorage.getItem(ownerSessionKey)){{
+    const legacy=sessionStorage.getItem(ownerSessionKey);
+    if(legacy)localStorage.setItem(ownerSessionKey,legacy);
+  }}
+  sessionStorage.removeItem(ownerSessionKey);
+}}catch{{}}
 // OAuth returns encrypted session ciphertext in the fragment. Fragments never
-// reach Pages or referrer headers; move it to sessionStorage and immediately
+// reach Pages or referrer headers; move it to origin-persistent localStorage and immediately
 // remove it from the address bar before making an authenticated request.
 if(controlUrl && location.hash.startsWith(ownerFragment)){{
   try{{
-    sessionStorage.setItem(ownerSessionKey,decodeURIComponent(location.hash.slice(ownerFragment.length)));
+    localStorage.setItem(ownerSessionKey,decodeURIComponent(location.hash.slice(ownerFragment.length)));
     history.replaceState(null,'',location.pathname+location.search);
   }}catch{{}}
 }}
-const ownerSession=()=>{{try{{return sessionStorage.getItem(ownerSessionKey)||''}}catch{{return ''}}}};
+const ownerSession=()=>{{try{{return localStorage.getItem(ownerSessionKey)||''}}catch{{return ''}}}};
 const ownerRequest=async(path,method='GET')=>{{
   const response=await fetch(controlUrl+path,{{method,headers:{{Authorization:'Bearer '+ownerSession()}}}});
   const body=await response.json().catch(()=>({{}}));
@@ -545,7 +552,7 @@ const ownerRequest=async(path,method='GET')=>{{
   return body;
 }};
 // The popover is presentational state only. Closing it never changes workflow
-// authority, while signing out removes only this tab's encrypted session.
+// authority, while signing out explicitly removes the origin-persistent session.
 const setOwnerMenu=(open)=>{{
   if(!ownerMenuToggle||!ownerControls)return;
   ownerControls.hidden=!open;
@@ -598,7 +605,7 @@ const refreshOwnerControls=async()=>{{
     applyOwnerWorkflowState(state);
     return state;
   }}catch{{
-    try{{sessionStorage.removeItem(ownerSessionKey)}}catch{{}}
+    try{{localStorage.removeItem(ownerSessionKey)}}catch{{}}
     showOwnerSignedOut();
     return null;
   }}
@@ -613,7 +620,7 @@ if(ownerStop)ownerStop.addEventListener('click',()=>operateOwnerControl('/api/st
 if(ownerBackup)ownerBackup.addEventListener('click',()=>operateOwnerControl('/api/backup'));
 if(ownerMenuToggle)ownerMenuToggle.addEventListener('click',(event)=>{{event.stopPropagation();setOwnerMenu(ownerControls.hidden);}});
 if(ownerControls)ownerControls.addEventListener('click',(event)=>event.stopPropagation());
-if(ownerSignout)ownerSignout.addEventListener('click',()=>{{try{{sessionStorage.removeItem(ownerSessionKey)}}catch{{}}showOwnerSignedOut();}});
+if(ownerSignout)ownerSignout.addEventListener('click',()=>{{try{{localStorage.removeItem(ownerSessionKey)}}catch{{}}showOwnerSignedOut();}});
 document.addEventListener('click',()=>setOwnerMenu(false));
 document.addEventListener('keydown',(event)=>{{if(event.key==='Escape')setOwnerMenu(false);}});
 // The workflow owns a success-only successor chain. This field describes that
