@@ -60,7 +60,7 @@ def _prompt(context: dict[str, Any]) -> str:
         "Rules:\n"
         "- reconstruction: concise description of what the work is, what has "
         "already been accepted, and its current frontier.\n"
-        "- chosen_action: one specific maintenance action, written as an imperative; do not restate the obligation.\n"
+        "- chosen_action: one specific next action, written as an imperative; do not restate the obligation.\n"
         "- target: the exact system boundary or artifact the action applies to.\n"
         "- verification: one observable check that would prove the action succeeded.\n"
         "- rationale: concise evidence-based reason using only supplied context.\n"
