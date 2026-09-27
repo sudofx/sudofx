@@ -8,8 +8,9 @@ run-name: sudofx continue · ${{ inputs.dispatch_token || github.run_id }}
 # Stable one-tap device entry point.
 #
 # Existing iPhone/iPad/Mac Shortcuts dispatch this workflow with no parameters.
-# It intentionally delegates operator intent to sudofx observer mode so the human
-# does not carry work IDs, model IDs, or long context between devices.
+# The authenticated website Start control records operator intent on the first
+# cycle. Every successful successor is a fresh Gemini process that inherits only
+# bounded, governed residue from the preceding experiment observation.
 
 on:
   # One manual dispatch starts or repairs the chain. Successful runs create one
@@ -37,6 +38,8 @@ permissions:
   id-token: write
 
 concurrency:
+  # One serialized lane owns both authoritative observation recording and the
+  # next provider snapshot. Pages deployment has its own replaceable queue below.
   group: sudofx-durable-state
   cancel-in-progress: false
 
@@ -53,21 +56,21 @@ jobs:
           python-version: '3.13'
       - name: Verify the kernel
         run: PYTHONPATH=src python -m unittest discover -s tests -v
-      - name: Ask Gemini and govern its response
-        # This human-readable step name is also live observer telemetry. The
-        # public page can truthfully say the system is waiting on Gemini while
-        # this bounded provider call is active without exposing API mechanics.
+      - name: Ask fresh Gemini and record bounded residue
+        # Model output is governed only on an isolated SQLite snapshot. The
+        # production write records what the model said as untrusted experiment
+        # evidence; it never advances authoritative work from provider prose.
         env:
           OPERATOR_START: ${{ inputs.operator_start }}
           GEMINI_MODEL: gemini-3.5-flash-lite
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           SUDOFX_CONTROL_URL: ${{ vars.SUDOFX_CONTROL_URL }}
         run: |
-          args=(--auto)
+          args=()
           if [[ "$OPERATOR_START" == "true" ]]; then
-            args+=(--operator-transition start)
+            args+=(--operator-start)
           fi
-          PYTHONPATH=src python scripts/github_sudofx.py "${args[@]}"
+          PYTHONPATH=src python scripts/overnight_sudofx.py "${args[@]}"
       - name: Configure Pages
         uses: actions/configure-pages@v6
         with:
@@ -92,13 +95,13 @@ jobs:
         uses: actions/deploy-pages@v5
 
   continue-again:
-    # A successor exists only after the complete bounded cycle—including its
-    # human-visible publication—succeeds. Any failure prevents this job and ends
-    # the chain instead of replaying a broken or ambiguous operation forever.
+    # A successor exists only after the complete bounded cycle—including durable
+    # observation recording and human-visible publication—succeeds. Any failure
+    # stops the chain rather than teaching the next model from ambiguous state.
     needs: deploy
     runs-on: ubuntu-latest
     steps:
-      - name: Start the next cycle immediately
+      - name: Start the next fresh Gemini cycle immediately
         env:
           GH_TOKEN: ${{ github.token }}
           PREVIOUS_RUN_ID: ${{ github.run_id }}
