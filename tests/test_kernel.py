@@ -383,6 +383,16 @@ json.dump({
         self.assertLess(page.index("What sudofx is doing"), page.index("Current work"))
         self.assertIn("CHECKING…", page)
         self.assertIn("Loading live workflow status…", page)
+        # A human-review stop must identify the action, not merely announce that
+        # the machine is waiting. The schedule is also visible before a run is
+        # queued, closing the phone interface's former background-work blind spot.
+        self.assertIn('data-fallback-state="REVIEW NEEDED"', page)
+        self.assertIn("Automation is paused for your review", page)
+        self.assertIn("Review Gemini&#x27;s response and what sudofx did below", page)
+        self.assertIn("Next automatic check", page)
+        self.assertIn("review still required", page)
+        self.assertIn("expectedHeartbeat", page)
+        self.assertNotIn('data-fallback-state="WAITING FOR YOU"', page)
         self.assertIn("What Gemini was asked", page)
         self.assertIn("Preserve the work across model replacement", page)
         self.assertIn("Bounded context reached Gemini", page)

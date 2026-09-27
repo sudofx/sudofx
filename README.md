@@ -352,6 +352,9 @@ receipt chain is preserved in a collapsed, searchable history instead of
 dominating the operating view. The page polls live workflow state and published
 artifact identity; when a coherent newer artifact appears, it reloads itself so
 status, exchanges, work, and history update without operator intervention.
+It also shows the next expected 30-minute heartbeat in the viewer's local time.
+When human judgment is required, the page says `REVIEW NEEDED`, explains what to
+review, and makes clear that a scheduled check cannot bypass that decision.
 
 In GitHub, the `sudofx — operate & publish` workflow is the authenticated control
 plane. A manual run accepts a `set` or `delete` proposal, applies deterministic

@@ -182,17 +182,28 @@ def render(
     verification = verification or {}
     continuity_proof = continuity_proof or {}
     observer_waiting = continuity_proof.get("assessment_status") == "semantic_review_pending"
-    observer_static_state = "WAITING FOR YOU" if observer_waiting else "IDLE"
+    # The runner keeps ``WAITING FOR YOU`` as its machine-facing stop token, but
+    # that phrase is a poor instruction to a person: it resembles a generic
+    # notification without saying why progress stopped. This projection names
+    # the action instead; it never changes the governed runner disposition.
+    observer_static_state = "REVIEW NEEDED" if observer_waiting else "IDLE"
     observer_static_activity = (
-        "Human semantic review required"
+        "Automation is paused for your review"
         if observer_waiting
         else "No bounded operation currently running"
+    )
+    observer_static_detail = (
+        "Review Gemini's response and what sudofx did below. The next automatic check will not continue the work until you decide."
+        if observer_waiting
+        else "No work is running. The next automatic check can look for another safe bounded step."
     )
     observer_console_html = f"""
         <section class="observer-console checking" aria-label="Development status"
                  data-repository="{_escape(repository)}" data-workflow="prove-model.yml"
                  data-fallback-state="{observer_static_state}"
-                 data-fallback-activity="{_escape(observer_static_activity)}">
+                 data-fallback-activity="{_escape(observer_static_activity)}"
+                 data-fallback-detail="{_escape(observer_static_detail)}"
+                 data-heartbeat-minutes="30">
           <div class="observer-head">
             <div>
               <span class="eyebrow">Live development</span>
@@ -207,6 +218,7 @@ def render(
             <div class="observer-cell primary"><span>Current activity</span><strong data-current-activity>Loading live workflow status…</strong></div>
             <div class="observer-cell"><span>Current step</span><strong data-current-step>Checking GitHub…</strong></div>
             <div class="observer-cell"><span>Latest run</span><strong data-latest-run>{_escape(verification.get("run_id", "unknown"))}</strong></div>
+            <div class="observer-cell"><span>Next automatic check</span><strong data-next-check>Calculating…</strong></div>
           </div>
           <div class="machine-activity" data-machine-activity hidden aria-live="polite">
             <div class="machine-lights" aria-hidden="true">
@@ -374,10 +386,28 @@ const statusLed=document.querySelector('[data-status-led]');
 const currentActivity=document.querySelector('[data-current-activity]');
 const currentStep=document.querySelector('[data-current-step]');
 const latestRun=document.querySelector('[data-latest-run]');
+const nextCheck=document.querySelector('[data-next-check]');
 const observerDetail=document.querySelector('[data-observer-detail]');
 const machineActivity=document.querySelector('[data-machine-activity]');
 const machineText=document.querySelector('[data-machine-text]');
 const exchangeStatus=document.querySelector('[data-exchange-status]');
+// GitHub's cron heartbeat is aligned to the wall-clock interval, not to the
+// visitor's page load. This is an expectation rather than a countdown promise:
+// GitHub may queue a scheduled run after its nominal time. The local-time label
+// gives a phone operator useful orientation without claiming provider precision.
+const expectedHeartbeat=()=>{{
+  const minutes=Number(observer?.dataset.heartbeatMinutes)||30;
+  const now=new Date(), next=new Date(now);
+  next.setSeconds(0,0);
+  next.setMinutes(Math.floor(now.getMinutes()/minutes)*minutes+minutes);
+  return 'Around '+next.toLocaleTimeString([],{{hour:'numeric',minute:'2-digit'}});
+}};
+const updateNextCheck=(state)=>{{
+  if(!nextCheck)return;
+  if(state==='working'){{nextCheck.textContent='In progress now';return;}}
+  const consequence=state==='waiting'?' · review still required':(state==='failed'?' · failure still needs inspection':'');
+  nextCheck.textContent=expectedHeartbeat()+consequence;
+}};
 const refreshObserver=async()=>{{
   if(!observer)return;
   const repo=observer.dataset.repository, workflow=observer.dataset.workflow;
@@ -388,12 +418,13 @@ const refreshObserver=async()=>{{
     if(!run)throw new Error('No workflow run');
     latestRun.textContent='#'+String(run.run_number||run.id);
     const running=run.status!=='completed';
-    const visualState=running?'working':(run.conclusion==='failure'?'failed':({json.dumps(observer_static_state)}==='WAITING FOR YOU'?'waiting':'idle'));
+    const visualState=running?'working':(run.conclusion==='failure'?'failed':({json.dumps(observer_static_state)}==='REVIEW NEEDED'?'waiting':'idle'));
     observer.className='observer-console '+visualState;
     observerState.className='observer-state '+visualState;
     observerState.textContent=running?'WORKING':(run.conclusion==='failure'?'FAILED':{json.dumps(observer_static_state)});
     if(statusLed)statusLed.className='status-led '+visualState;
     currentActivity.textContent=running?'Waiting for Gemini and governing its response':(run.conclusion==='failure'?'Workflow needs inspection':{json.dumps(observer_static_activity)});
+    updateNextCheck(visualState);
     if(exchangeStatus){{exchangeStatus.textContent=running?'WAITING ON GEMINI':'LAST EXCHANGE';exchangeStatus.className='exchange-status '+(running?'working':'');}}
     const jobsResponse=await fetch(run.jobs_url,{{cache:'no-store'}});
     if(jobsResponse.ok){{
@@ -410,17 +441,23 @@ const refreshObserver=async()=>{{
         machineText.textContent='ACTIVE · '+stepName+' · RUN '+String(run.run_number||run.id)+' · VERIFIED TELEMETRY';
       }}
     }}
-    const updated=new Date(run.updated_at||run.created_at);
-    observerDetail.textContent='GitHub updated '+updated.toLocaleString()+' · auto-refreshes every 15s';
+    observerDetail.textContent=running
+      ? 'Started by GitHub · live status refreshes every 15 seconds'
+      : {json.dumps(observer_static_detail)};
   }}catch(error){{
-    observerDetail.textContent='Live GitHub telemetry unavailable · showing last published durable state';
-    observer.className='observer-console '+(observer.dataset.fallbackState==='WAITING FOR YOU'?'waiting':'idle');
-    observerState.className='observer-state '+(observer.dataset.fallbackState==='WAITING FOR YOU'?'waiting':'idle');
+    // Loss of live telemetry must not erase the operator instruction preserved
+    // in the published artifact. The prefix discloses staleness; the durable
+    // explanation still tells the person whether action is actually required.
+    observerDetail.textContent='Live status unavailable. '+observer.dataset.fallbackDetail;
+    const fallbackVisualState=observer.dataset.fallbackState==='REVIEW NEEDED'?'waiting':'idle';
+    observer.className='observer-console '+fallbackVisualState;
+    observerState.className='observer-state '+fallbackVisualState;
     observerState.textContent=observer.dataset.fallbackState;
     currentActivity.textContent=observer.dataset.fallbackActivity;
     currentStep.textContent='Live detail unavailable';
+    updateNextCheck(fallbackVisualState);
     if(machineActivity)machineActivity.hidden=true;
-    if(statusLed)statusLed.className='status-led '+(observer.dataset.fallbackState==='WAITING FOR YOU'?'waiting':'idle');
+    if(statusLed)statusLed.className='status-led '+fallbackVisualState;
   }}
 }};
 const exchange=document.querySelector('.exchange');
