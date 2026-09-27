@@ -51,7 +51,10 @@ The central architectural claim is therefore no longer hypothetical: a fresh int
 
 What is **not** yet proven is the larger product claim: that this mechanism preserves enough useful context across repeated provider/model replacement, long time spans, and broader real work to become durable infrastructure rather than a successful kernel experiment.
 
-See [docs/STATUS.md](docs/STATUS.md) for the current objective-by-objective assessment and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the implemented boundaries.
+See [docs/STATUS.md](docs/STATUS.md) for the current objective-by-objective assessment,
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the implemented boundaries, and
+[docs/HISTORY.md](docs/HISTORY.md) for the curated engineering journey that led
+to them.
 
 ## Authority model
 
@@ -195,7 +198,7 @@ control-worker/         confidential owner-authenticated control boundary
 tests/                  invariant and failure-boundary proofs
 site/                   generated public projection
 data/                   local runtime database path; live cloud authority is checkpointed separately
-docs/                   architecture and current project status
+docs/                   architecture, current status, and curated project history
 AGENTS.md               implementation and commentary discipline
 ```
 
