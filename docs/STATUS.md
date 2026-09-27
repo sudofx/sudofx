@@ -67,6 +67,7 @@ Disposable execution
 
 Disposable intelligence
   Gemini provider adapter
+  Anthropic provider adapter
   deterministic fake provider
 
 Deterministic authority
@@ -127,6 +128,13 @@ stopped.
 The new frontier is provider substitution: give the same bounded handoff-v1
 context to a materially different real model/provider and compare whether useful
 continuation survives without changing the authority contract.
+
+A second-provider Anthropic adapter and explicit `prove-anthropic` operator path
+are now implemented using the same bounded Context -> Proposal -> governance
+boundary as Gemini. The first finite Anthropic attempt did not reach the model:
+GitHub Actions had no `ANTHROPIC_API_KEY` secret, so the adapter failed closed
+before any provider request, semantic verdict, or authoritative mutation. This is
+an infrastructure prerequisite, not evidence for or against semantic continuity.
 
 Every continuous cycle is deliberately a test, not a state mutation.
 
