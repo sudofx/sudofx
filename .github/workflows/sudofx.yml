@@ -80,20 +80,16 @@ jobs:
         # Tests run before any stateful action. A broken implementation must not
         # be allowed to append history merely because the workflow was dispatched.
         run: PYTHONPATH=src python -m unittest discover -s tests -v
-      - name: Run evidence-preserving handoff-v1 semantic probe
-        # The prior finite probe was technically valid but its derived proof was
-        # overwritten by the generic render step before upload. Record that
-        # evidence failure, then run one replacement candidate and preserve it.
-        if: github.event_name == 'push' && contains(github.event.head_commit.message, '[handoff-v1-timeout-retry]')
-        env:
-          GEMINI_MODEL: gemini-3.5-flash-lite
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      - name: Record passing handoff-v1 semantic verdict
+        # Human semantic review accepted the isolated candidate as useful
+        # continuation. Record the verdict durably without executing the model's
+        # proposed maintenance action or starting continuous operation.
+        if: github.event_name == 'push' && contains(github.event.head_commit.message, '[handoff-v1-pass]')
         run: |
           PYTHONPATH=src python scripts/github_sudofx.py \
             --action work-advance \
             --key handoff-v1 \
-            --value '{"result":"Experiment 3 produced no semantic candidate because the Gemini HTTPS read timed out after 60 seconds. This is a provider transport failure, not a semantic verdict.","open_obligations":["Choose exactly one smallest maintenance action that improves recoverability of authoritative SQLite while preserving SQLite as the sole authority. A valid continuation must name the action, its exact target, and one observable verification check. Backups and projections remain derived artifacts; do not claim inspection or changes beyond the bounded record."]}'
-          PYTHONPATH=src python scripts/github_sudofx.py --prove-model handoff-v1
+            --value '{"result":"Semantic verdict: PASS for useful continuation. From bounded durable context alone, the fresh model reconstructed the current work and prior experiment failures, selected VACUUM INTO as one concrete recoverability action, identified the authoritative SQLite database as its target, and supplied an observable verification check using the derived snapshot plus SQLite integrity_check. The candidate proposed rather than claimed execution. No maintenance action was executed by this verdict.","open_obligations":["Test the accepted maintenance candidate through a governed execution path: create a derived SQLite snapshot with VACUUM INTO, verify that snapshot with SQLite integrity_check and semantic replay, and preserve authoritative SQLite as the sole operational truth."]}'
 
       - name: Continue current milestone automatically
         # Observer mode: one stable command handles the next safe milestone step.
@@ -156,7 +152,7 @@ jobs:
         # Code pushes and explicit phone-triggered verify runs are read-only
         # consumers of state. Publication occurs only after the test step above
         # succeeds, so Pages can truthfully identify the commit/run it reflects.
-        if: (github.event_name == 'push' && !contains(github.event.head_commit.message, '[handoff-v1-timeout-retry]')) || (github.event_name == 'workflow_dispatch' && (inputs.action == 'verify' || inputs.action == 'backup'))
+        if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && (inputs.action == 'verify' || inputs.action == 'backup'))
         env:
           SUDOFX_CONTROL_URL: ${{ vars.SUDOFX_CONTROL_URL }}
         run: PYTHONPATH=src python scripts/github_sudofx.py --publish-only
