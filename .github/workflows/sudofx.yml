@@ -86,6 +86,7 @@ jobs:
         # be allowed to append history merely because the workflow was dispatched.
         run: PYTHONPATH=src python -m unittest discover -s tests -v
       - name: Record 1x2 compressed-context PASS
+        # Retry after an unrelated mobile push canceled the first verdict run.
         if: github.event_name == 'push' && contains(github.event.head_commit.message, '[compressed-context-1x2-pass]')
         run: |
           PYTHONPATH=src python scripts/github_sudofx.py \
