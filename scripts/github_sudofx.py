@@ -188,6 +188,7 @@ def main() -> int:
     parser.add_argument("--publish-only", action="store_true")
     parser.add_argument("--prove-work")
     parser.add_argument("--prove-model")
+    parser.add_argument("--prove-model-uncompressed")
     parser.add_argument("--prove-model-compressed")
     parser.add_argument("--compressed-results", type=int, default=4)
     parser.add_argument("--compressed-receipts", type=int, default=8)
@@ -277,7 +278,7 @@ def main() -> int:
             checkpoint()
             kernel = Kernel(Record(DATA))
         auto_handoff_id = AUTO_HANDOFF_ID
-    if not args.publish_only and not args.prove_work and not args.prove_model and not args.prove_model_compressed and not args.prove_anthropic and not args.export_handoff and not args.prove_vacuum_recovery and not args.auto:
+    if not args.publish_only and not args.prove_work and not args.prove_model and not args.prove_model_uncompressed and not args.prove_model_compressed and not args.prove_anthropic and not args.export_handoff and not args.prove_vacuum_recovery and not args.auto:
         if not args.action or not args.key:
             parser.error("--action and --key are required for a mutation")
         context = kernel.context()
@@ -343,6 +344,7 @@ def main() -> int:
     # deterministic fixture so every build still checks the mechanism.
     prove_work_id = args.prove_work.strip() if args.prove_work is not None else None
     prove_model_id = args.prove_model.strip() if args.prove_model is not None else None
+    prove_model_uncompressed_id = args.prove_model_uncompressed.strip() if args.prove_model_uncompressed is not None else None
     prove_model_compressed_id = args.prove_model_compressed.strip() if args.prove_model_compressed is not None else None
     prove_anthropic_id = args.prove_anthropic.strip() if args.prove_anthropic is not None else None
     handoff_id = args.export_handoff.strip() if args.export_handoff is not None else None
@@ -350,23 +352,44 @@ def main() -> int:
         parser.error("--prove-work requires a non-empty work ID")
     if args.prove_model is not None and not prove_model_id:
         parser.error("--prove-model requires a non-empty work ID")
+    if args.prove_model_uncompressed is not None and not prove_model_uncompressed_id:
+        parser.error("--prove-model-uncompressed requires a non-empty work ID")
     if args.prove_model_compressed is not None and not prove_model_compressed_id:
         parser.error("--prove-model-compressed requires a non-empty work ID")
     if args.prove_anthropic is not None and not prove_anthropic_id:
         parser.error("--prove-anthropic requires a non-empty work ID")
     if args.export_handoff is not None and not handoff_id:
         parser.error("--export-handoff requires a non-empty work ID")
-    selected_read_only = [value for value in (prove_work_id, prove_model_id, prove_model_compressed_id, prove_anthropic_id, handoff_id, auto_handoff_id) if value]
+    selected_read_only = [value for value in (prove_work_id, prove_model_id, prove_model_uncompressed_id, prove_model_compressed_id, prove_anthropic_id, handoff_id, auto_handoff_id) if value]
     if len(selected_read_only) > 1:
-        parser.error("--prove-work, --prove-model, --prove-model-compressed, --prove-anthropic, --export-handoff, and --auto are mutually exclusive")
+        parser.error("--prove-work, --prove-model, --prove-model-uncompressed, --prove-model-compressed, --prove-anthropic, --export-handoff, and --auto are mutually exclusive")
 
     if prove_model_id:
+        # Normal live-model policy: provider context is a derived bounded view.
+        # Full append-only work history remains authoritative in SQLite and is
+        # used for governance/replay on the temporary snapshot.
         model = os.environ.get("GEMINI_MODEL", "").strip()
         if not model:
             parser.error("GEMINI_MODEL is required for --prove-model")
-        continuity_proof = run_model_continuity_probe(
+        continuity_proof = run_compressed_model_continuity_probe(
             DATA,
             prove_model_id,
+            (sys.executable, str(ROOT / "scripts" / "gemini_provider.py")),
+            provider="Google Gemini",
+            model=model,
+            recent_result_limit=1,
+            receipt_limit=0,
+        )
+    elif prove_model_uncompressed_id:
+        # Explicit diagnostic baseline only. This preserves the old full-context
+        # experiment so compression can be compared without making it the normal
+        # model-facing policy.
+        model = os.environ.get("GEMINI_MODEL", "").strip()
+        if not model:
+            parser.error("GEMINI_MODEL is required for --prove-model-uncompressed")
+        continuity_proof = run_model_continuity_probe(
+            DATA,
+            prove_model_uncompressed_id,
             (sys.executable, str(ROOT / "scripts" / "gemini_provider.py")),
             provider="Google Gemini",
             model=model,
@@ -407,12 +430,14 @@ def main() -> int:
         model = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash-lite").strip()
         if not os.environ.get("GEMINI_API_KEY", "").strip():
             raise RuntimeError("GEMINI_API_KEY is required for observer-mode handoff")
-        continuity_proof = run_model_continuity_probe(
+        continuity_proof = run_compressed_model_continuity_probe(
             DATA,
             auto_handoff_id,
             (sys.executable, str(ROOT / "scripts" / "gemini_provider.py")),
             provider="Google Gemini",
             model=model,
+            recent_result_limit=1,
+            receipt_limit=0,
         )
         if continuity_proof.get("assessment_status") != "semantic_review_pending":
             raise AssertionError("observer model probe did not reach semantic review")
