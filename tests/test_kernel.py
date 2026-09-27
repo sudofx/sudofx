@@ -563,6 +563,8 @@ json.dump({
         self.assertNotIn("refreshPublishedPage", page)
         self.assertNotIn("window.location.replace(target.toString())", page)
         self.assertIn("Activity history", page)
+        self.assertIn("overflow-x:hidden", page)
+        self.assertIn("grid-template-columns:minmax(0,1fr) auto", page)
         self.assertNotIn("General state", page)
         self.assertNotIn("Technical pass", page)
         self.assertNotIn("Phone-ready verification", page)
