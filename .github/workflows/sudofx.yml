@@ -80,6 +80,17 @@ jobs:
         # Tests run before any stateful action. A broken implementation must not
         # be allowed to append history merely because the workflow was dispatched.
         run: PYTHONPATH=src python -m unittest discover -s tests -v
+      - name: Prove accepted VACUUM recovery candidate once
+        # This finite experiment executes only the accepted derived-snapshot
+        # maintenance action. The source database remains authority; a governed
+        # work transition is appended only after every recovery check passes.
+        if: github.event_name == 'push' && contains(github.event.head_commit.message, '[handoff-v1-vacuum-proof]')
+        run: |
+          PYTHONPATH=src python scripts/github_sudofx.py --prove-vacuum-recovery
+          PYTHONPATH=src python scripts/github_sudofx.py \
+            --action work-advance \
+            --key handoff-v1 \
+            --value '{"result":"Executed the accepted VACUUM INTO maintenance candidate only as a derived recovery proof. The generated snapshot passed SQLite integrity_check, reconstructed the same sudofx revision/state through semantic replay, and the authoritative SQLite revision/state/event head remained unchanged.","open_obligations":["Test provider substitution: give the same bounded handoff-v1 frontier to a materially different real model/provider and compare semantic continuation without changing the authority contract."]}'
       - name: Continue current milestone automatically
         # Observer mode: one stable command handles the next safe milestone step.
         # The operator should not have to carry work IDs or long context between devices.
