@@ -30,6 +30,39 @@ def _escape(value: object) -> str:
     return html.escape(str(value), quote=True)
 
 
+def _public_model_response(proof: dict[str, object]) -> str:
+    """Translate stored model output into a plain-language public reading view.
+
+    The authenticated technical view still exposes exact durable work and receipt
+    material. This helper changes presentation only; it never rewrites evidence.
+    """
+    raw = str(proof.get("candidate_result", "")).strip()
+    if not raw:
+        return "No Gemini answer has been published yet."
+
+    # New overnight responses are already written for a human reader.
+    if raw.startswith("Gemini understood:"):
+        return raw
+
+    # Older continuity probes used transport-oriented labels. Preserve their
+    # actual content while removing labels that make the public page read like
+    # an internal test report.
+    if raw.startswith("Reconstruction:") and " Chosen action:" in raw:
+        understood, rest = raw[len("Reconstruction:"):].split(" Chosen action:", 1)
+        suggestion = rest
+        verification = ""
+        if " Verification:" in suggestion:
+            suggestion, verification = suggestion.split(" Verification:", 1)
+        if " Target:" in suggestion:
+            suggestion = suggestion.split(" Target:", 1)[0]
+        text = f"Gemini understood: {understood.strip()} Gemini suggests: {suggestion.strip()}"
+        if verification.strip():
+            text += f" We would know it worked if: {verification.strip()}"
+        return text
+
+    return raw
+
+
 def _work_cards(state: dict[str, object]) -> str:
     """
     Render governed work as human-readable lifecycle cards.
@@ -178,38 +211,33 @@ def _exchange_panel(proof: dict[str, object]) -> str:
         trial = {}
     task = str(
         trial.get("task")
-        or "Using only the bounded durable context, reconstruct the work and propose one concrete next step."
+        or "Read what was left from the earlier run, explain where the experiment stands, and suggest what should happen next without making up missing information."
     )
-    phase = str(trial.get("phase", "")).replace("_", " ").strip()
     cycle = trial.get("cycle")
 
-    response = proof.get("candidate_result", "No Gemini response has been published yet.")
-    rationale = proof.get("candidate_rationale", "")
+    response = _public_model_response(proof)
     if proof.get("kind") == "evolving overnight Gemini continuity observation":
         summary = (
-            "A fresh Gemini instance received the bounded handoff and the current experiment lens. "
-            "Its proposal was checked only on an isolated SQLite snapshot. sudofx then recorded the "
-            "exchange as an untrusted observation so the next fresh Gemini can inherit that residue "
-            "without turning the model's claims into project truth."
+            "Gemini read the information left from the earlier run and suggested what should happen next. "
+            "sudofx saved the exchange so a brand-new Gemini can pick up from it next time. "
+            "Gemini did not get to change the project's facts by itself."
         )
     elif proof.get("assessment_status") == "semantic_review_pending":
         summary = (
-            "Gemini produced a bounded continuation candidate. Governance accepted the proposal only "
-            "on an isolated verification snapshot; authoritative project state was not advanced by the model."
+            "Gemini read what it was given and suggested a next step. The system checked the answer "
+            "without letting Gemini change the project's recorded facts."
         )
     else:
         summary = "No completed Gemini exchange is available yet."
 
-    status = "LAST EXCHANGE"
+    status = "LATEST"
     if cycle:
-        status = f"CYCLE {cycle}"
-        if phase:
-            status += f" · {phase.upper()}"
+        status = f"TEST {cycle}"
 
     return f"""
       <section class="exchange" aria-label="Gemini exchange" data-artifact-run-id="{_escape(proof.get('artifact_run_id', ''))}">
         <div class="exchange-head">
-          <div><span class="eyebrow">Gemini continuity</span><h2>Overnight exchange</h2></div>
+          <div><span class="eyebrow">One AI to the next</span><h2>Latest exchange</h2></div>
           <span class="exchange-status" data-exchange-status>{_escape(status)}</span>
         </div>
 
@@ -221,7 +249,7 @@ def _exchange_panel(proof: dict[str, object]) -> str:
         <div class="exchange-window exchange-answer">
           <span>What Gemini responded</span>
           <p data-exchange-response>{_escape(response)}</p>
-          <small data-exchange-rationale{' hidden' if not rationale else ''}>{f'Why: {_escape(rationale)}' if rationale else ''}</small>
+
         </div>
 
         <div class="exchange-window exchange-action">
@@ -296,14 +324,14 @@ def render(
     # that Gemini's proposal was applied to the durable work item.
     observer_static_state = "CONTINUOUS" if observer_continuous else "IDLE"
     observer_static_activity = (
-        "Latest Gemini cycle complete; next cycle starts automatically"
+        "The experiment is running"
         if observer_continuous
-        else "No bounded operation currently running"
+        else "The experiment is stopped"
     )
     observer_static_detail = (
-        "Continuous mode is active. Every successful published cycle immediately starts another bounded Gemini test."
+        "A new Gemini test starts after each successful exchange."
         if observer_continuous
-        else "No continuous cycle is active. Start the continuation workflow to resume."
+        else "No Gemini test is running right now."
     )
     # Authentication remains a presentation-layer gateway to the separate
     # control service; moving it into the masthead must not make Pages an
@@ -562,7 +590,7 @@ def render(
   <header><div class="brand-block"><a class="brand" href="./" aria-label="sudofx home">sudo<i>fx</i></a>
     <a class="inspired" href="https://sudofx.github.io/wake/" target="_blank" rel="noopener noreferrer">Inspired by WAKE<b>✳︎</b></a></div>
     <label class="theme-switch" title="Follow system theme"><input id="theme-toggle" type="checkbox" role="switch" aria-label="Use dark theme"><span class="data-switch-track" aria-hidden="true"><i></i></span></label>
-    <div class="tagline">Durable, accountable work across interchangeable intelligences.</div>
+    <div class="tagline">Can a fresh AI pick up where the last one left off?</div>
     {owner_access_html}</header>
   <dialog class="handoff-dialog" data-handoff-dialog>
     <div class="handoff-shell">
@@ -798,11 +826,11 @@ const refreshObserver=async()=>{{
     const visualState=running?'working':(run.conclusion==='failure'?'failed':({json.dumps(observer_static_state)}==='CONTINUOUS'?'continuous':'idle'));
     observer.className='observer-console '+visualState;
     observerState.className='observer-state '+visualState;
-    observerState.textContent=running?'WORKING':(run.conclusion==='failure'?'FAILED':{json.dumps(observer_static_state)});
+    observerState.textContent=running?'LIVE':(run.conclusion==='failure'?'PAUSED':({json.dumps(observer_static_state)}==='CONTINUOUS'?'RUNNING':'STOPPED'));
     if(statusLed)statusLed.className='status-led '+visualState;
-    currentActivity.textContent=running?'Waiting for Gemini and governing its response':(run.conclusion==='failure'?'Workflow needs inspection':{json.dumps(observer_static_activity)});
+    currentActivity.textContent=running?'Gemini is answering now':(run.conclusion==='failure'?'The last test stopped unexpectedly':{json.dumps(observer_static_activity)});
     updateNextCheck(visualState);
-    if(exchangeStatus){{exchangeStatus.textContent=running?'WAITING ON GEMINI':'LAST EXCHANGE';exchangeStatus.className='exchange-status '+(running?'working':'');}}
+    if(exchangeStatus){{exchangeStatus.textContent=running?'GEMINI IS ANSWERING':'LATEST';exchangeStatus.className='exchange-status '+(running?'working':'');}}
     const jobsResponse=await fetch(run.jobs_url,{{cache:'no-store'}});
     if(jobsResponse.ok){{
       const jobsData=await jobsResponse.json(), jobs=Array.isArray(jobsData.jobs)?jobsData.jobs:[];
@@ -829,7 +857,7 @@ const refreshObserver=async()=>{{
     const fallbackVisualState=observer.dataset.fallbackState==='CONTINUOUS'?'continuous':'idle';
     observer.className='observer-console '+fallbackVisualState;
     observerState.className='observer-state '+fallbackVisualState;
-    observerState.textContent=observer.dataset.fallbackState;
+    observerState.textContent=observer.dataset.fallbackState==='CONTINUOUS'?'RUNNING':'STOPPED';
     currentActivity.textContent=observer.dataset.fallbackActivity;
     currentStep.textContent='Live detail unavailable';
     updateNextCheck(fallbackVisualState);
@@ -843,6 +871,22 @@ const updateList=(node,values,empty)=>{{
   const items=Array.isArray(values)&&values.length?values:[empty];
   node.replaceChildren(...items.map(value=>{{const li=document.createElement('li');li.textContent=String(value);return li;}}));
 }};
+const publicAnswer=(proof)=>{{
+  const raw=String(proof.candidate_result||'').trim();
+  if(!raw)return 'No Gemini answer has been published yet.';
+  if(raw.startsWith('Gemini understood:'))return raw;
+  if(raw.startsWith('Reconstruction:')&&raw.includes(' Chosen action:')){{
+    const pieces=raw.slice('Reconstruction:'.length).split(' Chosen action:');
+    const understood=pieces.shift().trim();
+    let suggestion=pieces.join(' Chosen action:');
+    let verification='';
+    if(suggestion.includes(' Verification:'))[suggestion,verification]=suggestion.split(' Verification:',2);
+    if(suggestion.includes(' Target:'))suggestion=suggestion.split(' Target:',1)[0];
+    return 'Gemini understood: '+understood+' Gemini suggests: '+suggestion.trim()
+      +(verification.trim()?' We would know it worked if: '+verification.trim():'');
+  }}
+  return raw;
+}};
 const refreshExchange=async()=>{{
   if(!exchange)return;
   try{{
@@ -853,22 +897,17 @@ const refreshExchange=async()=>{{
     if(!runId||runId===exchange.dataset.artifactRunId)return;
     exchange.dataset.artifactRunId=runId;
     const trial=proof.overnight_trial||{{}};
-    const task=String(trial.task||'Using only the bounded durable context, reconstruct the work and propose one concrete next step.');
+    const task=String(trial.task||'Read what was left from the earlier run, explain where the experiment stands, and suggest what should happen next without making up missing information.');
     document.querySelector('[data-exchange-question]').textContent=task;
-    document.querySelector('[data-exchange-response]').textContent=String(proof.candidate_result||'No Gemini response was published.');
-    const rationale=document.querySelector('[data-exchange-rationale]');
-    rationale.textContent=proof.candidate_rationale?'Why: '+String(proof.candidate_rationale):'';
-    rationale.hidden=!proof.candidate_rationale;
+    document.querySelector('[data-exchange-response]').textContent=publicAnswer(proof);
     const overnight=proof.kind==='evolving overnight Gemini continuity observation';
     document.querySelector('[data-exchange-action]').textContent=overnight
-      ?"A fresh Gemini instance received the bounded handoff and current experiment lens. Its proposal was checked only on an isolated SQLite snapshot. sudofx recorded the exchange as an untrusted observation so the next fresh Gemini can inherit that residue without turning the model's claims into project truth."
+      ?"Gemini read the information left from the earlier run and suggested what should happen next. sudofx saved the exchange so a brand-new Gemini can pick up from it next time. Gemini did not get to change the project's facts by itself."
       :(proof.assessment_status==='semantic_review_pending'
-        ?'Gemini produced a bounded continuation candidate. Governance accepted the proposal only on an isolated verification snapshot; authoritative project state was not advanced by the model.'
+        ?"Gemini read what it was given and suggested a next step. The system checked the answer without letting Gemini change the project's recorded facts."
         :'No completed Gemini exchange is available yet.');
     if(exchangeStatus){{
-      const cycle=trial.cycle?'CYCLE '+trial.cycle:'UPDATED';
-      const phase=trial.phase?' · '+String(trial.phase).replaceAll('_',' ').toUpperCase():'';
-      exchangeStatus.textContent=cycle+phase;
+      exchangeStatus.textContent=trial.cycle?'TEST '+trial.cycle:'LATEST';
       exchangeStatus.className='exchange-status';
     }}
   }}catch(error){{/* Keep the last published exchange visible while Pages catches up. */}}
