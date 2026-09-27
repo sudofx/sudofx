@@ -28,7 +28,7 @@ on:
       action:
         description: Verify only, or run one governed operation
         type: choice
-        options: [auto, verify, backup, prove-work, prove-model, prove-anthropic, export-handoff, work-create, work-advance, work-complete, set, delete]
+        options: [auto, verify, backup, prove-work, prove-model, export-handoff, work-create, work-advance, work-complete, set, delete]
         default: auto
         required: true
       key:
@@ -44,11 +44,6 @@ on:
         description: Gemini model ID for prove-model only
         type: string
         default: 'gemini-3.5-flash-lite'
-        required: false
-      anthropic_model:
-        description: Anthropic model ID for prove-anthropic only
-        type: string
-        default: 'claude-sonnet-5'
         required: false
 
 permissions:
@@ -85,31 +80,6 @@ jobs:
         # Tests run before any stateful action. A broken implementation must not
         # be allowed to append history merely because the workflow was dispatched.
         run: PYTHONPATH=src python -m unittest discover -s tests -v
-      - name: Record Gemini repeatability handoff 3 PASS
-        if: github.event_name == 'push' && contains(github.event.head_commit.message, '[gemini-repeatability-3-pass]')
-        run: |
-          PYTHONPATH=src python scripts/github_sudofx.py \
-            --action work-advance \
-            --key handoff-v1 \
-            --value '{"result":"Semantic verdict: PASS for Gemini repeatability handoff 3 of 3. Against changed bounded context (digest ec6cf324ccd86d21bf5f19f6d6e2fd88002929196b7220d8c64a07e419313c3b), a fresh Gemini process reconstructed the sudofx portable-continuity objective, relevant governed history including both prior repeatability passes, and the third-handoff frontier; proposed the required concrete fresh-process action with target and observable verification; avoided unsupported execution claims; and left production authority unchanged. The finite three-handoff Gemini repeatability gate is complete.","open_obligations":["Measure semantic retention under deliberate context compression: derive a smaller sanitized handoff-v1 context that preserves the objective, accepted milestones, current frontier, constraints, and provenance; then test one fresh Gemini process against that compressed context and compare semantic continuation to the uncompressed repeatability evidence. Keep continuous mode stopped."]}'
-
-      - name: Run Gemini repeatability handoff 3
-        # Final finite fresh-process repeatability probe. The model sees only the
-        # newly advanced bounded handoff-v1 record and cannot mutate authority.
-        # Retried only after handoff 2 finished checkpointing its authoritative verdict.
-        if: github.event_name == 'push' && contains(github.event.head_commit.message, '[gemini-repeatability-3]')
-        env:
-          GEMINI_MODEL: gemini-3.5-flash-lite
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: PYTHONPATH=src python scripts/github_sudofx.py --prove-model handoff-v1
-
-      - name: Run Gemini repeatability handoff 3 of 3
-        if: github.event_name == 'push' && contains(github.event.head_commit.message, '[gemini-repeatability-3]')
-        env:
-          GEMINI_MODEL: gemini-3.5-flash-lite
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: PYTHONPATH=src python scripts/github_sudofx.py --prove-model handoff-v1
-
       - name: Continue current milestone automatically
         # Observer mode: one stable command handles the next safe milestone step.
         # The operator should not have to carry work IDs or long context between devices.
@@ -120,7 +90,7 @@ jobs:
       - name: Apply governed operation
         # Only a manual dispatch enters the mutation path. The adapter restores
         # and verifies sudofx-state, appends one receipt, checkpoints, and renders.
-        if: github.event_name == 'workflow_dispatch' && inputs.action != 'auto' && inputs.action != 'verify' && inputs.action != 'backup' && inputs.action != 'prove-work' && inputs.action != 'prove-model' && inputs.action != 'prove-anthropic' && inputs.action != 'export-handoff'
+        if: github.event_name == 'workflow_dispatch' && inputs.action != 'auto' && inputs.action != 'verify' && inputs.action != 'backup' && inputs.action != 'prove-work' && inputs.action != 'prove-model' && inputs.action != 'export-handoff'
         env:
           ACTION: ${{ inputs.action }}
           KEY: ${{ inputs.key }}
@@ -144,15 +114,6 @@ jobs:
           GEMINI_MODEL: ${{ inputs.model }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: PYTHONPATH=src python scripts/github_sudofx.py --prove-model "$KEY"
-      - name: Probe Anthropic continuity
-        # Same bounded work/proposal contract as the Gemini path. A missing key
-        # fails visibly before any provider call or authoritative mutation.
-        if: github.event_name == 'workflow_dispatch' && inputs.action == 'prove-anthropic'
-        env:
-          KEY: ${{ inputs.key }}
-          ANTHROPIC_MODEL: ${{ inputs.anthropic_model }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        run: PYTHONPATH=src python scripts/github_sudofx.py --prove-anthropic "$KEY"
       - name: Export handoff packet
         # A handoff export is a derived, read-only view of one governed work item.
         # It never becomes database authority and never mutates the state branch.
