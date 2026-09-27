@@ -80,6 +80,16 @@ jobs:
         # Tests run before any stateful action. A broken implementation must not
         # be allowed to append history merely because the workflow was dispatched.
         run: PYTHONPATH=src python -m unittest discover -s tests -v
+      - name: Run compressed-context Gemini probe once
+        # The full authoritative record is restored and verified, but Gemini sees
+        # only the derived compressed Context. Proposal governance still occurs
+        # against a temporary full SQLite snapshot.
+        if: github.event_name == 'push' && contains(github.event.head_commit.message, '[compressed-context-probe]')
+        env:
+          GEMINI_MODEL: gemini-3.5-flash-lite
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: PYTHONPATH=src python scripts/github_sudofx.py --prove-model-compressed handoff-v1
+
       - name: Continue current milestone automatically
         # Observer mode: one stable command handles the next safe milestone step.
         # The operator should not have to carry work IDs or long context between devices.
@@ -141,7 +151,7 @@ jobs:
         # Code pushes and explicit phone-triggered verify runs are read-only
         # consumers of state. Publication occurs only after the test step above
         # succeeds, so Pages can truthfully identify the commit/run it reflects.
-        if: (github.event_name == 'push' && !contains(github.event.head_commit.message, '[gemini-repeatability-3]')) || (github.event_name == 'workflow_dispatch' && (inputs.action == 'verify' || inputs.action == 'backup'))
+        if: (github.event_name == 'push' && !contains(github.event.head_commit.message, '[compressed-context-probe]')) || (github.event_name == 'workflow_dispatch' && (inputs.action == 'verify' || inputs.action == 'backup'))
         env:
           SUDOFX_CONTROL_URL: ${{ vars.SUDOFX_CONTROL_URL }}
         run: PYTHONPATH=src python scripts/github_sudofx.py --publish-only
