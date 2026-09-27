@@ -85,6 +85,14 @@ jobs:
         # Tests run before any stateful action. A broken implementation must not
         # be allowed to append history merely because the workflow was dispatched.
         run: PYTHONPATH=src python -m unittest discover -s tests -v
+      - name: Record promoted compressed default PASS
+        if: github.event_name == 'push' && contains(github.event.head_commit.message, '[promoted-compressed-default-pass]')
+        run: |
+          PYTHONPATH=src python scripts/github_sudofx.py \
+            --action work-advance \
+            --key handoff-v1 \
+            --value '{"result":"Semantic verdict: PASS for the promoted compressed live-model default. A fresh Gemini process received 2053 bytes instead of the 31085-byte full bounded context (93.4% reduction), with exactly 1 of 18 accepted milestones exposed, zero receipt prose, and 17 omitted milestones represented only by count plus digest 6e875ac4f82e5d986c0afc44e7a076f994cb45a81e64638388bc67564b02bdd7. It reconstructed the portable-continuity objective, identified the exact policy-promotion frontier, proposed the correct concrete action and verification, did not invent omitted history, crossed governance only on a temporary snapshot, and left production authority unchanged. The compressed handoff is now the normal Gemini policy; the uncompressed path remains diagnostic only.","open_obligations":["Make continuity quality comparable over time: derive and display probe metrics for objective fidelity, frontier fidelity, unsupported-claim discipline, actionability, context bytes, compression ratio, exposed milestone count, and receipt count from retained semantic evidence. Keep these metrics derived from authoritative/provenance-linked records rather than as a second source of truth. Continuous mode is eligible to resume but remains owner-stopped until explicitly started."]}'
+
       - name: Prove promoted compressed Gemini default once
         # Retry only after the diagnostic branch plumbing fix passed kernel tests.
         if: github.event_name == 'push' && contains(github.event.head_commit.message, '[promoted-compressed-default]')
