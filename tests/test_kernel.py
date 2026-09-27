@@ -765,7 +765,8 @@ json.dump({
         self.assertIn("continue-again:", workflow)
         self.assertIn("needs: continue", workflow)
         self.assertIn("gh workflow run prove-model.yml", workflow)
-        self.assertIn("gh workflow run pages.yml", workflow)
+        self.assertNotIn("gh workflow run pages.yml", workflow)
+        self.assertNotIn("request-publication:", workflow)
         self.assertNotIn("actions/deploy-pages", workflow)
         self.assertNotIn("actions/upload-pages-artifact", workflow)
         self.assertIn("operator_start:", workflow)
@@ -790,13 +791,30 @@ json.dump({
         self.assertIn("group: sudofx-pages", pages)
         self.assertIn("cancel-in-progress: true", pages)
         self.assertIn("--publish-only", pages)
+        self.assertNotIn("workflow_dispatch:", pages)
+        self.assertNotIn("scripts/github_sudofx.py", pages)
         self.assertNotIn("GEMINI_API_KEY", pages)
 
         self.assertNotIn("\n  push:", operator)
+        self.assertNotIn("gh workflow run pages.yml", operator)
         self.assertIn("group: sudofx-authority-v3", operator)
         self.assertIn("group: sudofx-authority-v3", continuity)
         self.assertNotIn("group: sudofx-pages", operator)
         self.assertNotIn("group: sudofx-pages", continuity)
+
+    def test_live_exchange_is_outside_pages_and_disposable(self) -> None:
+        """Cycles must refresh one replaceable live view without deploying Pages."""
+        root = Path(__file__).parents[1]
+        overnight = (root / "scripts/overnight_sudofx.py").read_text(encoding="utf-8")
+        adapter = (root / "scripts/github_sudofx.py").read_text(encoding="utf-8")
+        report = (root / "src/sudofx/report.py").read_text(encoding="utf-8")
+
+        self.assertIn("publish_live_projection", overnight)
+        self.assertNotIn("cloud.export_site(", overnight)
+        self.assertIn('LIVE_BRANCH = "sudofx-live"', adapter)
+        self.assertIn('"push", "--force"', adapter)
+        self.assertIn("sudofx-live/live.json", report)
+        self.assertNotIn("fetch('./continuity-proof.json?ts='", report)
 
     def test_recovery_workflow_retains_verified_backup_outside_pages(self) -> None:
         """Owner backup must be finite, authenticated, and excluded from public output."""
