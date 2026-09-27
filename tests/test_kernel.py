@@ -860,6 +860,11 @@ json.dump({
         self.assertIn("Paste the complete response here", page)
         self.assertIn("Copy for Codex analysis", page)
         self.assertIn("Response is waiting only in this page", page)
+        # The report is a Python-generated JavaScript program. Newlines inside
+        # this quoted packet must remain escaped in the emitted source or one
+        # optional handoff control will break the entire authentication UI.
+        self.assertIn("+'\\n\\n'+response", page)
+        self.assertNotIn("+'\n\n'+response", page)
 
     def test_record_initializes_inside_an_existing_empty_directory(self) -> None:
         """A first cloud run may create a record once its explicit parent exists."""

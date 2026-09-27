@@ -700,7 +700,10 @@ document.querySelector('[data-handoff-wait]')?.addEventListener('click',()=>{{ha
 document.querySelector('[data-handoff-analyze]')?.addEventListener('click',async()=>{{
   const response=handoffResponse.value.trim();
   if(!response){{handoffStatus.textContent='Paste the complete response first.';return;}}
-  const packet='Analyze this manual sudofx continuity response. Destination: '+(handoffProvider||'unspecified')+'\n\n'+response;
+  // Python renders this JavaScript into HTML. Double escaping preserves the
+  // two newline escapes as JavaScript source; literal newlines would terminate
+  // the quoted string and prevent every operator/auth script from parsing.
+  const packet='Analyze this manual sudofx continuity response. Destination: '+(handoffProvider||'unspecified')+'\\n\\n'+response;
   try{{await copyText(packet);handoffStatus.textContent='Analysis packet copied. Return to Codex and paste it into the sudofx chat.';}}
   catch{{handoffResponse.focus();handoffResponse.select();handoffStatus.textContent='Clipboard access was blocked. The response is selected for manual copying.';}}
 }});
