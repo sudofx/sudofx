@@ -203,3 +203,42 @@ The result should be judged on whether it advances the obligation correctly—no
 merely whether it can describe sudofx or request another cycle.
 
 That is the threshold between durable context transport and durable useful work.
+
+## September 27, 2026 — Maintenance became an owner-visible contract
+
+### The constraint
+
+The authoritative event record is intentionally append-only, while the public
+observer and recovery surface must remain bounded as history grows. A restore
+path that accepts an unknown or partially written database would turn routine
+maintenance into an authority failure. Recovery copies also needed to be useful
+without quietly becoming a second persistent state model.
+
+### The decision
+
+The SQLite header now carries an application identity and ordered schema
+version. Restore verifies physical integrity, semantic replay, identity, and
+supported version before atomically installing a candidate. Public history is a
+bounded projection of the complete event chain. An authenticated owner can
+request a verified recovery artifact retained for 30 days, and can inspect the
+database size, repository visibility, and state-branch protection posture from
+the phone interface.
+
+The GitHub App gained read-only Contents access solely for those diagnostics;
+its installation remains limited to `sudofx/sudofx`. The control service still
+cannot edit work, receipts, source, secrets, or SQLite state.
+
+### The consequence
+
+The live system now reports a 24,576-byte authoritative database, public
+repository visibility, and an unprotected `sudofx-state` branch. Backup and
+restore have been exercised through the deployed owner control, while SQLite
+remains the only operational authority.
+
+### The unresolved frontier
+
+The continuous runner is stopped. The next useful test is not another empty
+cycle: it is one bounded fresh-intelligence cycle against a concrete recorded
+obligation, followed by an explicit semantic verdict. Independent private
+recovery and a checkpoint-compatible state-branch protection policy remain
+future maintenance work before sensitive or materially valuable state is kept.

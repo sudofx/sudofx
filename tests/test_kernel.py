@@ -553,7 +553,10 @@ json.dump({
         )
         self.assertIn("inputs.action == 'backup'", workflow)
         self.assertIn("--backup recovery/sudofx.sqlite", workflow)
-        self.assertIn("actions/upload-artifact@v4", workflow)
+        # Keep the backup action on the Node.js 24-compatible generation. An
+        # obsolete runner dependency would make recovery decay even while the
+        # storage contract itself remained correct.
+        self.assertIn("actions/upload-artifact@v7", workflow)
         self.assertIn("retention-days: 30", workflow)
         self.assertNotIn("path: recovery\n", workflow)
 

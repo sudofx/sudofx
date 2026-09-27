@@ -1,6 +1,6 @@
 # Project status
 
-**Date:** September 26, 2026  
+**Date:** September 27, 2026
 **Scope:** current implementation on `master`
 
 ## Objective
@@ -24,6 +24,7 @@ The success condition is not that one model remembers. The success condition is 
 | Continuous unattended testing | Achieved | Success-only GitHub Actions chain dispatches exactly one successor after successful publication. |
 | Fail visibly instead of looping blindly | Achieved | Test, provider, governance, or deployment failure ends the continuation chain. |
 | Phone-first observation and control | Achieved | Pages observer plus separate owner-authenticated Start/Stop service. |
+| Bounded operational maintenance | Achieved at current scale | Schema identity/versioning, fail-closed restore, bounded public history, verified 30-day backup artifacts, and authenticated storage diagnostics are live. |
 | Human-readable auditability | Substantially achieved | Observer exposes context, response, outcome, receipts, run identity, and status. |
 | Durable continuity over long time/model/vendor turnover | Not yet proven | This is the current experiment, not an established result. |
 | Product-market utility beyond the kernel | Not yet proven | No claim yet that the mechanism is sufficient for broad production workflows. |
@@ -38,6 +39,12 @@ The project crossed several implementation boundaries in one day:
 - moved to continuous success-only cloud cycles
 - isolated continuous Gemini tests from authoritative SQLite mutation
 - added authenticated owner Start/Stop controls
+- added an authenticated, capability-gated recovery backup control
+- added SQLite application identity, ordered schema migrations, and fail-closed restore checks
+- bounded the public activity projection while preserving the complete authoritative event chain
+- exposed owner-only database size, repository visibility, and state-branch protection diagnostics
+- granted the repository-limited GitHub App read-only Contents access for those diagnostics
+- refreshed GitHub Actions to current Node.js 24-compatible major versions
 - contained provider/OAuth failures inside the control-service boundary
 - separated Cloudflare execution context from GitHub transport injection
 - made authenticated owner workflow state override weaker observer telemetry
@@ -70,6 +77,7 @@ Presentation
 
 Authenticated operator control
   Cloudflare Worker + GitHub OAuth
+  Start / Stop / Backup / storage diagnostics
 
 Recovery / inspection
   local runner + CLI + tests
@@ -77,7 +85,10 @@ Recovery / inspection
 
 ## Current experiment
 
-The active `handoff-v1` objective asks a fresh model to reconstruct the essential sudofx project boundary from sanitized durable context.
+The active `handoff-v1` work item has proved bounded reconstruction mechanics,
+but it does not yet carry a concrete open obligation capable of testing useful
+continuation. The continuous runner is intentionally stopped until that
+obligation and its semantic acceptance criterion are recorded.
 
 Every continuous cycle is deliberately a test, not a state mutation.
 
@@ -101,11 +112,15 @@ The architecture is directionally aligned, but several risks remain open:
 7. **Projection trust:** the observer must continue clearly distinguishing live telemetry, generated artifacts, and authoritative state.
 8. **State confidentiality:** `sudofx-state` is currently a public Git ref; no private or identifying durable material may enter it before migration to private storage.
 9. **Independent recovery:** authenticated 30-day Actions backups improve rollback, but they still share the repository/account failure domain.
+10. **Unprotected authority branch:** `sudofx-state` is currently unprotected; any protection design must preserve the serialized Actions checkpoint path rather than blocking it accidentally.
 
 ## Next objectives
 
-Near-term work should remain narrow:
+The next governed experiment should remain narrow:
 
+- record one concrete maintenance-focused obligation in `handoff-v1`
+- run exactly one fresh-intelligence cycle before re-enabling continuous operation
+- record an honest semantic verdict about whether the candidate advanced that obligation
 - measure continuity quality instead of merely cycle success
 - test replacement across more than one real model/provider
 - make reconstruction quality comparable over time

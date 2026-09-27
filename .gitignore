@@ -1,5 +1,6 @@
 .env
 .venv/
+.wrangler/
 __pycache__/
 *.pyc
 .DS_Store

@@ -70,10 +70,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 1
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.13'
       - name: Verify the kernel
@@ -132,7 +132,7 @@ jobs:
         # never uploaded to Pages. Thirty days provides rollback depth without
         # turning every historical snapshot into permanent duplicate authority.
         if: github.event_name == 'workflow_dispatch' && inputs.action == 'backup'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: sudofx-recovery-${{ github.run_id }}
           path: recovery/sudofx.sqlite
@@ -149,13 +149,13 @@ jobs:
         # Native Pages configuration supplies the correct base path and deployment
         # metadata for the project site. Custom-domain ownership is intentionally
         # absent while sudofx.com remains a simple registrar forward.
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@v6
         with:
           enablement: true
       - name: Upload phone interface
         # The artifact contains only derived static files. The SQLite database is
         # checkpointed separately and must never be included in the public bundle.
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: site
 
@@ -177,4 +177,4 @@ jobs:
         # deploy-pages consumes the exact artifact uploaded by build. It does not
         # rerun governance, replay operations, or synthesize a second projection.
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
