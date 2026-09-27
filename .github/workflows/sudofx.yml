@@ -93,6 +93,14 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: PYTHONPATH=src python scripts/github_sudofx.py --prove-model handoff-v1
 
+      - name: Retain promoted-default semantic evidence
+        if: github.event_name == 'push' && contains(github.event.head_commit.message, '[promoted-compressed-default]')
+        uses: actions/upload-artifact@v7
+        with:
+          name: promoted-compressed-default-${{ github.run_id }}
+          path: site/continuity-proof.json
+          retention-days: 1
+
       - name: Continue current milestone automatically
         # Observer mode: one stable command handles the next safe milestone step.
         # The operator should not have to carry work IDs or long context between devices.
