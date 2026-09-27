@@ -80,6 +80,16 @@ jobs:
         # Tests run before any stateful action. A broken implementation must not
         # be allowed to append history merely because the workflow was dispatched.
         run: PYTHONPATH=src python -m unittest discover -s tests -v
+      - name: Run one Anthropic provider-substitution probe
+        # Same bounded work and governance path as Gemini; only the real model
+        # provider changes. This is read-only against authoritative state and
+        # preserves its own proof artifact for human semantic review.
+        if: github.event_name == 'push' && contains(github.event.head_commit.message, '[handoff-v1-anthropic]')
+        env:
+          ANTHROPIC_MODEL: claude-sonnet-5
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: PYTHONPATH=src python scripts/github_sudofx.py --prove-anthropic handoff-v1
+
       - name: Continue current milestone automatically
         # Observer mode: one stable command handles the next safe milestone step.
         # The operator should not have to carry work IDs or long context between devices.
@@ -141,7 +151,7 @@ jobs:
         # Code pushes and explicit phone-triggered verify runs are read-only
         # consumers of state. Publication occurs only after the test step above
         # succeeds, so Pages can truthfully identify the commit/run it reflects.
-        if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && (inputs.action == 'verify' || inputs.action == 'backup'))
+        if: (github.event_name == 'push' && !contains(github.event.head_commit.message, '[handoff-v1-anthropic]')) || (github.event_name == 'workflow_dispatch' && (inputs.action == 'verify' || inputs.action == 'backup'))
         env:
           SUDOFX_CONTROL_URL: ${{ vars.SUDOFX_CONTROL_URL }}
         run: PYTHONPATH=src python scripts/github_sudofx.py --publish-only
