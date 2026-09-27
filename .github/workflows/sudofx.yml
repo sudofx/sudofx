@@ -80,6 +80,21 @@ jobs:
         # Tests run before any stateful action. A broken implementation must not
         # be allowed to append history merely because the workflow was dispatched.
         run: PYTHONPATH=src python -m unittest discover -s tests -v
+      - name: Run one governed handoff-v1 semantic probe
+        # This is a deliberately finite bridge for the current experiment. The
+        # commit marker triggers exactly one governed obligation transition and
+        # one isolated Gemini probe; this workflow has no successor dispatch.
+        if: github.event_name == 'push' && contains(github.event.head_commit.message, '[handoff-v1-once]')
+        env:
+          GEMINI_MODEL: gemini-3.5-flash-lite
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          PYTHONPATH=src python scripts/github_sudofx.py \
+            --action work-advance \
+            --key handoff-v1 \
+            --value '{"result":"Recorded the first concrete maintenance-continuity obligation for semantic testing.","open_obligations":["Choose one smallest concrete maintenance action that improves recoverability of authoritative SQLite while preserving SQLite as the sole authority; treat backups and projections only as derived recovery/view artifacts, and do not claim inspection or changes beyond the bounded record."]}'
+          PYTHONPATH=src python scripts/github_sudofx.py --prove-model handoff-v1
+
       - name: Continue current milestone automatically
         # Observer mode: one stable command handles the next safe milestone step.
         # The operator should not have to carry work IDs or long context between devices.
@@ -141,7 +156,7 @@ jobs:
         # Code pushes and explicit phone-triggered verify runs are read-only
         # consumers of state. Publication occurs only after the test step above
         # succeeds, so Pages can truthfully identify the commit/run it reflects.
-        if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && (inputs.action == 'verify' || inputs.action == 'backup'))
+        if: (github.event_name == 'push' && !contains(github.event.head_commit.message, '[handoff-v1-once]')) || (github.event_name == 'workflow_dispatch' && (inputs.action == 'verify' || inputs.action == 'backup'))
         env:
           SUDOFX_CONTROL_URL: ${{ vars.SUDOFX_CONTROL_URL }}
         run: PYTHONPATH=src python scripts/github_sudofx.py --publish-only
