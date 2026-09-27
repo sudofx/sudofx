@@ -754,6 +754,8 @@ json.dump({
         self.assertIn("continue-again:", workflow)
         self.assertIn("needs: deploy", workflow)
         self.assertIn("gh workflow run prove-model.yml", workflow)
+        self.assertIn("operator_start:", workflow)
+        self.assertIn("--operator-transition start", workflow)
         self.assertNotIn("cron:", workflow)
         self.assertNotIn("\n  push:", workflow)
 
@@ -762,6 +764,8 @@ json.dump({
         workflow = (Path(__file__).parents[1] / ".github/workflows/sudofx.yml").read_text(
             encoding="utf-8"
         )
+        self.assertIn("inputs.action == 'operator-stop'", workflow)
+        self.assertIn("--operator-transition stop", workflow)
         self.assertIn("inputs.action == 'backup'", workflow)
         self.assertIn("--backup recovery/sudofx.sqlite", workflow)
         # Keep the backup action on the Node.js 24-compatible generation. An
