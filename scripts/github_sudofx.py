@@ -189,6 +189,8 @@ def main() -> int:
     parser.add_argument("--prove-work")
     parser.add_argument("--prove-model")
     parser.add_argument("--prove-model-compressed")
+    parser.add_argument("--compressed-results", type=int, default=4)
+    parser.add_argument("--compressed-receipts", type=int, default=8)
     parser.add_argument("--prove-anthropic")
     parser.add_argument("--export-handoff")
     parser.add_argument("--backup")
@@ -379,6 +381,8 @@ def main() -> int:
             (sys.executable, str(ROOT / "scripts" / "gemini_provider.py")),
             provider="Google Gemini",
             model=model,
+            recent_result_limit=args.compressed_results,
+            receipt_limit=args.compressed_receipts,
         )
     elif prove_anthropic_id:
         model = os.environ.get("ANTHROPIC_MODEL", "").strip()
