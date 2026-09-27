@@ -199,7 +199,7 @@ def main() -> int:
     parser.add_argument("--prove-vacuum-recovery", action="store_true")
     parser.add_argument("--auto", action="store_true")
     parser.add_argument(
-        "--action", choices=("set", "delete", "work-create", "work-advance", "work-complete")
+        "--action", choices=("set", "delete", "work-create", "work-advance", "record-assessment", "work-complete")
     )
     parser.add_argument("--key")
     parser.add_argument("--value", default="null")
@@ -317,6 +317,11 @@ def main() -> int:
                 operation = Operation(
                     "advance_work", args.key, {"result": args.value, "open_obligations": []}
                 )
+        elif args.action == "record-assessment":
+            parsed = value_from(args.value)
+            if not isinstance(parsed, dict):
+                raise ValueError("record-assessment requires a structured JSON object")
+            operation = Operation("record_assessment", args.key, parsed)
         else:
             operation = Operation("complete_work", args.key, {"result": args.value})
         receipt = kernel.submit(Proposal(str(uuid.uuid4()), context.revision, (operation,), "GitHub operator proposal"))
