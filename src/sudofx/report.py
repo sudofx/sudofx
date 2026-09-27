@@ -899,10 +899,11 @@ const publicAnswer=(proof)=>{{
   }}
   return raw;
 }};
+const liveExchangeUrl='https://raw.githubusercontent.com/'+(observer?.dataset.repository||'sudofx/sudofx')+'/sudofx-live/live.json';
 const refreshExchange=async()=>{{
   if(!exchange)return;
   try{{
-    const response=await fetch('./continuity-proof.json?ts='+Date.now(),{{cache:'no-store'}});
+    const response=await fetch(liveExchangeUrl+'?ts='+Date.now(),{{cache:'no-store'}});
     if(!response.ok)throw new Error('proof unavailable');
     const proof=await response.json();
     const runId=String(proof.artifact_run_id||'');
@@ -922,7 +923,7 @@ const refreshExchange=async()=>{{
       exchangeStatus.textContent=trial.cycle?'TEST '+trial.cycle:'LATEST';
       exchangeStatus.className='exchange-status';
     }}
-  }}catch(error){{/* Keep the last published exchange visible while Pages catches up. */}}
+  }}catch(error){{/* Keep the last known exchange visible if the disposable live view is briefly unavailable. */}}
 }};
 refreshObserver();
 refreshExchange();
