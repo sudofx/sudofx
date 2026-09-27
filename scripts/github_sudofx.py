@@ -46,6 +46,7 @@ from sudofx.record import Record
 from sudofx.continuity import (
     run_compressed_model_continuity_probe,
     run_continuity_proof,
+    run_default_model_continuity_probe,
     run_model_continuity_probe,
     run_work_continuity_probe,
 )
@@ -390,6 +391,17 @@ def main() -> int:
         continuity_proof = run_model_continuity_probe(
             DATA,
             prove_model_uncompressed_id,
+            (sys.executable, str(ROOT / "scripts" / "gemini_provider.py")),
+            provider="Google Gemini",
+            model=model,
+        )
+    elif prove_model_full_id:
+        model = os.environ.get("GEMINI_MODEL", "").strip()
+        if not model:
+            parser.error("GEMINI_MODEL is required for --prove-model-full")
+        continuity_proof = run_model_continuity_probe(
+            DATA,
+            prove_model_full_id,
             (sys.executable, str(ROOT / "scripts" / "gemini_provider.py")),
             provider="Google Gemini",
             model=model,
