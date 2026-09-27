@@ -34,9 +34,7 @@ on:
 
 permissions:
   # Stateful operator actions may checkpoint the authoritative state branch.
-  # actions:write is used only to request an independent Pages refresh afterward.
   contents: write
-  actions: write
 
 concurrency:
   # All manual governed mutations serialize with the continuity runner.
@@ -127,15 +125,3 @@ jobs:
           path: recovery/sudofx.sqlite
           retention-days: 30
 
-  request-publication:
-    # Refresh the derived observer after a successful manual operation, but only
-    # dispatch the publication workflow; never wait for Pages inside authority.
-    needs: build
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    steps:
-      - name: Request latest observer publication
-        env:
-          GH_TOKEN: ${{ github.token }}
-          SOURCE_RUN_ID: ${{ github.run_id }}
-        run: gh workflow run pages.yml --repo "$GITHUB_REPOSITORY" --ref master -f "source_run_id=$SOURCE_RUN_ID"
