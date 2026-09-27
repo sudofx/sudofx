@@ -191,6 +191,7 @@ def main() -> int:
     parser.add_argument("--export-handoff")
     parser.add_argument("--backup")
     parser.add_argument("--prove-vacuum-recovery", action="store_true")
+    parser.add_argument("--prove-vacuum-recovery", action="store_true")
     parser.add_argument("--auto", action="store_true")
     parser.add_argument(
         "--action", choices=("set", "delete", "work-create", "work-advance", "work-complete")
@@ -225,6 +226,34 @@ def main() -> int:
         print(json.dumps(proof, sort_keys=True))
         return 0
 
+    if args.prove_vacuum_recovery:
+        if not restored:
+            raise RuntimeError("VACUUM recovery proof requires an existing authoritative record")
+        before_revision, before_state = record.replay()
+        before_history = record.history()
+        before_head = before_history[-1]["event_hash"] if before_history else ""
+        with tempfile.TemporaryDirectory() as temporary:
+            snapshot = Path(temporary) / "vacuum-recovery.sqlite"
+            record.vacuum_snapshot_to(snapshot)
+            recovered = Record(snapshot)
+            recovered_revision, recovered_state = recovered.replay()
+            with closing(sqlite3.connect(snapshot)) as connection:
+                integrity = str(connection.execute("PRAGMA integrity_check").fetchone()[0])
+        after_revision, after_state = record.replay()
+        after_history = record.history()
+        after_head = after_history[-1]["event_hash"] if after_history else ""
+        checks = {
+            "snapshot_integrity_check": integrity == "ok",
+            "snapshot_revision_matches_authority": recovered_revision == before_revision,
+            "snapshot_state_matches_authority": recovered_state == before_state,
+            "authority_revision_unchanged": after_revision == before_revision,
+            "authority_state_unchanged": after_state == before_state,
+            "authority_event_head_unchanged": after_head == before_head,
+        }
+        if not all(checks.values()):
+            raise AssertionError(f"VACUUM recovery proof failed: {checks}")
+        print(json.dumps({"passed": True, "kind": "vacuum-into-recovery", "checks": checks}, sort_keys=True))
+        return 0
     # Observer-mode automation: one stable operator command advances the current
     # milestone without asking the human to shuttle IDs or long text between devices.
     # The database remains authoritative: code may seed the work once, then all
@@ -253,7 +282,7 @@ def main() -> int:
             checkpoint()
             kernel = Kernel(Record(DATA))
         auto_handoff_id = AUTO_HANDOFF_ID
-    if not args.publish_only and not args.prove_work and not args.prove_model and not args.export_handoff and not args.auto:
+    if not args.publish_only and not args.prove_work and not args.prove_model and not args.export_handoff and not args.prove_vacuum_recovery and not args.auto:
         if not args.action or not args.key:
             parser.error("--action and --key are required for a mutation")
         context = kernel.context()
