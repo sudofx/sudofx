@@ -525,7 +525,6 @@ const refreshObserver=async()=>{{
   }}
 }};
 const exchange=document.querySelector('.exchange');
-const page=document.querySelector('main[data-published-run-id]');
 const updateList=(node,values,empty)=>{{
   if(!node)return;
   const items=Array.isArray(values)&&values.length?values:[empty];
@@ -555,31 +554,10 @@ const refreshExchange=async()=>{{
     if(exchangeStatus){{exchangeStatus.textContent='UPDATED · RUN '+runId;exchangeStatus.className='exchange-status';}}
   }}catch(error){{/* Keep the last published exchange visible while Pages catches up. */}}
 }};
-const refreshPublishedPage=async()=>{{
-  if(!page)return;
-  try{{
-    const response=await fetch('./runner-state.json?ts='+Date.now(),{{cache:'no-store'}});
-    if(!response.ok)throw new Error('runner state unavailable');
-    const state=await response.json();
-    const published=String(state.artifact_run_id||'');
-    const visible=String(page.dataset.publishedRunId||'');
-    if(!published||published===visible)return;
-
-    // A changed artifact identity means Pages now owns a coherent newer view:
-    // status, exchange, work cards, and receipts were rendered together. Reload
-    // once with a cache buster instead of splicing mixed-version fragments into
-    // the DOM or asking the operator to refresh by hand.
-    const target=new URL(window.location.href);
-    target.searchParams.set('live',Date.now().toString());
-    window.location.replace(target.toString());
-  }}catch(error){{/* The current coherent page remains valid until Pages catches up. */}}
-}};
 refreshObserver();
 refreshExchange();
-refreshPublishedPage();
 setInterval(refreshObserver,15000);
 setInterval(refreshExchange,15000);
-setInterval(refreshPublishedPage,10000);
 const search=document.querySelector('#search');
 if(search)search.addEventListener('input',()=>{{const q=search.value.toLowerCase();document.querySelectorAll('.receipt').forEach(r=>r.hidden=!r.dataset.search.toLowerCase().includes(q))}});
 document.querySelectorAll('.receipt').forEach(r=>r.addEventListener('click',()=>r.setAttribute('aria-expanded',r.classList.contains('open'))));

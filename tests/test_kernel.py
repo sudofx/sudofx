@@ -408,9 +408,11 @@ json.dump({
         self.assertIn("continuity-proof.json?ts=", page)
         self.assertIn("setInterval(refreshExchange,15000)", page)
         self.assertIn('data-published-run-id="123"', page)
-        self.assertIn("runner-state.json?ts=", page)
-        self.assertIn("setInterval(refreshPublishedPage,10000)", page)
-        self.assertIn("window.location.replace(target.toString())", page)
+        # Live telemetry updates the status and Gemini exchange in place. A
+        # whole-page refresh here would repeatedly reset the mobile viewport
+        # while the continuous runner publishes faster than CDN caches settle.
+        self.assertNotIn("refreshPublishedPage", page)
+        self.assertNotIn("window.location.replace(target.toString())", page)
         self.assertIn("Activity history", page)
         self.assertNotIn("General state", page)
         self.assertNotIn("Technical pass", page)
