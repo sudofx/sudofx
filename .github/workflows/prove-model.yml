@@ -21,6 +21,11 @@ on:
         description: Optional correlation token for the local continuous runner
         type: string
         required: false
+      operator_start:
+        description: Record authenticated operator Start before invoking Gemini
+        type: boolean
+        default: false
+        required: false
 
 permissions:
   contents: write
@@ -53,10 +58,16 @@ jobs:
         # public page can truthfully say the system is waiting on Gemini while
         # this bounded provider call is active without exposing API mechanics.
         env:
+          OPERATOR_START: ${{ inputs.operator_start }}
           GEMINI_MODEL: gemini-3.5-flash-lite
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           SUDOFX_CONTROL_URL: ${{ vars.SUDOFX_CONTROL_URL }}
-        run: PYTHONPATH=src python scripts/github_sudofx.py --auto
+        run: |
+          args=(--auto)
+          if [[ "$OPERATOR_START" == "true" ]]; then
+            args+=(--operator-transition start)
+          fi
+          PYTHONPATH=src python scripts/github_sudofx.py "${args[@]}"
       - name: Configure Pages
         uses: actions/configure-pages@v6
         with:
