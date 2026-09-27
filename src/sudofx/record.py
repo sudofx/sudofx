@@ -327,6 +327,42 @@ class Record:
                 raise IntegrityError(f"snapshot failed SQLite quick_check: {result}")
         Record(destination).replay()
 
+    def vacuum_snapshot_to(self, destination: str | Path) -> None:
+        """
+        Create one compact derived recovery snapshot with SQLite VACUUM INTO.
+
+        This is a storage-specific maintenance primitive, not a new authority
+        path. The source record remains authoritative and untouched; callers may
+        retain or discard the destination only as recovery evidence. The
+        destination must not already exist because SQLite intentionally refuses
+        to overwrite a recovery artifact that may have independent meaning.
+
+        Success requires both physical SQLite integrity and full sudofx semantic
+        replay. A syntactically valid database whose event chain cannot replay is
+        not a usable recovery snapshot.
+        """
+        destination = Path(destination)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        if destination.exists():
+            raise FileExistsError(f"VACUUM INTO destination already exists: {destination}")
+
+        # SQLite accepts the destination as a SQL string literal rather than a
+        # bound parameter. Quote single quotes explicitly so an operator-chosen
+        # filesystem path cannot alter the statement being executed.
+        quoted = str(destination).replace("'", "''")
+        with self.connect() as source:
+            source.execute(f"VACUUM INTO '{quoted}'")
+
+        with closing(sqlite3.connect(destination)) as check:
+            result = check.execute("PRAGMA integrity_check").fetchone()[0]
+            if result != "ok":
+                raise IntegrityError(f"VACUUM INTO snapshot failed SQLite integrity_check: {result}")
+
+        # Record initialization verifies application identity/schema, and replay
+        # verifies the complete hash-linked semantic history. This is stricter
+        # than treating SQLite's physical check as sufficient recovery evidence.
+        Record(destination).replay()
+
     def health(self) -> dict[str, int | float | str]:
         """
         Return bounded maintenance evidence derived from a verified snapshot.
