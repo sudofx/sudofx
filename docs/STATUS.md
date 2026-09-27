@@ -85,74 +85,59 @@ Recovery / inspection
 
 ## Current experiment
 
-The active `handoff-v1` work item now carries a concrete maintenance-continuity
-obligation in authoritative SQLite: choose one smallest recoverability action
-while preserving SQLite as sole authority and treating backups/projections only
-as derived artifacts.
+The active `handoff-v1` record has now crossed four distinct semantic gates.
 
-The first fresh Gemini cycle against that bounded record failed semantically:
-it reconstructed the objective but merely restated the obligation. The acceptance
-criterion was then tightened to require one chosen action, exact target, and
-observable verification check. A later attempt was unjudgeable because proof
-evidence was overwritten, and the next attempt ended in a provider timeout.
+First, a fresh Gemini process proved useful continuation from bounded durable
+context by reconstructing the work and choosing a concrete `VACUUM INTO`
+recoverability action. That action was then executed through a finite governed
+proof: the derived SQLite snapshot passed integrity checking and full semantic
+replay while authoritative revision, state, and event head remained unchanged.
 
-The evidence-preserving retry on September 27, 2026 **passed useful continuation**.
-From bounded durable context alone, Gemini reconstructed the current work and
-prior failures, chose `VACUUM INTO` as one concrete recoverability action,
-targeted authoritative SQLite, and supplied an observable snapshot integrity
-check without claiming the action had already been performed. That human
-semantic verdict is now recorded in authoritative work history.
+Second, Gemini repeatability passed **3 of 3** successive fresh-process handoffs.
+Each process received newly advanced bounded state, reconstructed the objective
+and accepted history needed for the frontier, proposed one actionable next step,
+avoided unsupported execution claims, and left production authority unchanged.
 
-The accepted maintenance candidate has now been executed as a finite governed
-proof. A temporary `VACUUM INTO` snapshot passed SQLite integrity checking and
-full sudofx semantic replay, while the authoritative SQLite revision, state, and
-event head remained unchanged. Only after those checks passed did a governed
-work transition record the successful proof.
+Third, deliberate context compression established a practical semantic floor.
+The tested handoff was reduced to exactly one readable accepted milestone and
+zero receipt prose, while objective, constraints, current frontier, accepted and
+omitted counts, provenance, and an omitted-history digest remained available.
+At that boundary Gemini reconstructed the work correctly from **1,810 bytes
+instead of 28,480 bytes**, a **93.64% reduction**, without pretending the
+omitted digest contained readable history.
 
-The continuous runner remains intentionally stopped. The next frontier is
-provider substitution: present the same bounded `handoff-v1` frontier to a
-materially different real model/provider and compare whether useful semantic
-continuation survives without changing the authority contract.
+Fourth, that compressed shape was promoted from an experiment to the normal
+live Gemini handoff policy. The promoted-default proof passed again against a
+larger authoritative record: Gemini received **2,053 bytes instead of 31,085
+bytes** (**93.4% reduction**), with one of eighteen milestones readable, zero
+receipts, and seventeen milestones represented only by count plus digest. It
+still reconstructed the portable-continuity objective and exact active frontier
+and proposed the correct policy action.
 
-The accepted maintenance candidate has now been tested through a real governed
-execution path. An earlier workflow incorrectly recorded that proof as successful
-even though its flag had no implementation; that false claim was explicitly
-corrected in durable history before the real proof ran.
+Semantic quality is now represented as governed structured data rather than
+only prose. A `record_assessment` transition stores verdict, criterion-level
+judgments, compression metrics, and provider/run/context provenance in
+authoritative SQLite. The generated observer renders the newest assessment as a
+**Continuity quality** view. Assessment history remains durable in SQLite but is
+excluded from provider context; models receive only an assessment count and
+digest so measurement cannot gradually bloat the handoff being measured.
 
-The corrected VACUUM INTO proof then passed: the derived snapshot passed SQLite
-integrity_check, replayed the same sudofx revision/state, and left the source
-revision/state/event head unchanged. The continuous runner remains intentionally
-stopped.
+Paid-vendor substitution remains deliberately deferred. Gemini is the only live
+vendor dependency until the free-vendor implementation demonstrates sustained
+success.
 
-The new frontier is provider substitution: give the same bounded handoff-v1
-context to a materially different real model/provider and compare whether useful
-continuation survives without changing the authority contract.
+Continuous mode is technically eligible to resume under the promoted compressed
+policy, but it remains intentionally **owner-stopped**. Nothing in these finite
+proofs turns continuous execution back on automatically.
 
-Live paid-vendor substitution is deliberately deferred until sudofx first
-demonstrates sustained success with the available free Gemini provider. The
-provider-neutral boundary remains an architectural requirement, but paid-vendor
-credentials are not a current project dependency.
+Every live-model cycle remains a test rather than an authoritative model
+mutation:
 
-The first finite Gemini repeatability gate is now complete: three successive
-fresh Gemini processes each received a newly advanced bounded `handoff-v1`
-record, reconstructed the objective and relevant accepted history, identified
-the current frontier, proposed a concrete next action with target and observable
-verification, avoided unsupported execution claims, and left production
-authority unchanged. Each handoff received an explicit human semantic PASS
-before the next authoritative frontier was recorded.
-
-The continuous runner remains intentionally stopped. The next experiment tests
-semantic retention under deliberate context compression rather than accumulating
-more identical successful cycles.
-
-Every continuous cycle is deliberately a test, not a state mutation.
-
-That distinction matters:
-
-- successful Gemini output proves only that the bounded exchange occurred
-- deterministic governance proves whether the proposal matches allowed structure
-- the isolated verification snapshot prevents test traffic from changing authoritative work
-- durable state changes still require an explicit governed transition
+- Gemini receives a derived bounded view, not the database
+- the proposal crosses deterministic governance on a temporary SQLite snapshot
+- production SQLite remains unchanged by the probe
+- human semantic judgment is recorded separately as governed evidence
+- Pages, JSON proof files, and workflow artifacts remain replaceable projections
 
 ## Remaining risks
 
@@ -171,19 +156,18 @@ The architecture is directionally aligned, but several risks remain open:
 
 ## Next objectives
 
-The next governed experiment should remain narrow:
+The next work remains intentionally narrow:
 
-- derive a smaller sanitized `handoff-v1` context from authoritative history
-- preserve objective, accepted milestones, current frontier, constraints, and provenance while removing redundant detail
-- run one fresh Gemini process against that compressed context
-- compare its semantic continuation against the three uncompressed repeatability passes
-- keep continuous operation stopped until the compression result is judged
-- make reconstruction quality comparable over time
-- preserve provenance for every derived context unit
-- keep all durable operational truth in the database
-- migrate authoritative persistence out of the public Git ref before storing private context
-- establish a second-provider/private backup target and periodically prove restoration
-- resist adding product breadth that weakens the kernel experiment
+- use the structured assessment contract for future judged Gemini probes so continuity quality becomes comparable over time
+- when the owner explicitly starts continuous mode, run the promoted 1-milestone/0-receipt policy and stop visibly on the first failed gate
+- compare objective fidelity, frontier fidelity, unsupported-claim discipline, actionability, context size, and compression across judged samples
+- preserve assessment provenance and keep all durable operational truth in SQLite
+- prevent assessment/history growth from leaking back into provider context
+- keep the uncompressed Gemini path only as an explicit diagnostic baseline
+- migrate authoritative persistence out of the public Git ref before any private or identifying context is stored
+- add another real provider only after the Gemini/free-vendor implementation has demonstrated sufficient sustained success
+- establish an independent/private backup target before sensitive durable context exists
+- resist product breadth that weakens the kernel experiment
 
 ## Bottom line
 
