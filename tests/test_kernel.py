@@ -772,6 +772,9 @@ json.dump({
         self.assertNotIn("actions/upload-pages-artifact", workflow)
         self.assertIn("operator_start:", workflow)
         self.assertIn("--operator-start", workflow)
+        self.assertIn("runtime_ref:", workflow)
+        self.assertIn("ref: ${{ inputs.runtime_ref || github.sha }}", workflow)
+        self.assertIn('-f "runtime_ref=$RUNTIME_REF"', workflow)
         self.assertNotIn("cron:", workflow)
         self.assertNotIn("\n  push:", workflow)
 
