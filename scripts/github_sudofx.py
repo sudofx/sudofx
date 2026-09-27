@@ -217,6 +217,33 @@ def main() -> int:
         record.backup_to(backup_path)
         print(json.dumps({"backup": str(backup_path), "health": record.health()}, sort_keys=True))
         return 0
+    if args.prove_vacuum_recovery:
+        if not restored:
+            raise RuntimeError("VACUUM recovery proof requires an existing authoritative record")
+        before_revision, before_state = record.replay()
+        before_history = record.history()
+        before_head = before_history[-1]["event_hash"] if before_history else ""
+        with tempfile.TemporaryDirectory() as temporary:
+            snapshot = Path(temporary) / "vacuum-recovery.sqlite"
+            record.vacuum_snapshot_to(snapshot)
+            recovered_revision, recovered_state = Record(snapshot).replay()
+            with closing(sqlite3.connect(snapshot)) as connection:
+                integrity = str(connection.execute("PRAGMA integrity_check").fetchone()[0])
+        after_revision, after_state = record.replay()
+        after_history = record.history()
+        after_head = after_history[-1]["event_hash"] if after_history else ""
+        checks = {
+            "snapshot_integrity_check": integrity == "ok",
+            "snapshot_revision_matches_authority": recovered_revision == before_revision,
+            "snapshot_state_matches_authority": recovered_state == before_state,
+            "authority_revision_unchanged": after_revision == before_revision,
+            "authority_state_unchanged": after_state == before_state,
+            "authority_event_head_unchanged": after_head == before_head,
+        }
+        if not all(checks.values()):
+            raise AssertionError(f"VACUUM recovery proof failed: {checks}")
+        print(json.dumps({"passed": True, "kind": "vacuum-into-recovery", "checks": checks}, sort_keys=True))
+        return 0
     # Observer-mode automation: one stable operator command advances the current
     # milestone without asking the human to shuttle IDs or long text between devices.
     # The database remains authoritative: code may seed the work once, then all
