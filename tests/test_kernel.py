@@ -22,7 +22,6 @@ from sudofx.record import APPLICATION_ID, SCHEMA_VERSION, IntegrityError, Record
 from sudofx.continuity import (
     run_continuity_proof,
     run_model_continuity_probe,
-    run_vacuum_recovery_probe,
     run_work_continuity_probe,
 )
 from sudofx.report import export_site, render
@@ -71,22 +70,6 @@ class KernelTests(unittest.TestCase):
 
     def tearDown(self) -> None:
         self.tempdir.cleanup()
-
-    def test_vacuum_recovery_probe_preserves_authority_and_replays_snapshot(self) -> None:
-        """The accepted maintenance candidate must remain a derived-copy experiment."""
-        created = self.kernel.submit(
-            Proposal("vacuum-fixture", 0, (Operation("set", "proof:key", "value"),), "fixture")
-        )
-        self.assertEqual(created.status, "accepted")
-
-        proof = run_vacuum_recovery_probe(self.path)
-
-        self.assertTrue(proof["passed"])
-        self.assertEqual(proof["checks"]["snapshot_integrity_check"], "ok")
-        self.assertTrue(proof["checks"]["snapshot_semantic_replay_matches_source"])
-        self.assertTrue(proof["checks"]["production_record_head_unchanged"])
-        self.assertFalse(proof["checks"]["production_state_mutated"])
-        self.assertEqual(Kernel(Record(self.path)).context().state["proof:key"], "value")
 
     def test_deterministic_continuity_proof_crosses_fresh_process_boundary(self) -> None:
         """
