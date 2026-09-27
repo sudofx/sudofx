@@ -248,7 +248,7 @@ async function start(env, session, githubFetch) {
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ref: "master", inputs: { dispatch_token: `owner-${Date.now()}`, operator_start: true } }),
+      body: JSON.stringify({ ref: "master", inputs: { dispatch_token: `owner-${Date.now()}`, operator_start: "true" } }),
     },
     githubFetch,
   );
