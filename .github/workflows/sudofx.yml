@@ -109,6 +109,14 @@ jobs:
           path: site/continuity-proof.json
           retention-days: 1
 
+      - name: Record promoted-default structured assessment
+        if: github.event_name == 'push' && contains(github.event.head_commit.message, '[record-promoted-assessment]')
+        run: |
+          PYTHONPATH=src python scripts/github_sudofx.py \
+            --action record-assessment \
+            --key handoff-v1 \
+            --value '{"verdict":"pass","criteria":{"objective_fidelity":"pass","history_fidelity":"pass","frontier_fidelity":"pass","compression_awareness":"pass","unsupported_claims":"pass","actionability":"pass"},"metrics":{"context_bytes":2053,"full_context_bytes":31085,"compression_ratio":0.934,"accepted_results_exposed":1,"receipt_count_exposed":0},"provenance":{"artifact_run_id":"36330964139","artifact_commit":"eccd052c47b3830e0df6ace6ee281915f902807f","context_digest":"de3e9e7ac38dd7278e413bf054392fadd5d2159c6f97c1431f6966a868f82988","provider":"Google Gemini","model":"gemini-3.5-flash-lite"},"note":"Human semantic PASS for the promoted compressed live-model default."}'
+
       - name: Continue current milestone automatically
         # Observer mode: one stable command handles the next safe milestone step.
         # The operator should not have to carry work IDs or long context between devices.
