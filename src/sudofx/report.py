@@ -49,6 +49,52 @@ def _work_cards(state: dict[str, object]) -> str:
         constraints = work.get("constraints", [])
         results = work.get("accepted_results", [])
         obligations = work.get("open_obligations", [])
+        assessments = work.get("semantic_assessments", [])
+        latest_assessment = (
+            assessments[-1]
+            if isinstance(assessments, list) and assessments and isinstance(assessments[-1], dict)
+            else None
+        )
+        assessment_html = ""
+        if latest_assessment:
+            criteria = latest_assessment.get("criteria", {})
+            metrics = latest_assessment.get("metrics", {})
+            provenance = latest_assessment.get("provenance", {})
+            verdict = str(latest_assessment.get("verdict", "unknown")).upper()
+            criterion_labels = {
+                "objective_fidelity": "Objective",
+                "history_fidelity": "History",
+                "frontier_fidelity": "Frontier",
+                "compression_awareness": "Compression awareness",
+                "unsupported_claims": "Unsupported claims",
+                "actionability": "Actionability",
+            }
+            criteria_html = "".join(
+                f'<div><span>{_escape(criterion_labels.get(key, key.replace("_", " ")))}</span>'
+                f'<strong class="quality-{_escape(value)}">{_escape(str(value).upper())}</strong></div>'
+                for key, value in criteria.items()
+            ) if isinstance(criteria, dict) else ""
+            context_bytes = int(metrics.get("context_bytes", 0)) if isinstance(metrics, dict) else 0
+            full_bytes = int(metrics.get("full_context_bytes", 0)) if isinstance(metrics, dict) else 0
+            ratio = float(metrics.get("compression_ratio", 0)) if isinstance(metrics, dict) else 0.0
+            exposed = int(metrics.get("accepted_results_exposed", 0)) if isinstance(metrics, dict) else 0
+            receipt_count = int(metrics.get("receipt_count_exposed", 0)) if isinstance(metrics, dict) else 0
+            run_id = provenance.get("artifact_run_id", "") if isinstance(provenance, dict) else ""
+            provider = provenance.get("provider", "") if isinstance(provenance, dict) else ""
+            model = provenance.get("model", "") if isinstance(provenance, dict) else ""
+            assessment_html = f"""
+              <div class="quality-block">
+                <div class="quality-head"><b>Continuity quality</b><span class="quality-verdict quality-{_escape(verdict.lower())}">{_escape(verdict)}</span></div>
+                <div class="quality-grid">{criteria_html}</div>
+                <div class="quality-metrics">
+                  <span>Context <b>{context_bytes:,} / {full_bytes:,} B</b></span>
+                  <span>Compression <b>{ratio * 100:.1f}%</b></span>
+                  <span>Milestones exposed <b>{exposed}</b></span>
+                  <span>Receipts <b>{receipt_count}</b></span>
+                </div>
+                <div class="quality-provenance">{_escape(provider)} · {_escape(model)}{f' · run {_escape(run_id)}' if run_id else ''}</div>
+              </div>
+            """
         constraints_html = "".join(f"<li>{_escape(item)}</li>" for item in constraints)
         results_html = "".join(f"<li>{_escape(item)}</li>" for item in results)
         obligations_html = "".join(f"<li>{_escape(item)}</li>" for item in obligations)
@@ -62,6 +108,7 @@ def _work_cards(state: dict[str, object]) -> str:
               {f'<div class="work-section"><b>Constraints</b><ul>{constraints_html}</ul></div>' if constraints else ''}
               {f'<div class="work-section"><b>Accepted results</b><ol>{results_html}</ol></div>' if results else ''}
               {f'<div class="work-section"><b>Open obligations</b><ul>{obligations_html}</ul></div>' if obligations else ''}
+              {assessment_html}
               {f'<div class="final-result"><b>Final result</b><p>{_escape(final)}</p></div>' if final else ''}
             </article>
             """
@@ -356,6 +403,17 @@ def render(
     h2 {{ margin:0; font-size:23px; letter-spacing:-.03em }}
     .work-grid {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:14px; margin-bottom:52px }}
     .work-card {{ min-width:0; background:var(--surface); border:1px solid var(--line); border-top:4px solid var(--green); padding:19px }}
+    .quality-block {{ margin-top:18px; padding-top:14px; border-top:1px solid var(--line) }}
+    .quality-head {{ display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:10px }}
+    .quality-verdict {{ padding:3px 7px; border:1px solid var(--line); font:700 9px var(--mono); letter-spacing:.08em }}
+    .quality-pass {{ color:var(--green) }} .quality-fail {{ color:var(--hot) }} .quality-uncertain {{ color:#e0af68 }}
+    .quality-grid {{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:1px; background:var(--line); border:1px solid var(--line) }}
+    .quality-grid>div {{ min-width:0; display:flex; justify-content:space-between; gap:8px; padding:8px; background:var(--paper); font:10px var(--mono) }}
+    .quality-grid span {{ color:var(--muted); overflow-wrap:anywhere }}
+    .quality-grid strong {{ font-size:9px }}
+    .quality-metrics {{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px 12px; margin-top:10px; color:var(--muted); font:10px var(--mono) }}
+    .quality-metrics b {{ color:var(--ink) }}
+    .quality-provenance {{ margin-top:8px; color:var(--muted); font:9px var(--mono); overflow-wrap:anywhere }}
     .work-head {{ display:flex; justify-content:space-between; align-items:center; gap:10px }}
     .work-status {{ padding:4px 8px; background:var(--green); color:#172018; font:700 10px var(--mono); text-transform:uppercase }}
     .work-status.completed {{ background:var(--accent); color:var(--paper) }}
