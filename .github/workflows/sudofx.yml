@@ -80,6 +80,21 @@ jobs:
         # Tests run before any stateful action. A broken implementation must not
         # be allowed to append history merely because the workflow was dispatched.
         run: PYTHONPATH=src python -m unittest discover -s tests -v
+      - name: Correct and execute VACUUM recovery proof
+        # A prior workflow recorded a successful recovery proof even though the
+        # flag had no implementation at that commit. Correct that durable claim
+        # first. Only after the real proof succeeds may the frontier advance.
+        if: github.event_name == 'push' && contains(github.event.head_commit.message, '[handoff-v1-vacuum-correction]')
+        run: |
+          PYTHONPATH=src python scripts/github_sudofx.py \
+            --action work-advance \
+            --key handoff-v1 \
+            --value '{"result":"Correction: the earlier durable claim that the VACUUM INTO recovery proof had executed was invalid. At commit 2d57b0a the --prove-vacuum-recovery flag had no implementation, so workflow success did not prove the stated maintenance action.","open_obligations":["Execute the accepted VACUUM INTO recovery candidate through the implemented proof path; require snapshot integrity_check, semantic replay equality, and unchanged authoritative revision/state/event head before advancing."]}'
+          PYTHONPATH=src python scripts/github_sudofx.py --prove-vacuum-recovery
+          PYTHONPATH=src python scripts/github_sudofx.py \
+            --action work-advance \
+            --key handoff-v1 \
+            --value '{"result":"Executed the implemented VACUUM INTO recovery proof. The derived snapshot passed SQLite integrity_check, matched authoritative revision/state through semantic replay, and the source revision/state/event head remained unchanged.","open_obligations":["Test provider substitution: give the same bounded handoff-v1 frontier to a materially different real model/provider and compare semantic continuation without changing the authority contract."]}'
       - name: Continue current milestone automatically
         # Observer mode: one stable command handles the next safe milestone step.
         # The operator should not have to carry work IDs or long context between devices.
