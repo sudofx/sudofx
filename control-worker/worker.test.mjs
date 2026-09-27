@@ -79,6 +79,24 @@ test("login uses GitHub OAuth with PKCE and the exact callback", async () => {
   assert.ok(target.searchParams.get("code_challenge"));
 });
 
+test("OAuth provider failures stay inside the Worker error boundary", async () => {
+  // Provider rejection is expected operational evidence, not a Worker crash.
+  // Preserving the JSON boundary gives the operator a diagnosis and prevents
+  // Cloudflare's opaque Error 1101 page from replacing the product interface.
+  const loginResponse = await handleRequest(new Request("https://control.example/auth/login"), env);
+  const authorization = new URL(loginResponse.headers.get("Location"));
+  const callback = new URL("https://control.example/auth/callback");
+  callback.searchParams.set("code", "rejected-code");
+  callback.searchParams.set("state", authorization.searchParams.get("state"));
+  const response = await handleRequest(
+    new Request(callback),
+    env,
+    async () => { throw new Error("simulated provider rejection"); },
+  );
+  assert.equal(response.status, 502);
+  assert.deepEqual(await response.json(), { error: "simulated provider rejection" });
+});
+
 test("Start enables the workflow before dispatching one bootstrap", async () => {
   const session = await ownerSession();
   const operations = [];

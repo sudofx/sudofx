@@ -258,8 +258,13 @@ export async function handleRequest(request, env, githubFetch = fetch) {
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: cors(env) });
 
   try {
-    if (url.pathname === "/auth/login" && request.method === "GET") return login(request, env);
-    if (url.pathname === "/auth/callback" && request.method === "GET") return callback(request, env, githubFetch);
+    // Await every asynchronous route inside this boundary. Returning a pending
+    // promise would let its later rejection escape this catch block, turning a
+    // useful OAuth or GitHub error into Cloudflare's opaque Worker Error 1101.
+    // The request still completes asynchronously; ownership here means failures
+    // are translated before control leaves the service's public interface.
+    if (url.pathname === "/auth/login" && request.method === "GET") return await login(request, env);
+    if (url.pathname === "/auth/callback" && request.method === "GET") return await callback(request, env, githubFetch);
 
     // API calls must originate from the published interface and carry the
     // encrypted owner session. CORS is not treated as authorization; identity
