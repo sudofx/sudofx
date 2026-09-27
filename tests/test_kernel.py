@@ -424,7 +424,10 @@ json.dump({
         self.assertIn("objective", page)
         self.assertIn("continue", page)
         self.assertIn("proposal p1", page)
-        self.assertIn("Run operation", page)
+        self.assertNotIn("Run operation", page)
+        self.assertIn("data-status-led", page)
+        self.assertIn("status-led idle", page)
+        self.assertIn("led-blink", page)
         self.assertIn("wake-theme", page)
         self.assertIn("data-theme=dark", page)
         # Green is the accepted toggle highlight. The switch remains the only
@@ -438,18 +441,9 @@ json.dump({
         self.assertIn("grid-area:theme; justify-self:end", page)
         self.assertIn('class="brand" href="./"', page)
         self.assertIn('href="https://sudofx.github.io/wake/">Inspired by WAKE', page)
-        self.assertIn("Continuity Challenge", page)
-        self.assertIn("Public question. Shared-history answer.", page)
-        self.assertIn("Copy challenge", page)
-        self.assertIn("Next question", page)
-        self.assertNotIn("Reveal answer check", page)
-        self.assertIn("SUDOFX_CONTINUITY_CHALLENGE v1", page)
-        self.assertNotIn("challenge-anchors", page)
-        self.assertIn("record_revision=", page)
-        self.assertIn("Do not treat this as authentication.", page)
-        self.assertIn("answer is intentionally not stored on this page", page)
-        self.assertIn("When you say “BANG‼️”", page)
-        self.assertIn("When you tell me “you get me,”", page)
+        self.assertNotIn("Continuity Challenge", page)
+        self.assertNotIn("Copy challenge", page)
+
 
     def test_handoff_packet_is_bounded_and_portable(self) -> None:
         """Handoff v1 must export one governed work item without unrelated state."""
@@ -590,7 +584,7 @@ json.dump({
         page = render(self.kernel)
         self.assertIn("Durable work", page)
         self.assertIn("Visible work", page)
-        self.assertIn("Create or advance", page)
+        self.assertNotIn("Create or advance", page)
 
 
 if __name__ == "__main__":
