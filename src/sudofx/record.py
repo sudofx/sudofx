@@ -327,6 +327,27 @@ class Record:
                 raise IntegrityError(f"snapshot failed SQLite quick_check: {result}")
         Record(destination).replay()
 
+    def vacuum_snapshot_to(self, destination: str | Path) -> None:
+        """
+        Create one compact derived recovery snapshot with SQLite VACUUM INTO.
+
+        The source database remains authoritative. The destination is recovery
+        evidence only and must pass both SQLite integrity checking and complete
+        sudofx semantic replay before callers may treat it as usable.
+        """
+        destination = Path(destination)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        if destination.exists():
+            raise FileExistsError(f"VACUUM INTO destination already exists: {destination}")
+        quoted = str(destination).replace("'", "''")
+        with self.connect() as source:
+            source.execute(f"VACUUM INTO '{quoted}'")
+        with closing(sqlite3.connect(destination)) as check:
+            result = check.execute("PRAGMA integrity_check").fetchone()[0]
+            if result != "ok":
+                raise IntegrityError(f"VACUUM INTO snapshot failed SQLite integrity_check: {result}")
+        Record(destination).replay()
+
     def health(self) -> dict[str, int | float | str]:
         """
         Return bounded maintenance evidence derived from a verified snapshot.
