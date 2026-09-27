@@ -502,7 +502,7 @@ json.dump({
         self.assertIn('data-owner-controls hidden', page)
         self.assertIn('data-owner-start>Start</button>', page)
         self.assertIn('data-owner-stop>Stop</button>', page)
-        self.assertIn('data-owner-backup>Backup</button>', page)
+        self.assertIn('data-owner-backup hidden>Backup</button>', page)
         self.assertIn("'/api/backup'", page)
         self.assertIn("public state", page)
         self.assertIn("sessionStorage.setItem(ownerSessionKey", page)

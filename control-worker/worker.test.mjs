@@ -145,6 +145,7 @@ test("authenticated session reports storage maintenance metadata without databas
   );
   assert.equal(response.status, 200);
   const body = await response.json();
+  assert.deepEqual(body.capabilities, ["backup", "storage-diagnostics"]);
   assert.deepEqual(body.maintenance, {
     repositoryVisibility: "public",
     stateBranchProtected: false,

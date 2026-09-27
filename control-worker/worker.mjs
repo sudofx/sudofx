@@ -328,7 +328,13 @@ export async function handleRequest(request, env, githubFetch = fetch) {
           error: error instanceof Error ? error.message : "storage diagnostics unavailable",
         })),
       ]);
-      return json(env, { authorized: true, login: session.login, ...workflow, maintenance });
+      return json(env, {
+        authorized: true,
+        login: session.login,
+        capabilities: ["backup", "storage-diagnostics"],
+        ...workflow,
+        maintenance,
+      });
     }
     if (url.pathname === "/api/start" && request.method === "POST") return json(env, await start(env, session, githubFetch));
     if (url.pathname === "/api/stop" && request.method === "POST") return json(env, await stop(env, session, githubFetch));

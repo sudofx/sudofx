@@ -246,7 +246,7 @@ def render(
             <div class="owner-controls" data-owner-controls hidden aria-live="polite">
               <span data-owner-identity></span>
               <span data-owner-control-status>Checking controls…</span>
-              <div><button type="button" data-owner-start>Start</button><button type="button" data-owner-stop>Stop</button><button type="button" data-owner-backup>Backup</button></div>
+              <div><button type="button" data-owner-start>Start</button><button type="button" data-owner-stop>Stop</button><button type="button" data-owner-backup hidden>Backup</button></div>
             </div>
           </div>''' if control_url else ''}
         </section>
@@ -317,6 +317,7 @@ def render(
     .owner-controls [data-owner-start] {{ border-color:var(--green); color:var(--green) }}
     .owner-controls [data-owner-stop] {{ border-color:#f7768e; color:#f7768e }}
     .owner-controls button:disabled {{ opacity:.45; cursor:wait }}
+    .owner-controls button[hidden] {{ display:none }}
     .machine-activity {{ margin-top:12px; border:1px solid var(--line); background:var(--paper); overflow:hidden }}
     .machine-activity[hidden] {{ display:none }}
     .machine-lights {{ display:grid; grid-template-columns:repeat(8,1fr); gap:6px; padding:10px 12px 8px }}
@@ -484,7 +485,7 @@ const refreshOwnerControls=async()=>{{
     ownerControlStatus.textContent=workflowLabel+' · DB '+databaseSize+' bytes · '+storageRisk+' · '+protection;
     ownerStart.disabled=state.enabled;
     ownerStop.disabled=!state.enabled;
-    if(ownerBackup)ownerBackup.disabled=false;
+    if(ownerBackup){{ownerBackup.hidden=!Array.isArray(state.capabilities)||!state.capabilities.includes('backup');ownerBackup.disabled=false;}}
     applyOwnerWorkflowState(state);
     return state;
   }}catch{{
