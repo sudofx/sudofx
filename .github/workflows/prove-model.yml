@@ -16,6 +16,10 @@ on:
       - 'scripts/github_sudofx.py'
       - 'scripts/gemini_provider.py'
       - '.github/workflows/prove-model.yml'
+  schedule:
+    # Heartbeat only. Observer mode is idempotent at a human-review boundary,
+    # so this wakes the system without spending another model call unnecessarily.
+    - cron: '*/30 * * * *'
   workflow_dispatch:
 
 permissions:
