@@ -354,6 +354,22 @@ governance, checkpoints the SQLite record to the `sudofx-state` branch, verifies
 and publishes the resulting projection to Pages. The browser never holds a GitHub
 token and the Pages output is never treated as authoritative state.
 
+### Continuous Mac Runner
+
+The 30-minute GitHub schedule is a backup heartbeat. For immediate sequential
+development cycles, run this from a clean `master` checkout with an authenticated
+GitHub CLI:
+
+```bash
+scripts/run-sudofx-cycles.sh
+```
+
+The runner fast-forwards local source, dispatches one bounded cloud cycle, waits
+for its exact tokenized run, and reads the verified decision from that run's Pages
+artifact. It repeats only when the artifact explicitly says `CONTINUE`; otherwise
+it stops at `WAITING FOR YOU`, `FAILED`, or `NO MORE SAFE WORK`. Pass a positive
+number to cap the run, for example `scripts/run-sudofx-cycles.sh 3`.
+
 ## Durable Work Items
 
 The first product workflow carries an objective across disposable intelligence

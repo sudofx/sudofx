@@ -1,5 +1,10 @@
 name: sudofx — continue
 
+# A caller-supplied token gives the local runner an exact identity to discover.
+# Scheduled and one-tap runs need no token; GitHub's immutable run ID remains a
+# truthful display identity for those entry points.
+run-name: sudofx continue · ${{ inputs.dispatch_token || github.run_id }}
+
 # Stable one-tap device entry point.
 #
 # Existing iPhone/iPad/Mac Shortcuts dispatch this workflow with no parameters.
@@ -22,6 +27,11 @@ on:
     # so this wakes the system without spending another model call unnecessarily.
     - cron: '*/30 * * * *'
   workflow_dispatch:
+    inputs:
+      dispatch_token:
+        description: Optional correlation token for the local continuous runner
+        type: string
+        required: false
 
 permissions:
   contents: write

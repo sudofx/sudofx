@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sqlite3
 import sys
 import tempfile
@@ -17,7 +18,7 @@ from sudofx import (
 )
 from sudofx.record import IntegrityError, Record
 from sudofx.continuity import run_continuity_proof, run_model_continuity_probe, run_work_continuity_probe
-from sudofx.report import render
+from sudofx.report import export_site, render
 from sudofx.handoff import build_handoff_packet, export_handoff_packet
 from scripts.github_sudofx import main as github_main
 
@@ -443,6 +444,32 @@ json.dump({
         self.assertIn('href="https://sudofx.github.io/wake/">Inspired by WAKE', page)
         self.assertNotIn("Continuity Challenge", page)
         self.assertNotIn("Copy challenge", page)
+
+    def test_exported_runner_state_stops_at_human_review_boundary(self) -> None:
+        """
+        The Mac loop must continue from verified artifact meaning, not run color.
+
+        A successful cloud cycle that needs semantic judgment is deliberately a
+        stop condition: automatically dispatching again would spend a model call
+        without new authority and could bypass the human-owned decision boundary.
+        """
+        destination = Path(self.tempdir.name) / "site"
+        export_site(
+            self.kernel,
+            destination,
+            continuity_proof={
+                "passed": True,
+                "assessment_status": "semantic_review_pending",
+                "artifact_run_id": "456",
+                "artifact_commit": "abcdef",
+            },
+        )
+        state = json.loads(
+            (destination / "runner-state.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(state["schema_version"], 1)
+        self.assertEqual(state["disposition"], "WAITING FOR YOU")
+        self.assertEqual(state["artifact_run_id"], "456")
 
 
     def test_handoff_packet_is_bounded_and_portable(self) -> None:

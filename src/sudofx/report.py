@@ -673,4 +673,37 @@ def export_site(
             encoding="utf-8",
         )
     (destination / ".nojekyll").write_text("", encoding="utf-8")
+    # The local operator loop must make its continuation decision from the same
+    # verified artifact the human sees, never from workflow success alone. A
+    # green workflow proves execution; it does not prove that more work is safe.
+    # Keeping this as a derived file also prevents runner coordination from
+    # becoming a second authority beside the SQLite record.
+    proof = continuity_proof or {}
+    assessment_status = proof.get("assessment_status")
+    if assessment_status == "semantic_review_pending":
+        disposition = "WAITING FOR YOU"
+        reason = "Human semantic review is required before another safe cycle."
+    elif assessment_status == "safe_work_available":
+        disposition = "CONTINUE"
+        reason = "The verified observer artifact identifies another safe bounded cycle."
+    elif proof.get("passed") is True:
+        disposition = "NO MORE SAFE WORK"
+        reason = "The verified cycle completed without identifying another safe operation."
+    else:
+        disposition = "FAILED"
+        reason = "The observer artifact did not establish a successful governed cycle."
+    (destination / "runner-state.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "disposition": disposition,
+                "reason": reason,
+                "artifact_run_id": proof.get("artifact_run_id", ""),
+                "artifact_commit": proof.get("artifact_commit", ""),
+            },
+            indent=2,
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
     return index
