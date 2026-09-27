@@ -85,7 +85,7 @@ Recovery / inspection
 
 ## Current experiment
 
-The active `handoff-v1` record has now crossed four distinct semantic gates.
+The active `handoff-v1` record has now crossed five distinct semantic gates.
 
 First, a fresh Gemini process proved useful continuation from bounded durable
 context by reconstructing the work and choosing a concrete `VACUUM INTO`
@@ -114,6 +114,17 @@ receipts, and seventeen milestones represented only by count plus digest. It
 still reconstructed the portable-continuity objective and exact active frontier
 and proposed the correct policy action.
 
+Fifth, the promoted policy survived a second bounded repeatability trial after
+operator intent itself became durable context. One fresh process correctly
+stopped at the recorded owner-Stop boundary instead of inventing permission.
+After an explicit governed Start, **3 of 3** additional fresh processes preserved
+the objective, current frontier, compression boundary, and semantic-review duty.
+Each received **1,154 bytes instead of 43,190 bytes** (**97.33% reduction**),
+exposed one of twenty-three accepted milestones and zero receipts, and left
+production authority unchanged. The batch was then deliberately stopped and
+recorded as a structured passing assessment rather than allowed to consume
+provider capacity without adding proportional evidence.
+
 Semantic quality is now represented as governed structured data rather than
 only prose. A `record_assessment` transition stores verdict, criterion-level
 judgments, compression metrics, and provider/run/context provenance in
@@ -122,9 +133,10 @@ authoritative SQLite. The generated observer renders the newest assessment as a
 excluded from provider context; models receive only an assessment count and
 digest so measurement cannot gradually bloat the handoff being measured.
 
-Paid-vendor substitution remains deliberately deferred. Gemini is the only live
-vendor dependency until the free-vendor implementation demonstrates sustained
-success.
+Gemini has now demonstrated sustained success across two independent 3-of-3
+repeatability batches in addition to the earlier finite proofs. Paid-vendor
+substitution remains deliberately deferred until the owner chooses to spend on
+provider breadth rather than deepen the free-vendor baseline.
 
 Continuous mode is technically eligible to resume under the promoted compressed
 policy, but it remains intentionally **owner-stopped**. Nothing in these finite
@@ -158,14 +170,14 @@ The architecture is directionally aligned, but several risks remain open:
 
 The next work remains intentionally narrow:
 
-- use the structured assessment contract for future judged Gemini probes so continuity quality becomes comparable over time
-- when the owner explicitly starts continuous mode, run the promoted 1-milestone/0-receipt policy and stop visibly on the first failed gate
-- compare objective fidelity, frontier fidelity, unsupported-claim discipline, actionability, context size, and compression across judged samples
+- retain the structured assessment contract for future judged probes so continuity quality remains comparable over time
+- treat bounded, explicitly judged batches as the default experiment shape; continuous mode remains available for deliberate sustained trials
+- compare objective fidelity, frontier fidelity, unsupported-claim discipline, actionability, context size, and compression across future context or provider changes
 - preserve assessment provenance and keep all durable operational truth in SQLite
 - prevent assessment/history growth from leaking back into provider context
 - keep the uncompressed Gemini path only as an explicit diagnostic baseline
 - migrate authoritative persistence out of the public Git ref before any private or identifying context is stored
-- add another real provider only after the Gemini/free-vendor implementation has demonstrated sufficient sustained success
+- choose whether the next semantic boundary is another real provider, a longer time gap, or a human-maintainer replacement; Gemini repeatability is no longer the blocking evidence
 - establish an independent/private backup target before sensitive durable context exists
 - resist product breadth that weakens the kernel experiment
 

@@ -242,3 +242,43 @@ cycle: it is one bounded fresh-intelligence cycle against a concrete recorded
 obligation, followed by an explicit semantic verdict. Independent private
 recovery and a checkpoint-compatible state-branch protection policy remain
 future maintenance work before sensitive or materially valuable state is kept.
+
+## September 27, 2026 — Compressed continuity became repeatable evidence
+
+### The constraint
+
+A single good compressed handoff could be luck, while an unbounded continuation
+chain could consume provider capacity without producing proportionally stronger
+evidence. Operator Start and Stop also had to remain part of durable work meaning;
+browser or workflow state alone could not tell a fresh intelligence whether it
+was authorized to continue.
+
+### The decision
+
+The promoted handoff policy exposes one accepted milestone, zero receipt prose,
+and digests for omitted milestones and semantic assessments. A governed operator
+transition records Start before the first model invocation and Stop after the
+chain has been made safe. Semantic verdicts are appended separately through the
+structured `record_assessment` transition.
+
+The policy was exercised as a bounded three-process trial. All three fresh
+Gemini processes independently reconstructed the objective and live frontier
+from the same 1,154-byte context, proposed external semantic evaluation, avoided
+claims about unreadable history, and left production state unchanged. The batch
+was stopped after 3 of 3 passes and recorded in SQLite.
+
+### The consequence
+
+Gemini repeatability now consists of two independent 3-of-3 batches plus the
+earlier finite and compression proofs. The newest batch removed 97.33% of the
+full 43,190-byte context while retaining the tested meaning. The owner-stop
+boundary also produced useful negative evidence: a fresh process asked for
+explicit Start rather than treating workflow availability as authorization.
+
+### The unresolved frontier
+
+Additional identical Gemini cycles now have diminishing evidence value. The
+next semantic experiment should change a material dimension—provider, elapsed
+time, or human maintainer—while preserving the same governed assessment contract.
+Private persistence and independent recovery remain prerequisites before any
+sensitive durable context is introduced.
