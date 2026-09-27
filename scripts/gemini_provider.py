@@ -56,11 +56,13 @@ def _prompt(context: dict[str, Any]) -> str:
         "conversation history, files, tools, or hidden context beyond the bounded "
         "durable record below. Reconstruct the work from that record alone.\n\n"
         "Return ONLY a JSON object with exactly these fields:\n"
-        '{"reconstruction":"...","next_step":"...","rationale":"..."}\n\n'
+        '{"reconstruction":"...","chosen_action":"...","target":"...","verification":"...","rationale":"..."}\n\n'
         "Rules:\n"
         "- reconstruction: concise description of what the work is, what has "
         "already been accepted, and its current frontier.\n"
-        "- next_step: one concrete next action that follows from the record.\n"
+        "- chosen_action: one specific maintenance action, written as an imperative; do not restate the obligation.\n"
+        "- target: the exact system boundary or artifact the action applies to.\n"
+        "- verification: one observable check that would prove the action succeeded.\n"
         "- rationale: concise evidence-based reason using only supplied context.\n"
         "- Do not claim you performed external work, inspected unavailable files, "
         "or know anything not present in the record.\n"
@@ -93,9 +95,9 @@ def _semantic_output(raw: str) -> dict[str, str]:
         value = json.loads(raw)
     except json.JSONDecodeError as error:
         raise ValueError(f"Gemini returned non-JSON semantic output: {error.msg}") from error
-    expected = {"reconstruction", "next_step", "rationale"}
+    expected = {"reconstruction", "chosen_action", "target", "verification", "rationale"}
     if not isinstance(value, dict) or set(value) != expected:
-        raise ValueError("Gemini semantic output must contain exactly reconstruction, next_step, rationale")
+        raise ValueError("Gemini semantic output must contain exactly reconstruction, chosen_action, target, verification, rationale")
     for key in expected:
         if not isinstance(value[key], str) or not value[key].strip():
             raise ValueError(f"Gemini semantic output field {key} must be non-empty text")
@@ -163,12 +165,19 @@ def main() -> int:
     ):
         raise ValueError("work open_obligations must be a list of strings")
 
-    # Preserve existing durable obligations and add the model's proposed next
-    # step as the new frontier on the temporary snapshot only.
-    obligations = list(dict.fromkeys([*current_obligations, semantic["next_step"]]))
+    # Preserve the durable obligation while making the candidate action auditable.
+    # The snapshot may record the candidate, but it must not silently replace the
+    # human-owned frontier before semantic review accepts that action.
+    candidate_action = (
+        f"{semantic['chosen_action']} Target: {semantic['target']}. "
+        f"Verify: {semantic['verification']}"
+    )
+    obligations = list(dict.fromkeys([*current_obligations, candidate_action]))
     result_text = (
         f"Reconstruction: {semantic['reconstruction']} "
-        f"Proposed next step: {semantic['next_step']}"
+        f"Chosen action: {semantic['chosen_action']} "
+        f"Target: {semantic['target']} "
+        f"Verification: {semantic['verification']}"
     )
     json.dump(
         {
