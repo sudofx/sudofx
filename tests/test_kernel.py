@@ -683,6 +683,10 @@ json.dump({
         self.assertNotIn("window.location.replace(target.toString())", page)
         self.assertIn("Activity history", page)
         self.assertIn("overflow-x:hidden", page)
+        # Long digests are normal durable evidence. Hiding horizontal overflow
+        # alone would truncate them, so the content owner must break the token.
+        self.assertIn(".work-section li,.final-result p,.work-head code", page)
+        self.assertIn("overflow-wrap:anywhere; word-break:break-word", page)
         self.assertIn("grid-template-columns:minmax(0,1fr) auto", page)
         self.assertNotIn("General state", page)
         self.assertNotIn("Technical pass", page)

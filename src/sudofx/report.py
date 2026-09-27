@@ -423,6 +423,10 @@ def render(
     .work-section,.final-result {{ margin-top:18px; padding-top:14px; border-top:1px solid var(--line); font-size:14px }}
     .work-section b,.final-result b {{ color:var(--accent); font:700 10px var(--mono); letter-spacing:.08em; text-transform:uppercase }}
     .work-section ul,.work-section ol {{ margin:8px 0 0; padding-left:20px }} .work-section li+li {{ margin-top:6px }}
+    /* Durable results legitimately contain hashes and provider identifiers with
+       no natural break points. The card, not that untrusted text, owns width;
+       force long tokens to wrap so a phone projection never clips evidence. */
+    .work-section li,.final-result p,.work-head code {{ min-width:0; overflow-wrap:anywhere; word-break:break-word }}
     .final-result p {{ margin:8px 0 0 }}
     .empty {{ padding:28px; border:1px dashed var(--line); color:var(--muted); background:rgba(255,255,255,.28) }}
     .history {{ margin-top:8px; border-top:1px solid var(--line); padding-top:20px }}
