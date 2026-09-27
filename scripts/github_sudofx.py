@@ -57,6 +57,7 @@ from sudofx.overnight import EXPERIMENT_STATE_KEY
 ROOT = Path(__file__).resolve().parents[1]
 DATA = ROOT / "data" / "sudofx.sqlite"
 STATE_BRANCH = "sudofx-state"
+LIVE_BRANCH = "sudofx-live"
 AUTO_HANDOFF_ID = "handoff-v1"
 AUTO_HANDOFF_OBJECTIVE = (
     "Test whether a fresh intelligence with no prior conversation can reconstruct sudofx: "
@@ -218,6 +219,36 @@ def checkpoint() -> None:
             # Trust comes from verified replay and protected repository access.
             git("-C", str(checkout), "-c", "user.name=sudofx-bot", "-c", "user.email=sudofx-bot@users.noreply.github.com", "commit", "-m", "Checkpoint durable record")
             git("-C", str(checkout), "push", "origin", f"HEAD:{STATE_BRANCH}")
+        finally:
+            git("worktree", "remove", "--force", str(checkout), check=False)
+
+
+def publish_live_projection(payload: dict[str, object]) -> None:
+    """Replace the disposable live-data branch with one current JSON projection.
+
+    sudofx-live is explicitly not authority and carries no history. Each refresh
+    is a new orphan commit force-updated onto the same branch ref, so a fast-
+    changing observer never creates an append-only shadow database or a Pages
+    deployment backlog. SQLite on sudofx-state remains the only durable record.
+    """
+    with tempfile.TemporaryDirectory() as temporary:
+        checkout = Path(temporary) / "live"
+        git("worktree", "add", "--detach", str(checkout), "HEAD")
+        try:
+            git("-C", str(checkout), "checkout", "--orphan", LIVE_BRANCH)
+            git("-C", str(checkout), "rm", "-rf", "--ignore-unmatch", ".")
+            (checkout / "live.json").write_text(
+                json.dumps(payload, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+            git("-C", str(checkout), "add", "live.json")
+            git(
+                "-C", str(checkout),
+                "-c", "user.name=sudofx-bot",
+                "-c", "user.email=sudofx-bot@users.noreply.github.com",
+                "commit", "-m", "Refresh disposable live projection",
+            )
+            git("-C", str(checkout), "push", "--force", "origin", f"HEAD:{LIVE_BRANCH}")
         finally:
             git("worktree", "remove", "--force", str(checkout), check=False)
 
