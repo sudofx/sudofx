@@ -180,7 +180,10 @@ def render(
               <span class="eyebrow">Observer mode</span>
               <h2>Development status</h2>
             </div>
-            <span class="observer-state" data-observer-state>{observer_static_state}</span>
+            <div class="observer-signal" aria-live="polite">
+              <span class="status-led idle" data-status-led aria-hidden="true"></span>
+              <span class="observer-state" data-observer-state>{observer_static_state}</span>
+            </div>
           </div>
           <p class="observer-note">Live workflow telemetry comes from GitHub. Durable work, receipts, and decisions still come from the SQLite record.</p>
           <div class="observer-grid">
@@ -296,6 +299,12 @@ def render(
     .observer-console {{ margin:0 0 22px; padding:20px; border:1px solid var(--line); background:var(--surface) }}
     .observer-head {{ display:flex; align-items:flex-start; justify-content:space-between; gap:18px }}
     .observer-head h2 {{ margin:5px 0 0; font-size:24px }}
+    .observer-signal {{ display:flex; align-items:center; gap:9px }}
+    .status-led {{ width:12px; height:12px; border-radius:50%; flex:0 0 12px; animation:led-blink 1.1s ease-in-out infinite }}
+    .status-led.idle,.status-led.waiting {{ background:#e0af68; box-shadow:0 0 8px #e0af68 }}
+    .status-led.working {{ background:var(--green); box-shadow:0 0 10px var(--green) }}
+    .status-led.failed {{ background:#f7768e; box-shadow:0 0 10px #f7768e }}
+    @keyframes led-blink {{ 0%,100% {{ opacity:.25 }} 50% {{ opacity:1 }} }}
     .observer-state {{ padding:6px 9px; border:1px solid var(--line); font:800 11px var(--mono); letter-spacing:.04em }}
     .observer-state.working {{ color:var(--green); border-color:var(--green) }}
     .observer-state.failed {{ color:var(--hot); border-color:var(--hot) }}
@@ -436,6 +445,7 @@ def render(
 </main><script>
 const observer=document.querySelector('.observer-console');
 const observerState=document.querySelector('[data-observer-state]');
+const statusLed=document.querySelector('[data-status-led]');
 const currentActivity=document.querySelector('[data-current-activity]');
 const testStatus=document.querySelector('[data-test-status]');
 const currentStep=document.querySelector('[data-current-step]');
@@ -453,8 +463,10 @@ const refreshObserver=async()=>{{
     if(!run)throw new Error('No workflow run');
     latestRun.textContent='#'+String(run.run_number||run.id);
     const running=run.status!=='completed';
-    observerState.className='observer-state '+(running?'working':(run.conclusion==='failure'?'failed':''));
+    const visualState=running?'working':(run.conclusion==='failure'?'failed':({json.dumps(observer_static_state)}==='WAITING FOR YOU'?'waiting':'idle'));
+    observerState.className='observer-state '+visualState;
     observerState.textContent=running?'WORKING':(run.conclusion==='failure'?'FAILED':{json.dumps(observer_static_state)});
+    if(statusLed)statusLed.className='status-led '+visualState;
     currentActivity.textContent=running?'Bounded development cycle running':(run.conclusion==='failure'?'Workflow needs inspection':{json.dumps(observer_static_activity)});
     const jobsResponse=await fetch(run.jobs_url,{{cache:'no-store'}});
     if(jobsResponse.ok){{
@@ -478,6 +490,7 @@ const refreshObserver=async()=>{{
   }}catch(error){{
     observerDetail.textContent='Live GitHub telemetry unavailable · showing last published durable state';
     if(machineActivity)machineActivity.hidden=true;
+    if(statusLed)statusLed.className='status-led idle';
   }}
 }};
 refreshObserver();
