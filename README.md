@@ -2,325 +2,206 @@
 
 **Durable, accountable work across interchangeable intelligences.**
 
-sudofx is infrastructure for work that must survive changes in models, vendors, processes, people, and time.
+sudofx is infrastructure for work that must survive changes in models, vendors, processes, people, devices, and time.
 
-The core idea is simple:
+> Intelligence can be temporary. The work should not be.
 
-> Intelligence can be temporary.  
-> The work should not be.
+The model is never the system of record. It receives bounded context, returns a structured proposal, and can disappear. Authority remains outside the model.
 
-Instead of treating an AI model as the system of record, sudofx keeps authority outside the model.
+## North star
 
-Models receive bounded context, make proposals, and disappear.
+Build a durable work boundary that survives replacement of every intelligence participating in it.
 
-The durable system decides what becomes part of the record.
-
----
-
-## The Problem
-
-Most AI systems implicitly depend on continuity inside the intelligence performing the work.
-
-That continuity is fragile.
-
-Models change.  
-Providers change.  
-Context windows end.  
-Sessions disappear.  
-Prompts evolve.  
-People leave.
-
-If the intelligence performing the work is also responsible for remembering what happened, deciding what is valid, and maintaining the authoritative state, continuity becomes difficult to verify.
-
-sudofx separates those responsibilities.
-
----
-
-## Core Principle
-
-**Models propose. The system governs.**
-
-An intelligence may:
-
-- inspect bounded context
-- reason about the current state
-- produce a structured proposal
-
-It may not directly mutate authoritative state.
-
-State changes occur through deterministic system-controlled transitions that produce durable receipts.
-
----
-
-## The Loop
-
-The initial architecture is intentionally small:
-
-```text
-Record
-  ↓
-Context
-  ↓
-Proposal
-  ↓
-Governance
-  ↓
-Transition
-  ↓
-Receipt
-  ↓
-Record
-```
-
-### Record
-
-The durable history of what happened.
-
-The record is authoritative and append-only.
-
-### Context
-
-A bounded working set derived from the record.
-
-An intelligence receives what it needs for the current operation rather than inheriting an opaque internal memory.
-
-### Proposal
-
-A structured suggestion produced by an intelligence.
-
-A proposal describes a possible change. It does not perform the change.
-
-### Governance
-
-Deterministic rules evaluate whether the proposal is permitted.
-
-Governance lives outside the intelligence producing the proposal.
-
-### Transition
-
-An accepted proposal becomes an explicit state transition.
-
-Rejected proposals leave authoritative state unchanged.
-
-### Receipt
-
-Every meaningful operation produces evidence of what occurred, including enough provenance to reconstruct and audit the transition.
-
-The receipt becomes part of the durable record.
-
----
-
-## Architecture
-
-sudofx is built around a small set of boundaries:
-
-```text
-┌───────────────────────┐
-│    Intelligence       │
-│                       │
-│  receives context     │
-│  returns proposal     │
-└───────────┬───────────┘
-            │
-            ▼
-┌───────────────────────┐
-│      Governance       │
-│                       │
-│ deterministic checks  │
-└───────────┬───────────┘
-            │
-            ▼
-┌───────────────────────┐
-│      Transition       │
-│                       │
-│ controlled mutation   │
-└───────────┬───────────┘
-            │
-            ▼
-┌───────────────────────┐
-│    Durable Record     │
-│                       │
-│ state + receipts      │
-└───────────────────────┘
-```
-
-The intelligence is intentionally replaceable.
-
-The record is not.
-
----
-
-## Design Principles
-
-### Durable state over model memory
-
-Important state belongs in explicit storage, not inside an active model session.
-
-### Append-only history
-
-History should describe what actually occurred rather than silently rewriting the past.
-
-### Bounded context
-
-Each intelligence invocation receives an explicit working set assembled from durable state.
-
-### Structured proposals
-
-Models communicate intent through defined proposal structures rather than unrestricted state mutation.
-
-### Deterministic governance
-
-Whether a proposal is allowed should not depend on the opinion of the model that produced it.
-
-### Receipts for transitions
-
-Important actions should leave inspectable evidence.
-
-### Replayable state
-
-Current state should be reconstructable from durable history.
-
-### Provider independence
-
-Changing the intelligence provider should not require changing the fundamental work model.
-
----
-
-## v0.1
-
-The first version exists to prove one thing:
-
-> **Can governed work continue correctly when every intelligence invocation is disposable?**
-
-v0.1 focuses on the smallest system capable of answering that question.
-
-### Included
-
-- append-only durable record
-- SQLite persistence
-- bounded context construction
-- generic structured proposals
-- deterministic governance
-- controlled state transitions
-- transition receipts
-- state replay
-- provider adapters
-- CLI/runtime execution
-- deterministic fake intelligence for testing
-
-### Core Tests
-
-The architecture should demonstrate:
-
-**Continuity**
-
-A fresh intelligence can continue work using only the durable record and supplied context.
-
-**Replay**
-
-Current state can be reconstructed from history.
-
-**Substitution**
-
-One intelligence provider can be replaced by another without changing authoritative state.
-
-**Rejection**
-
-Invalid proposals can be rejected without corrupting state.
-
-**Stateless operation**
-
-No individual model invocation needs hidden knowledge from a previous invocation.
-
----
-
-## What v0.1 Is Not
-
-sudofx v0.1 is deliberately not:
-
-- an autonomous agent platform
-- a research system
-- a chatbot memory layer
-- a multi-agent simulation
-- a dashboard product
-- a metrics platform
-- a general-purpose API platform
-- an attempt to preserve a model's identity or personality
-
-Those capabilities may eventually exist around the kernel.
-
-They are not the kernel.
-
----
-
-## Why Start With a Fake Intelligence?
-
-The first intelligence implementation should be deterministic.
-
-That removes model behavior as a variable while the infrastructure is being tested.
-
-If continuity, governance, receipts, replay, and provider substitution cannot work with a predictable test intelligence, adding an LLM will only make failures harder to diagnose.
-
-Real model providers come after the core invariants are proven.
-
-## Phase 2: External Intelligence
-
-The next phase has begun with a vendor-neutral process adapter. An external
-intelligence receives one bounded Context document on standard input and returns
-one structured Proposal document on standard output. It never receives the
-SQLite record, governance authority, or a mutation callback.
-
-```bash
-.venv/bin/sudofx run --work-id launch -- python path/to/provider.py
-```
-
-The provider process may be a local model, a thin adapter around a hosted model,
-or any other executable that speaks the JSON boundary. Successful output is not
-automatically trusted: the proposal still passes through deterministic governance,
-the atomic kernel transaction, and the hash-linked receipt record. A timeout,
-process failure, or malformed response creates no proposal receipt because no
-complete proposal existed to govern.
-
----
-
-## The Boundary That Matters
-
-sudofx does not require an intelligence to remain alive, remember previous interactions, or maintain an identity.
-
-Every invocation can begin fresh.
-
-What persists is external:
-
-```text
-state
-history
-rules
-context
-transitions
-receipts
-```
-
-That separation is the foundation of the project.
-
----
-
-## Status
-
-sudofx now has an initial runnable Python kernel implementing the full governed loop.
-
-The immediate objective is not feature breadth.
-
-It is proving the kernel:
+The core loop is:
 
 ```text
 Record → Context → Proposal → Governance → Transition → Receipt → Record
 ```
 
-Everything else can grow from there.
+**Models propose. The system governs.**
 
-## Try the Kernel
+## Current status — September 26, 2026
 
-The core has no runtime dependencies beyond Python 3.11+.
+The initial kernel is implemented and runnable. The project has moved beyond a fake-provider-only proof into live bounded Gemini continuity experiments and an operator-visible cloud runtime.
+
+Implemented and exercised:
+
+- SQLite authoritative record
+- append-only, hash-linked receipts
+- deterministic governance
+- controlled transitions
+- state replay
+- bounded context construction
+- durable work items with revisions, constraints, accepted results, obligations, and lifecycle
+- provider-neutral process boundary
+- deterministic fake intelligence for testing
+- live Google Gemini adapter
+- isolated model-continuity probes that cannot mutate authoritative state
+- GitHub-hosted durable-state checkpointing on the `sudofx-state` branch
+- GitHub Pages observer generated as a disposable projection
+- continuous success-only Gemini cycle chaining
+- sequential workflow concurrency
+- visible stop-on-failure behavior
+- local recovery runner
+- owner-authenticated Start/Stop controls through a separate Cloudflare Worker
+- phone-first observer UI
+- handoff export artifacts for bounded continuity experiments
+
+The central architectural claim is therefore no longer hypothetical: a fresh intelligence can receive explicit context reconstructed from durable state and produce a governed proposal without inheriting a previous model session.
+
+What is **not** yet proven is the larger product claim: that this mechanism preserves enough useful context across repeated provider/model replacement, long time spans, and broader real work to become durable infrastructure rather than a successful kernel experiment.
+
+See [docs/STATUS.md](docs/STATUS.md) for the current objective-by-objective assessment and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the implemented boundaries.
+
+## Authority model
+
+sudofx has intentionally separate layers:
+
+```text
+master branch
+  └─ implementation + workflow definitions
+
+sudofx-state branch
+  └─ authoritative SQLite database
+
+GitHub Actions
+  └─ disposable execution environment
+
+Gemini / other provider
+  └─ disposable intelligence
+
+GitHub Pages
+  └─ derived observer projection
+
+Cloudflare control worker
+  └─ narrow authenticated Start/Stop control
+```
+
+Only the SQLite record is operational truth.
+
+Pages, JSON proof artifacts, workflow status, reports, and handoff exports are views or transport artifacts. They must never become competing durable state.
+
+## The boundary
+
+An intelligence may:
+
+- inspect bounded context
+- reason about current work
+- return a structured proposal
+
+It may not:
+
+- write the SQLite record directly
+- bypass governance
+- decide that its own output is authoritative
+- treat Pages or exported JSON as durable truth
+- inherit hidden continuity as a requirement
+
+Accepted proposals become explicit transitions. Rejected proposals leave authoritative state unchanged. Meaningful governed operations leave receipts.
+
+## Durable work
+
+The first concrete workflow carries one work item across disposable intelligence invocations.
+
+A work item contains explicit:
+
+- objective
+- constraints
+- accepted results
+- open obligations
+- lifecycle status
+- revision
+
+A fresh invocation receives only the bounded representation needed for that work item.
+
+```bash
+.venv/bin/sudofx work-create launch "Launch the first governed workflow" \
+  --constraint "Every transition leaves a receipt"
+
+.venv/bin/sudofx work-advance launch "Defined the lifecycle" \
+  --obligation "Complete the interface"
+
+.venv/bin/sudofx work-show launch
+.venv/bin/sudofx work-complete launch "Workflow delivered and verified"
+```
+
+Completed work cannot be advanced again. Rejection remains visible while authoritative state remains unchanged.
+
+## Continuous Gemini experiment
+
+The `sudofx — continue` GitHub workflow performs one bounded cycle:
+
+1. check out current source
+2. run the proof suite
+3. restore authoritative SQLite state
+4. construct bounded context
+5. ask Gemini
+6. govern the returned proposal on an isolated verification snapshot
+7. publish the human-readable observer
+8. dispatch exactly one successor after successful publication
+
+The continuous observer does **not** append every Gemini experiment to durable history. That separation is intentional: an indefinitely running experiment must not manufacture authoritative state merely because a provider returned another answer.
+
+A failed test, provider call, governance step, or deployment stops the chain visibly rather than recursively spending calls in a broken state.
+
+## Phone-first operation
+
+The GitHub Pages interface is a live observer, not an authority surface.
+
+It exposes:
+
+- current execution state
+- the bounded context sent to Gemini
+- Gemini's response
+- the governed interpretation
+- accepted/rejected receipt history
+- exact workflow/run provenance
+- owner-only Start/Stop controls after authentication
+
+Signed-in owner status is sourced from the confidential control service and outranks anonymous GitHub telemetry or an older published HTML snapshot.
+
+## Owner control boundary
+
+The public Pages artifact never receives GitHub credentials.
+
+A separate Cloudflare Worker:
+
+- performs GitHub OAuth
+- verifies the configured owner identity
+- stores no authoritative sudofx work state
+- can only inspect, enable, disable, dispatch, or cancel `prove-model.yml`
+- disables the workflow before cancelling active runs so Stop closes the successor race
+- enables the workflow before dispatching one bootstrap so Start creates one chain
+
+See [control-worker/README.md](control-worker/README.md).
+
+## Database-first storage
+
+The database is the single authoritative source of operational truth.
+
+Durable events, proposals, governance decisions, transitions, receipts, provenance, commitments, and derived state belong in SQLite. Persistent JSON, Markdown, HTML, and Pages artifacts are not alternate stores.
+
+The storage contract should remain backend-independent so SQLite can later be replaced by PostgreSQL or another durable database without changing the kernel's authority model.
+
+**One authoritative database → everything else is a view, query, or export.**
+
+## Repository structure
+
+```text
+src/sudofx/             kernel, record, governance, continuity, reporting
+scripts/                provider adapters, GitHub runtime, recovery runner
+.github/workflows/      governed cloud execution and continuation
+control-worker/         confidential owner-authenticated control boundary
+tests/                  invariant and failure-boundary proofs
+site/                   generated public projection
+data/                   local runtime database path; live cloud authority is checkpointed separately
+docs/                   architecture and current project status
+AGENTS.md               implementation and commentary discipline
+```
+
+## Try the kernel locally
+
+Python 3.11+ is required.
 
 ```bash
 python -m venv .venv
@@ -332,90 +213,50 @@ python -m venv .venv
 .venv/bin/sudofx serve
 ```
 
-Each `set` or `delete` is a structured proposal evaluated against the revision it
-observed. Accepted and rejected proposals both leave hash-linked receipts in the
-append-only SQLite record; only accepted proposals advance replayed state.
-
-Run the proof suite with:
+Run the proof suite:
 
 ```bash
 .venv/bin/python -m unittest discover -s tests -v
 ```
 
-## Phone Interface
-
-The static interface is designed for GitHub Pages and can be opened locally with
-`sudofx serve`. Its phone-first view puts live development status first, then
-shows the human-readable context sent to Gemini, Gemini's response, and the
-governed outcome. Current work remains visible and the exact accepted/rejected
-receipt chain is preserved in a collapsed, searchable history instead of
-dominating the operating view. The page polls live workflow state and published
-artifact identity; when a coherent newer artifact appears, it reloads itself so
-status, exchanges, work, and history update without operator intervention.
-It also shows whether the continuous chain is working, between successful cycles,
-or stopped on failure. There is no scheduled gap: every successfully published
-Gemini cycle dispatches its successor immediately.
-
-Owner controls use a separately deployed GitHub App control service. The public
-page shows only an owner sign-in link until that service verifies GitHub user ID
-`14032554`; Start and Stop are then revealed for that browser session. Stop
-disables the continuation workflow before cancelling active runs, while Start
-re-enables it and dispatches one bootstrap. GitHub credentials and encryption
-keys never enter the Pages artifact.
-
-In GitHub, the `sudofx — operate & publish` workflow is the authenticated control
-plane. A manual run accepts a `set` or `delete` proposal, applies deterministic
-governance, checkpoints the SQLite record to the `sudofx-state` branch, verifies it,
-and publishes the resulting projection to Pages. The browser never holds a GitHub
-token and the Pages output is never treated as authoritative state.
-
-### Continuous Cloud Runner
-
-The `sudofx — continue` workflow is a success-only cloud chain. One manual
-dispatch starts it; each completed deployment immediately dispatches exactly one
-successor. Verification, Gemini, governance, or deployment failure stops the
-chain visibly rather than spending calls in a broken loop. The workflow uses
-GitHub concurrency to keep cycles sequential and needs no awake Mac.
-
-The local runner remains available as an operator recovery tool from a clean
-`master` checkout with an authenticated GitHub CLI:
+The local continuous runner remains an operator recovery tool:
 
 ```bash
 scripts/run-sudofx-cycles.sh
 ```
 
-The runner fast-forwards local source, dispatches one bounded cloud cycle, waits
-for its exact tokenized run, and reads the verified decision from that run's Pages
-artifact. It repeats only when the artifact explicitly says `CONTINUE`; otherwise
-it stops at `FAILED` or `NO MORE SAFE WORK`. Pass a positive number to cap the
-run, for example `scripts/run-sudofx-cycles.sh 3`.
-
-## Durable Work Items
-
-The first product workflow carries an objective across disposable intelligence
-invocations. Work items have explicit constraints, accepted results, open
-obligations, lifecycle status, and their own revision inside the global record.
+Pass a positive integer to cap recovery cycles, for example:
 
 ```bash
-.venv/bin/sudofx work-create launch "Launch the first governed workflow" \
-  --constraint "Every transition leaves a receipt"
-.venv/bin/sudofx work-advance launch "Defined the lifecycle" \
-  --obligation "Complete the interface"
-.venv/bin/sudofx work-show launch
-.venv/bin/sudofx work-complete launch "Workflow delivered and verified"
+scripts/run-sudofx-cycles.sh 3
 ```
 
-`work-show` supplies only the selected work item and its receipts, demonstrating
-bounded context. A fresh provider can continue from that context without access to
-an earlier invocation. Completed work cannot be advanced again; the rejected
-proposal remains visible while authoritative state stays unchanged.
+## What sudofx is not
 
-## Implementation Commentary
+The kernel is deliberately not:
 
-sudofx treats source commentary as part of its continuity infrastructure. Every
-module and public function documents its authority, invariants, and failure
-semantics; governance, replay, recovery, provider, and concurrency boundaries
-receive the deepest treatment. The project targets roughly two lines of useful
-commentary per logical line or small block of consequential behavior without
-padding obvious plumbing with filler. The durable guidance lives in
-[`AGENTS.md`](AGENTS.md).
+- an autonomous-agent platform
+- a chatbot memory layer
+- a multi-agent simulation
+- a model identity preservation system
+- a dashboard as system of record
+- a pile of persistent JSON state
+- a provider-specific orchestration framework
+
+Those things may exist around the kernel. They are not the kernel.
+
+## Current frontier
+
+The immediate frontier is no longer "can the loop run?"
+
+It can.
+
+The frontier is:
+
+> **Can enough governed context survive model, vendor, session, device, and time replacement that useful work continues without either side depending on hidden continuity?**
+
+That is the experiment now underway.
+
+## License
+
+sudofx is licensed under the GNU Affero General Public License v3.0. See [LICENSE](LICENSE).
