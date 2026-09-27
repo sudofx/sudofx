@@ -190,7 +190,7 @@ test("Start enables the workflow before dispatching one bootstrap", async () => 
     }),
     env,
     async (url, init) => {
-      operations.push([url, init.method]);
+      operations.push([url, init.method, init.body ? JSON.parse(init.body) : null]);
       return new Response(null, { status: 204 });
     },
   );
@@ -199,6 +199,7 @@ test("Start enables the workflow before dispatching one bootstrap", async () => 
     ["/repos/sudofx/sudofx/actions/workflows/prove-model.yml/enable", "PUT"],
     ["/repos/sudofx/sudofx/actions/workflows/prove-model.yml/dispatches", "POST"],
   ]);
+  assert.equal(operations[1][2].inputs.operator_start, true);
 });
 
 test("Backup dispatches only the named verified recovery action", async () => {
@@ -246,5 +247,6 @@ test("Stop disables the workflow before discovering and cancelling active runs",
     ["/repos/sudofx/sudofx/actions/workflows/prove-model.yml", "GET"],
     ["/repos/sudofx/sudofx/actions/workflows/prove-model.yml/runs", "GET"],
     ["/repos/sudofx/sudofx/actions/runs/42/cancel", "POST"],
+    ["/repos/sudofx/sudofx/actions/workflows/sudofx.yml/dispatches", "POST"],
   ]);
 });
