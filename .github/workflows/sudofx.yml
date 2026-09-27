@@ -88,6 +88,7 @@ jobs:
       - name: Run Gemini repeatability handoff 3
         # Final finite fresh-process repeatability probe. The model sees only the
         # newly advanced bounded handoff-v1 record and cannot mutate authority.
+        # Retried only after handoff 2 finished checkpointing its authoritative verdict.
         if: github.event_name == 'push' && contains(github.event.head_commit.message, '[gemini-repeatability-3]')
         env:
           GEMINI_MODEL: gemini-3.5-flash-lite
