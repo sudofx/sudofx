@@ -85,12 +85,13 @@ jobs:
         # Tests run before any stateful action. A broken implementation must not
         # be allowed to append history merely because the workflow was dispatched.
         run: PYTHONPATH=src python -m unittest discover -s tests -v
-      - name: Run Gemini repeatability handoff 2 of 3
-        if: github.event_name == 'push' && contains(github.event.head_commit.message, '[gemini-repeatability-2]')
-        env:
-          GEMINI_MODEL: gemini-3.5-flash-lite
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: PYTHONPATH=src python scripts/github_sudofx.py --prove-model handoff-v1
+      - name: Record Gemini repeatability handoff 2 PASS
+        if: github.event_name == 'push' && contains(github.event.head_commit.message, '[gemini-repeatability-2-pass]')
+        run: |
+          PYTHONPATH=src python scripts/github_sudofx.py \
+            --action work-advance \
+            --key handoff-v1 \
+            --value '{"result":"Semantic verdict: PASS for Gemini repeatability handoff 2 of 3. Against changed bounded context (digest 59ab3c89ba04f368541f3f27799537b25ba1601e4c26c227f5ed35c41720418a), a fresh Gemini process reconstructed the sudofx continuity objective, recognized that handoff 1 had already passed, identified handoff 2 as the active frontier, proposed the required fresh-process continuation with an exact target and observable check, avoided unsupported execution claims, and left production authority unchanged.","open_obligations":["Repeatability handoff 3 of 3: invoke one final fresh Gemini process against the newly advanced bounded handoff-v1 record. It must independently reconstruct the objective, relevant accepted history including both prior repeatability passes, and the current frontier; propose one concrete next action with target and observable verification; avoid unsupported claims; receive an explicit semantic verdict; and only then may the three-handoff repeatability gate be considered complete. Keep continuous mode stopped."]}'
 
       - name: Continue current milestone automatically
         # Observer mode: one stable command handles the next safe milestone step.
@@ -162,7 +163,7 @@ jobs:
         # Code pushes and explicit phone-triggered verify runs are read-only
         # consumers of state. Publication occurs only after the test step above
         # succeeds, so Pages can truthfully identify the commit/run it reflects.
-        if: (github.event_name == 'push' && !contains(github.event.head_commit.message, '[gemini-repeatability-2]')) || (github.event_name == 'workflow_dispatch' && (inputs.action == 'verify' || inputs.action == 'backup'))
+        if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && (inputs.action == 'verify' || inputs.action == 'backup'))
         env:
           SUDOFX_CONTROL_URL: ${{ vars.SUDOFX_CONTROL_URL }}
         run: PYTHONPATH=src python scripts/github_sudofx.py --publish-only
