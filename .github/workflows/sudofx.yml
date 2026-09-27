@@ -1,14 +1,10 @@
-name: sudofx — operate & publish
+name: sudofx — operator
 
 # SUDOFX CLOUD AUTHORITY BOUNDARY
 #
-# GitHub Actions is the authenticated operator surface for the static Pages
-# interface. Pages never receives credentials and cannot write authoritative
-# state. A manual dispatch creates one proposal; the Python kernel governs it.
-#
-# master owns implementation. sudofx-state owns the SQLite event record. The
-# uploaded Pages artifact is a replaceable projection of verified replay.
-# Publishing a projection must never be mistaken for checkpointing the record.
+# This workflow is the authenticated/manual authority surface. It never owns
+# Pages deployment. A manual dispatch creates or verifies one governed operation;
+# the Python kernel remains the mutation boundary and SQLite remains authority.
 
 on:
   workflow_dispatch:
@@ -38,7 +34,9 @@ on:
 
 permissions:
   # Stateful operator actions may checkpoint the authoritative state branch.
+  # actions:write is used only to request an independent Pages refresh afterward.
   contents: write
+  actions: write
 
 concurrency:
   # All manual governed mutations serialize with the continuity runner.
@@ -47,15 +45,12 @@ concurrency:
 
 jobs:
   build:
-    # Build both verifies the implementation and renders from a verified record.
+    # Every manual authority operation verifies the implementation first.
     # A five-minute ceiling turns stuck infrastructure into a visible failure
     # rather than leaving an ambiguous operation active indefinitely.
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
-      # Every derived site artifact must know the public owner-control endpoint.
-      # Keeping this at job scope prevents finite proof paths from accidentally
-      # publishing an observer without the Owner sign-in control.
       SUDOFX_CONTROL_URL: ${{ vars.SUDOFX_CONTROL_URL }}
     steps:
       - uses: actions/checkout@v7
@@ -131,3 +126,16 @@ jobs:
           name: sudofx-recovery-${{ github.run_id }}
           path: recovery/sudofx.sqlite
           retention-days: 30
+
+  request-publication:
+    # Refresh the derived observer after a successful manual operation, but only
+    # dispatch the publication workflow; never wait for Pages inside authority.
+    needs: build
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: Request latest observer publication
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_RUN_ID: ${{ github.run_id }}
+        run: gh workflow run pages.yml --repo "$GITHUB_REPOSITORY" --ref master -f "source_run_id=$SOURCE_RUN_ID"
