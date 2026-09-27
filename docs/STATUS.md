@@ -85,10 +85,21 @@ Recovery / inspection
 
 ## Current experiment
 
-The active `handoff-v1` work item has proved bounded reconstruction mechanics,
-but it does not yet carry a concrete open obligation capable of testing useful
-continuation. The continuous runner is intentionally stopped until that
-obligation and its semantic acceptance criterion are recorded.
+The active `handoff-v1` work item now carries a concrete maintenance-continuity
+obligation in authoritative SQLite: choose one smallest recoverability action
+while preserving SQLite as sole authority and treating backups/projections only
+as derived artifacts.
+
+One fresh Gemini cycle was run against that bounded record on September 27, 2026.
+The transport/governance path succeeded, but the semantic verdict was **fail for
+useful continuation**: the model reconstructed the objective and accepted
+progress without unsupported claims, yet merely restated the obligation instead
+of choosing a concrete maintenance action. The failure and the still-open
+obligation were recorded through governed work transitions.
+
+The continuous runner remains intentionally stopped. The next experiment should
+change the bounded durable context or acceptance structure—not simply run more
+cycles against the same under-specified frontier.
 
 Every continuous cycle is deliberately a test, not a state mutation.
 
