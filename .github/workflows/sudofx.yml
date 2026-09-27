@@ -85,6 +85,15 @@ jobs:
         # Tests run before any stateful action. A broken implementation must not
         # be allowed to append history merely because the workflow was dispatched.
         run: PYTHONPATH=src python -m unittest discover -s tests -v
+      - name: Run Gemini repeatability handoff 3
+        # Final finite fresh-process repeatability probe. The model sees only the
+        # newly advanced bounded handoff-v1 record and cannot mutate authority.
+        if: github.event_name == 'push' && contains(github.event.head_commit.message, '[gemini-repeatability-3]')
+        env:
+          GEMINI_MODEL: gemini-3.5-flash-lite
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: PYTHONPATH=src python scripts/github_sudofx.py --prove-model handoff-v1
+
       - name: Record Gemini repeatability handoff 2 PASS
         if: github.event_name == 'push' && contains(github.event.head_commit.message, '[gemini-repeatability-2-pass]')
         run: |
