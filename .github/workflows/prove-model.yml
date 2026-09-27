@@ -70,22 +70,10 @@ jobs:
             args+=(--operator-start)
           fi
           PYTHONPATH=src python scripts/overnight_sudofx.py "${args[@]}"
-  request-publication:
-    # Publication is derived and replaceable. Dispatch it after authoritative
-    # observation recording, but never make the next model wait for Pages.
-    needs: continue
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    steps:
-      - name: Request latest observer publication
-        env:
-          GH_TOKEN: ${{ github.token }}
-          SOURCE_RUN_ID: ${{ github.run_id }}
-        run: gh workflow run pages.yml --repo "$GITHUB_REPOSITORY" --ref master -f "source_run_id=$SOURCE_RUN_ID"
-
   continue-again:
     # A successor depends only on the completed governed continuity cycle.
-    # Pages has its own cancel-stale lane and cannot throttle stateful work.
+    # No Pages job exists in this runtime path; the browser reads live projection
+    # data independently from the replaceable sudofx-live branch.
     needs: continue
     runs-on: ubuntu-latest
     steps:
