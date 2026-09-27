@@ -407,6 +407,12 @@ json.dump({
         self.assertIn("data-exchange-response", page)
         self.assertIn("continuity-proof.json?ts=", page)
         self.assertIn("setInterval(refreshExchange,15000)", page)
+        # A signed-in owner has stronger evidence than the anonymous observer.
+        # Stop must therefore replace a stale continuous fallback everywhere,
+        # not merely beside the buttons at the bottom of the status panel.
+        self.assertIn("Authenticated owner control confirms the workflow is disabled", page)
+        self.assertIn("Continuous tests stopped by owner", page)
+        self.assertIn("if(ownerSession()&&await refreshOwnerControls())return", page)
         self.assertIn('data-published-run-id="123"', page)
         # Live telemetry updates the status and Gemini exchange in place. A
         # whole-page refresh here would repeatedly reset the mobile viewport

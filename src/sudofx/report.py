@@ -440,8 +440,29 @@ const ownerRequest=async(path,method='GET')=>{{
   if(!response.ok)throw new Error(body.error||'Owner control request failed');
   return body;
 }};
+const applyOwnerWorkflowState=(state)=>{{
+  // The authenticated control service reads the workflow's enabled flag and
+  // active runs with the owner's GitHub token. When available, that evidence
+  // outranks both anonymous API telemetry and the last published HTML snapshot.
+  const running=state.enabled&&state.activeRuns.length>0;
+  const visualState=running?'working':(state.enabled?'continuous':'idle');
+  observer.className='observer-console '+visualState;
+  observerState.className='observer-state '+visualState;
+  observerState.textContent=running?'WORKING':(state.enabled?'CONTINUOUS':'STOPPED');
+  currentActivity.textContent=running
+    ?'Waiting for Gemini and governing its response'
+    :(state.enabled?'Continuous runner enabled; next cycle is starting':'Continuous tests stopped by owner');
+  currentStep.textContent=running?'GitHub Actions cycle in progress':(state.enabled?'Starting next cycle':'No Gemini request in progress');
+  updateNextCheck(visualState);
+  observerDetail.textContent=state.enabled
+    ?'Authenticated owner control confirms continuous operation is enabled.'
+    :'Authenticated owner control confirms the workflow is disabled and no new cycle can start.';
+  if(statusLed)statusLed.className='status-led '+visualState;
+  if(machineActivity){{machineActivity.hidden=!running;machineActivity.classList.toggle('working',running);}}
+  if(exchangeStatus){{exchangeStatus.textContent=running?'WAITING ON GEMINI':'LAST EXCHANGE';exchangeStatus.className='exchange-status '+(running?'working':'');}}
+}};
 const refreshOwnerControls=async()=>{{
-  if(!controlUrl||!ownerControls||!ownerSession())return;
+  if(!controlUrl||!ownerControls||!ownerSession())return null;
   try{{
     const state=await ownerRequest('/api/session');
     ownerLogin.hidden=true;
@@ -450,10 +471,13 @@ const refreshOwnerControls=async()=>{{
     ownerControlStatus.textContent=state.enabled?(state.activeRuns.length?'Running now':'Enabled · next cycle starting'):'Stopped';
     ownerStart.disabled=state.enabled;
     ownerStop.disabled=!state.enabled;
+    applyOwnerWorkflowState(state);
+    return state;
   }}catch{{
     try{{sessionStorage.removeItem(ownerSessionKey)}}catch{{}}
     ownerControls.hidden=true;
     ownerLogin.hidden=false;
+    return null;
   }}
 }};
 const operateOwnerControl=async(path)=>{{
@@ -463,7 +487,6 @@ const operateOwnerControl=async(path)=>{{
 }};
 if(ownerStart)ownerStart.addEventListener('click',()=>operateOwnerControl('/api/start'));
 if(ownerStop)ownerStop.addEventListener('click',()=>operateOwnerControl('/api/stop'));
-refreshOwnerControls();
 // The workflow owns a success-only successor chain. This field describes that
 // lifecycle rather than estimating a wall-clock time that no longer exists.
 const updateNextCheck=(state)=>{{
@@ -474,6 +497,10 @@ const updateNextCheck=(state)=>{{
 }};
 const refreshObserver=async()=>{{
   if(!observer)return;
+  // Signed-in owners already have a narrower, authenticated status source.
+  // Avoid letting an anonymous rate limit or stale published artifact overwrite
+  // a successful Stop with the opposite message.
+  if(ownerSession()&&await refreshOwnerControls())return;
   const repo=observer.dataset.repository, workflow=observer.dataset.workflow;
   try{{
     const response=await fetch('https://api.github.com/repos/'+repo+'/actions/workflows/'+workflow+'/runs?per_page=1',{{cache:'no-store'}});
