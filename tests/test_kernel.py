@@ -22,6 +22,7 @@ from sudofx.record import APPLICATION_ID, SCHEMA_VERSION, IntegrityError, Record
 from sudofx.continuity import (
     run_compressed_model_continuity_probe,
     run_continuity_proof,
+    run_default_model_continuity_probe,
     run_model_continuity_probe,
     run_work_continuity_probe,
 )
@@ -377,6 +378,77 @@ json.dump({
         self.assertTrue(proof["checks"]["omitted_history_anchored_by_digest"])
         self.assertFalse(proof["checks"]["production_state_mutated"])
         self.assertEqual(before, after)
+
+    def test_default_model_handoff_uses_one_milestone_and_zero_receipts(self) -> None:
+        """Normal live-model context uses the smallest semantic slice proven so far."""
+        self.kernel.submit(
+            Proposal(
+                "default-compressed-create",
+                0,
+                (
+                    Operation(
+                        "create_work",
+                        "default-compressed",
+                        {
+                            "objective": "Continue from minimal governed context",
+                            "constraints": ["SQLite remains authoritative"],
+                        },
+                    ),
+                ),
+            )
+        )
+        for index in range(3):
+            self.kernel.submit(
+                Proposal(
+                    f"default-compressed-{index}",
+                    index + 1,
+                    (
+                        Operation(
+                            "advance_work",
+                            "default-compressed",
+                            {
+                                "result": f"Milestone {index}",
+                                "open_obligations": ["Continue the frontier"],
+                            },
+                        ),
+                    ),
+                )
+            )
+
+        helper = """
+import json, sys
+context = json.load(sys.stdin)
+work = context["state"]["work:default-compressed"]
+assert work["accepted_result_count"] == 3
+assert work["accepted_results_recent"] == ["Milestone 2"]
+assert work["omitted_accepted_results_count"] == 2
+assert len(work["omitted_accepted_results_digest"]) == 64
+assert context["recent_receipts"] == []
+json.dump({
+    "proposal_id": f"default-compressed-{context['revision']}",
+    "based_on_revision": context["revision"],
+    "operations": [{
+        "action": "advance_work",
+        "key": work["id"],
+        "value": {
+            "result": "Minimal default context continued correctly.",
+            "open_obligations": ["Judge the promoted default"]
+        }
+    }],
+    "rationale": "used the promoted default handoff"
+}, sys.stdout)
+"""
+        proof = run_default_model_continuity_probe(
+            self.path,
+            "default-compressed",
+            (sys.executable, "-c", helper),
+            provider="test-provider",
+            model="test-model",
+        )
+        self.assertTrue(proof["passed"])
+        self.assertEqual(proof["compression"]["accepted_results_exposed"], 1)
+        self.assertEqual(proof["compression"]["receipt_count_exposed"], 0)
+        self.assertFalse(proof["checks"]["production_state_mutated"])
 
     def test_kernel_depends_on_storage_contract_not_sqlite_connection(self) -> None:
         """
