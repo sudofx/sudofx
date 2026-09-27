@@ -338,13 +338,14 @@ def render(
     .observer-signal {{ display:flex; align-items:center; gap:9px }}
     .status-led {{ width:12px; height:12px; border-radius:50%; flex:0 0 12px; animation:led-blink 1.1s ease-in-out infinite }}
     .status-led.checking {{ background:var(--accent); box-shadow:0 0 9px var(--accent) }}
-    .status-led.idle,.status-led.waiting {{ background:#e0af68; box-shadow:0 0 8px #e0af68 }}
+    .status-led.idle {{ background:#f7768e; box-shadow:0 0 10px #f7768e }}\n    .status-led.waiting {{ background:#e0af68; box-shadow:0 0 8px #e0af68 }}
     .status-led.continuous {{ background:var(--green); box-shadow:0 0 10px var(--green) }}
     .status-led.working {{ background:var(--green); box-shadow:0 0 10px var(--green) }}
     .status-led.failed {{ background:#f7768e; box-shadow:0 0 10px #f7768e }}
     @keyframes led-blink {{ 0%,100% {{ opacity:.25 }} 50% {{ opacity:1 }} }}
     .observer-state {{ padding:6px 9px; border:1px solid var(--line); font:800 11px var(--mono); letter-spacing:.04em }}
     .observer-state.working {{ color:var(--green); border-color:var(--green) }}
+    .observer-state.idle {{ color:#f7768e; border-color:#f7768e }}
     .observer-state.failed {{ color:var(--hot); border-color:var(--hot) }}
     .observer-state.waiting {{ color:var(--accent); border-color:var(--accent) }}
     .observer-state.continuous {{ color:var(--green); border-color:var(--green) }}
