@@ -653,6 +653,30 @@ json.dump({
         self.assertEqual(recovered.revision, 1)
         self.assertEqual(recovered.state, {"safe": True})
 
+    def test_vacuum_snapshot_replays_without_mutating_authority(self) -> None:
+        """VACUUM INTO must yield a replayable derivative while source authority stays unchanged."""
+        accepted = self.kernel.submit(
+            Proposal("vacuum-source", 0, (Operation("set", "recoverable", True),))
+        )
+        self.assertEqual(accepted.status, "accepted")
+        before = self.kernel.context()
+        source_history = self.kernel.record.history()
+        source_head = source_history[-1]["event_hash"]
+
+        snapshot = Path(self.tempdir.name) / "vacuum-snapshot.sqlite"
+        self.kernel.record.vacuum_snapshot_to(snapshot)
+
+        recovered = Kernel(Record(snapshot)).context()
+        after = self.kernel.context()
+        after_history = self.kernel.record.history()
+        self.assertEqual(recovered.revision, before.revision)
+        self.assertEqual(recovered.state, before.state)
+        self.assertEqual(after.revision, before.revision)
+        self.assertEqual(after.state, before.state)
+        self.assertEqual(after_history[-1]["event_hash"], source_head)
+        with closing(sqlite3.connect(snapshot)) as connection:
+            self.assertEqual(connection.execute("PRAGMA integrity_check").fetchone()[0], "ok")
+
     def test_projection_history_is_bounded_without_pruning_authority(self) -> None:
         """A growing record must not create an unbounded public page or lose receipts."""
         for revision in range(60):
