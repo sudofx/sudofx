@@ -289,7 +289,7 @@ def render(
             <a href="https://github.com/{_escape(repository)}/actions/workflows/prove-model.yml">Open workflow ↗</a>
           </div>
           {f'''<div class="owner-access" data-owner-access>
-            <a class="owner-login" data-owner-login href="{_escape(control_url)}/auth/login">Owner sign in</a>
+            <a class="owner-login" data-owner-login href="{_escape(control_url)}/auth/login">Operator sign in</a>
             <div class="owner-controls" data-owner-controls hidden aria-live="polite">
               <span data-owner-identity></span>
               <span data-owner-control-status>Checking controls…</span>
