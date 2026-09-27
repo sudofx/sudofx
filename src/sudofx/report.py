@@ -47,18 +47,24 @@ def _public_model_response(proof: dict[str, object]) -> str:
     # Older continuity probes used transport-oriented labels. Preserve their
     # actual content while removing labels that make the public page read like
     # an internal test report.
-    if raw.startswith("Reconstruction:") and " Chosen action:" in raw:
-        understood, rest = raw[len("Reconstruction:"):].split(" Chosen action:", 1)
-        suggestion = rest
-        verification = ""
-        if " Verification:" in suggestion:
-            suggestion, verification = suggestion.split(" Verification:", 1)
-        if " Target:" in suggestion:
-            suggestion = suggestion.split(" Target:", 1)[0]
-        text = f"Gemini understood: {understood.strip()} Gemini suggests: {suggestion.strip()}"
-        if verification.strip():
-            text += f" We would know it worked if: {verification.strip()}"
-        return text
+    if raw.startswith("Reconstruction:"):
+        label = None
+        if " Chosen action:" in raw:
+            label = " Chosen action:"
+        elif " Proposed next step:" in raw:
+            label = " Proposed next step:"
+        if label:
+            understood, rest = raw[len("Reconstruction:"):].split(label, 1)
+            suggestion = rest
+            verification = ""
+            if " Verification:" in suggestion:
+                suggestion, verification = suggestion.split(" Verification:", 1)
+            if " Target:" in suggestion:
+                suggestion = suggestion.split(" Target:", 1)[0]
+            text = f"Gemini understood: {understood.strip()} Gemini suggests: {suggestion.strip()}"
+            if verification.strip():
+                text += f" We would know it worked if: {verification.strip()}"
+            return text
 
     return raw
 
@@ -875,15 +881,19 @@ const publicAnswer=(proof)=>{{
   const raw=String(proof.candidate_result||'').trim();
   if(!raw)return 'No Gemini answer has been published yet.';
   if(raw.startsWith('Gemini understood:'))return raw;
-  if(raw.startsWith('Reconstruction:')&&raw.includes(' Chosen action:')){{
-    const pieces=raw.slice('Reconstruction:'.length).split(' Chosen action:');
-    const understood=pieces.shift().trim();
-    let suggestion=pieces.join(' Chosen action:');
-    let verification='';
-    if(suggestion.includes(' Verification:'))[suggestion,verification]=suggestion.split(' Verification:',2);
-    if(suggestion.includes(' Target:'))suggestion=suggestion.split(' Target:',1)[0];
-    return 'Gemini understood: '+understood+' Gemini suggests: '+suggestion.trim()
-      +(verification.trim()?' We would know it worked if: '+verification.trim():'');
+  if(raw.startsWith('Reconstruction:')){{
+    const label=raw.includes(' Chosen action:')?' Chosen action:'
+      :(raw.includes(' Proposed next step:')?' Proposed next step:':'');
+    if(label){{
+      const pieces=raw.slice('Reconstruction:'.length).split(label);
+      const understood=pieces.shift().trim();
+      let suggestion=pieces.join(label);
+      let verification='';
+      if(suggestion.includes(' Verification:'))[suggestion,verification]=suggestion.split(' Verification:',2);
+      if(suggestion.includes(' Target:'))suggestion=suggestion.split(' Target:',1)[0];
+      return 'Gemini understood: '+understood+' Gemini suggests: '+suggestion.trim()
+        +(verification.trim()?' We would know it worked if: '+verification.trim():'');
+    }}
   }}
   return raw;
 }};
