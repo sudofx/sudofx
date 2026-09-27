@@ -372,14 +372,12 @@ def main() -> int:
         model = os.environ.get("GEMINI_MODEL", "").strip()
         if not model:
             parser.error("GEMINI_MODEL is required for --prove-model")
-        continuity_proof = run_compressed_model_continuity_probe(
+        continuity_proof = run_default_model_continuity_probe(
             DATA,
             prove_model_id,
             (sys.executable, str(ROOT / "scripts" / "gemini_provider.py")),
             provider="Google Gemini",
             model=model,
-            recent_result_limit=1,
-            receipt_limit=0,
         )
     elif prove_model_uncompressed_id:
         # Explicit diagnostic baseline only. This preserves the old full-context
@@ -442,14 +440,12 @@ def main() -> int:
         model = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash-lite").strip()
         if not os.environ.get("GEMINI_API_KEY", "").strip():
             raise RuntimeError("GEMINI_API_KEY is required for observer-mode handoff")
-        continuity_proof = run_compressed_model_continuity_probe(
+        continuity_proof = run_default_model_continuity_probe(
             DATA,
             auto_handoff_id,
             (sys.executable, str(ROOT / "scripts" / "gemini_provider.py")),
             provider="Google Gemini",
             model=model,
-            recent_result_limit=1,
-            receipt_limit=0,
         )
         if continuity_proof.get("assessment_status") != "semantic_review_pending":
             raise AssertionError("observer model probe did not reach semantic review")
