@@ -67,7 +67,6 @@ Disposable execution
 
 Disposable intelligence
   Gemini provider adapter
-  Anthropic provider adapter
   deterministic fake provider
 
 Deterministic authority
@@ -129,12 +128,22 @@ The new frontier is provider substitution: give the same bounded handoff-v1
 context to a materially different real model/provider and compare whether useful
 continuation survives without changing the authority contract.
 
-A second-provider Anthropic adapter and explicit `prove-anthropic` operator path
-are now implemented using the same bounded Context -> Proposal -> governance
-boundary as Gemini. The first finite Anthropic attempt did not reach the model:
-GitHub Actions had no `ANTHROPIC_API_KEY` secret, so the adapter failed closed
-before any provider request, semantic verdict, or authoritative mutation. This is
-an infrastructure prerequisite, not evidence for or against semantic continuity.
+Live paid-vendor substitution is deliberately deferred until sudofx first
+demonstrates sustained success with the available free Gemini provider. The
+provider-neutral boundary remains an architectural requirement, but paid-vendor
+credentials are not a current project dependency.
+
+The first finite Gemini repeatability gate is now complete: three successive
+fresh Gemini processes each received a newly advanced bounded `handoff-v1`
+record, reconstructed the objective and relevant accepted history, identified
+the current frontier, proposed a concrete next action with target and observable
+verification, avoided unsupported execution claims, and left production
+authority unchanged. Each handoff received an explicit human semantic PASS
+before the next authoritative frontier was recorded.
+
+The continuous runner remains intentionally stopped. The next experiment tests
+semantic retention under deliberate context compression rather than accumulating
+more identical successful cycles.
 
 Every continuous cycle is deliberately a test, not a state mutation.
 
@@ -164,10 +173,11 @@ The architecture is directionally aligned, but several risks remain open:
 
 The next governed experiment should remain narrow:
 
-- test the same bounded `handoff-v1` frontier with a materially different real model/provider
-- compare semantic continuation evidence across providers without ranking models
-- measure continuity quality instead of merely cycle success
-- keep continuous operation stopped until that cross-provider result is judged
+- derive a smaller sanitized `handoff-v1` context from authoritative history
+- preserve objective, accepted milestones, current frontier, constraints, and provenance while removing redundant detail
+- run one fresh Gemini process against that compressed context
+- compare its semantic continuation against the three uncompressed repeatability passes
+- keep continuous operation stopped until the compression result is judged
 - make reconstruction quality comparable over time
 - preserve provenance for every derived context unit
 - keep all durable operational truth in the database
