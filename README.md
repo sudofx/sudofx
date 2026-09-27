@@ -349,7 +349,9 @@ The static interface is designed for GitHub Pages and can be opened locally with
 shows the human-readable context sent to Gemini, Gemini's response, and the
 governed outcome. Current work remains visible and the exact accepted/rejected
 receipt chain is preserved in a collapsed, searchable history instead of
-dominating the operating view.
+dominating the operating view. The page polls live workflow state and published
+artifact identity; when a coherent newer artifact appears, it reloads itself so
+status, exchanges, work, and history update without operator intervention.
 
 In GitHub, the `sudofx — operate & publish` workflow is the authenticated control
 plane. A manual run accepts a `set` or `delete` proposal, applies deterministic
