@@ -43,7 +43,12 @@ from pathlib import Path
 
 from sudofx import Kernel, Operation, Proposal
 from sudofx.record import Record
-from sudofx.continuity import run_continuity_proof, run_model_continuity_probe, run_work_continuity_probe
+from sudofx.continuity import (
+    run_continuity_proof,
+    run_model_continuity_probe,
+    run_vacuum_recovery_probe,
+    run_work_continuity_probe,
+)
 from sudofx.report import export_site
 from sudofx.handoff import export_handoff_packet
 
@@ -185,6 +190,7 @@ def main() -> int:
     parser.add_argument("--prove-model")
     parser.add_argument("--export-handoff")
     parser.add_argument("--backup")
+    parser.add_argument("--prove-vacuum-recovery", action="store_true")
     parser.add_argument("--auto", action="store_true")
     parser.add_argument(
         "--action", choices=("set", "delete", "work-create", "work-advance", "work-complete")
@@ -211,6 +217,12 @@ def main() -> int:
         backup_path = Path(args.backup)
         record.backup_to(backup_path)
         print(json.dumps({"backup": str(backup_path), "health": record.health()}, sort_keys=True))
+        return 0
+    if args.prove_vacuum_recovery:
+        if not restored:
+            raise RuntimeError("VACUUM recovery probe requires an existing authoritative record")
+        proof = run_vacuum_recovery_probe(DATA)
+        print(json.dumps(proof, sort_keys=True))
         return 0
 
     # Observer-mode automation: one stable operator command advances the current
