@@ -11,16 +11,6 @@ name: sudofx — operate & publish
 # Publishing a projection must never be mistaken for checkpointing the record.
 
 on:
-  # Source changes refresh the public projection without creating a proposal or
-  # appending an event. This keeps presentation current without fabricating work.
-  push:
-    branches: [master]
-    paths:
-      - 'src/**'
-      - 'tests/**'
-      - 'scripts/github_sudofx.py'
-      - 'pyproject.toml'
-      - '.github/workflows/sudofx.yml'
   workflow_dispatch:
     # Manual inputs are deliberately narrow. They are operator-supplied proposal
     # material, not direct database fields or lifecycle status overrides.
@@ -47,19 +37,13 @@ on:
         required: false
 
 permissions:
-  # contents:write is needed only for the durable state branch checkpoint.
-  # Pages permissions publish the derived artifact through GitHub's native path.
-  # No third-party deployment token is stored or exposed to browser JavaScript.
+  # Stateful operator actions may checkpoint the authoritative state branch.
   contents: write
-  pages: write
-  id-token: write
 
 concurrency:
-  # Read-only source-change publications must never occupy the authoritative
-  # mutation lane. Manual operations still serialize with the Gemini continuity
-  # workflow, while replaceable projection refreshes use their own lane.
-  group: ${{ github.event_name == 'push' && 'sudofx-projection' || 'sudofx-authority-v2' }}
-  cancel-in-progress: ${{ github.event_name == 'push' }}
+  # All manual governed mutations serialize with the continuity runner.
+  group: sudofx-authority-v3
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -147,44 +131,3 @@ jobs:
           name: sudofx-recovery-${{ github.run_id }}
           path: recovery/sudofx.sqlite
           retention-days: 30
-      - name: Render verified record
-        # Code pushes and explicit phone-triggered verify runs are read-only
-        # consumers of state. Publication occurs only after the test step above
-        # succeeds, so Pages can truthfully identify the commit/run it reflects.
-        if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && (inputs.action == 'verify' || inputs.action == 'backup'))
-        env:
-          SUDOFX_CONTROL_URL: ${{ vars.SUDOFX_CONTROL_URL }}
-        run: PYTHONPATH=src python scripts/github_sudofx.py --publish-only
-      - name: Configure Pages
-        # Native Pages configuration supplies the correct base path and deployment
-        # metadata for the project site. Custom-domain ownership is intentionally
-        # absent while sudofx.com remains a simple registrar forward.
-        uses: actions/configure-pages@v6
-        with:
-          enablement: true
-      - name: Upload phone interface
-        # The artifact contains only derived static files. The SQLite database is
-        # checkpointed separately and must never be included in the public bundle.
-        uses: actions/upload-pages-artifact@v5
-        with:
-          path: site
-
-  deploy:
-    # Deployment is isolated from record mutation. If artifact publication fails,
-    # durable state remains valid and a later read-only run may safely republish it.
-    needs: build
-    runs-on: ubuntu-latest
-    concurrency:
-      group: pages
-      cancel-in-progress: true
-    environment:
-      # GitHub records the deployment URL and protects the Pages environment using
-      # repository-native controls rather than a custom secret-bearing publisher.
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Publish interface
-        # deploy-pages consumes the exact artifact uploaded by build. It does not
-        # rerun governance, replay operations, or synthesize a second projection.
-        id: deployment
-        uses: actions/deploy-pages@v5
