@@ -28,7 +28,7 @@ on:
       action:
         description: Verify only, or run one governed operation
         type: choice
-        options: [auto, verify, backup, prove-work, prove-model, export-handoff, work-create, work-advance, work-complete, set, delete]
+        options: [auto, verify, backup, prove-work, prove-model, prove-anthropic, export-handoff, work-create, work-advance, work-complete, set, delete]
         default: auto
         required: true
       key:
@@ -44,6 +44,11 @@ on:
         description: Gemini model ID for prove-model only
         type: string
         default: 'gemini-3.5-flash-lite'
+        required: false
+      anthropic_model:
+        description: Anthropic model ID for prove-anthropic only
+        type: string
+        default: 'claude-sonnet-5'
         required: false
 
 permissions:
@@ -80,16 +85,6 @@ jobs:
         # Tests run before any stateful action. A broken implementation must not
         # be allowed to append history merely because the workflow was dispatched.
         run: PYTHONPATH=src python -m unittest discover -s tests -v
-      - name: Run one Anthropic provider-substitution probe
-        # Same bounded work and governance path as Gemini; only the real model
-        # provider changes. This is read-only against authoritative state and
-        # preserves its own proof artifact for human semantic review.
-        if: github.event_name == 'push' && contains(github.event.head_commit.message, '[handoff-v1-anthropic]')
-        env:
-          ANTHROPIC_MODEL: claude-sonnet-5
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        run: PYTHONPATH=src python scripts/github_sudofx.py --prove-anthropic handoff-v1
-
       - name: Continue current milestone automatically
         # Observer mode: one stable command handles the next safe milestone step.
         # The operator should not have to carry work IDs or long context between devices.
@@ -100,7 +95,7 @@ jobs:
       - name: Apply governed operation
         # Only a manual dispatch enters the mutation path. The adapter restores
         # and verifies sudofx-state, appends one receipt, checkpoints, and renders.
-        if: github.event_name == 'workflow_dispatch' && inputs.action != 'auto' && inputs.action != 'verify' && inputs.action != 'backup' && inputs.action != 'prove-work' && inputs.action != 'prove-model' && inputs.action != 'export-handoff'
+        if: github.event_name == 'workflow_dispatch' && inputs.action != 'auto' && inputs.action != 'verify' && inputs.action != 'backup' && inputs.action != 'prove-work' && inputs.action != 'prove-model' && inputs.action != 'prove-anthropic' && inputs.action != 'export-handoff'
         env:
           ACTION: ${{ inputs.action }}
           KEY: ${{ inputs.key }}
@@ -124,6 +119,15 @@ jobs:
           GEMINI_MODEL: ${{ inputs.model }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: PYTHONPATH=src python scripts/github_sudofx.py --prove-model "$KEY"
+      - name: Probe Anthropic continuity
+        # Same bounded work/proposal contract as the Gemini path. A missing key
+        # fails visibly before any provider call or authoritative mutation.
+        if: github.event_name == 'workflow_dispatch' && inputs.action == 'prove-anthropic'
+        env:
+          KEY: ${{ inputs.key }}
+          ANTHROPIC_MODEL: ${{ inputs.anthropic_model }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: PYTHONPATH=src python scripts/github_sudofx.py --prove-anthropic "$KEY"
       - name: Export handoff packet
         # A handoff export is a derived, read-only view of one governed work item.
         # It never becomes database authority and never mutates the state branch.
@@ -151,7 +155,7 @@ jobs:
         # Code pushes and explicit phone-triggered verify runs are read-only
         # consumers of state. Publication occurs only after the test step above
         # succeeds, so Pages can truthfully identify the commit/run it reflects.
-        if: (github.event_name == 'push' && !contains(github.event.head_commit.message, '[handoff-v1-anthropic]')) || (github.event_name == 'workflow_dispatch' && (inputs.action == 'verify' || inputs.action == 'backup'))
+        if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && (inputs.action == 'verify' || inputs.action == 'backup'))
         env:
           SUDOFX_CONTROL_URL: ${{ vars.SUDOFX_CONTROL_URL }}
         run: PYTHONPATH=src python scripts/github_sudofx.py --publish-only
