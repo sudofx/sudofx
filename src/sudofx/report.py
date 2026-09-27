@@ -499,6 +499,13 @@ const ownerStop=document.querySelector('[data-owner-stop]');
 const ownerBackup=document.querySelector('[data-owner-backup]');
 const ownerSessionKey='sudofx-owner-session';
 const ownerFragment='#sudofx-control=';
+try{{
+  if(!localStorage.getItem(ownerSessionKey)){{
+    const legacy=sessionStorage.getItem(ownerSessionKey);
+    if(legacy)localStorage.setItem(ownerSessionKey,legacy);
+  }}
+  sessionStorage.removeItem(ownerSessionKey);
+}}catch{{}}
 // OAuth returns encrypted session ciphertext in the fragment. Fragments never
 // reach Pages or referrer headers; move it to origin-persistent localStorage and immediately
 // remove it from the address bar before making an authenticated request.
