@@ -859,7 +859,9 @@ json.dump({
         self.assertIn("navigator.clipboard.writeText", page)
         self.assertIn("Paste the complete response here", page)
         self.assertIn("Copy for Codex analysis", page)
-        self.assertIn("Response is waiting only in this page", page)
+        self.assertNotIn("Keep it here", page)
+        self.assertIn("CURRENT OPERATOR AUTHORIZATION", page)
+        self.assertIn("exactly one manual response", page)
         # The report is a Python-generated JavaScript program. Newlines inside
         # this quoted packet must remain escaped in the emitted source or one
         # optional handoff control will break the entire authentication UI.

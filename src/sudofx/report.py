@@ -543,7 +543,7 @@ def render(
       <label class="handoff-field">Prompt to paste<textarea data-handoff-prompt readonly>{_escape(manual_prompt)}</textarea></label>
       <div class="handoff-actions"><button type="button" data-handoff-copy>Copy prompt</button></div>
       <label class="handoff-field">Paste the response<textarea data-handoff-response placeholder="Paste the complete response here. It remains only in this browser page."></textarea></label>
-      <div class="handoff-actions"><button type="button" data-handoff-wait>Keep it here</button><button type="button" data-handoff-analyze>Copy for Codex analysis</button></div>
+      <div class="handoff-actions"><button type="button" data-handoff-analyze>Copy for Codex analysis</button></div>
       <p class="handoff-note" data-handoff-status>Select a destination. The prompt will be copied automatically when the browser permits it.</p>
     </div>
   </dialog>
@@ -583,6 +583,7 @@ const handoffDialog=document.querySelector('[data-handoff-dialog]');
 const handoffPrompt=document.querySelector('[data-handoff-prompt]');
 const handoffResponse=document.querySelector('[data-handoff-response]');
 const handoffStatus=document.querySelector('[data-handoff-status]');
+const handoffBasePrompt=handoffPrompt?.value||'';
 let handoffProvider='';
 const ownerSessionKey='sudofx-owner-session';
 const ownerFragment='#sudofx-control=';
@@ -683,6 +684,11 @@ const copyText=async(value)=>{{
 }};
 const selectHandoffProvider=async(button)=>{{
   handoffProvider=button.dataset.handoffProvider||'';
+  // Selecting a destination is a fresh authenticated operator action. Carry
+  // that narrow authority with the human-transported packet so a prior durable
+  // Stop still blocks automation but does not make this one requested response
+  // look unauthorized to the receiving intelligence.
+  handoffPrompt.value='CURRENT OPERATOR AUTHORIZATION\\nThe authenticated operator explicitly selected '+handoffProvider+' for exactly one manual response to this packet. This authorizes the response only; it does not authorize durable mutation, continuous execution, or another model invocation. A prior Stop in the durable packet remains authoritative for those other actions.\\n\\n'+handoffBasePrompt;
   document.querySelectorAll('[data-handoff-provider]').forEach(candidate=>candidate.setAttribute('aria-pressed',String(candidate===button)));
   try{{await copyText(handoffPrompt.value);handoffStatus.textContent=handoffProvider+' selected · prompt copied. Open it, paste, then return with the complete response.';}}
   catch{{handoffPrompt.focus();handoffPrompt.select();handoffStatus.textContent='Automatic clipboard access was blocked. The prompt is selected for manual copying.';}}
@@ -696,7 +702,6 @@ document.querySelector('[data-handoff-copy]')?.addEventListener('click',async()=
   try{{await copyText(handoffPrompt.value);handoffStatus.textContent='Prompt copied.';}}
   catch{{handoffPrompt.focus();handoffPrompt.select();handoffStatus.textContent='Clipboard access was blocked; the prompt is selected.';}}
 }});
-document.querySelector('[data-handoff-wait]')?.addEventListener('click',()=>{{handoffStatus.textContent='Response is waiting only in this page. Do not reload or sign out.';}});
 document.querySelector('[data-handoff-analyze]')?.addEventListener('click',async()=>{{
   const response=handoffResponse.value.trim();
   if(!response){{handoffStatus.textContent='Paste the complete response first.';return;}}
