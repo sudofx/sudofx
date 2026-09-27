@@ -20,6 +20,7 @@ from sudofx import (
 )
 from sudofx.record import APPLICATION_ID, SCHEMA_VERSION, IntegrityError, Record, StorageVersionError
 from sudofx.continuity import (
+    run_compressed_model_continuity_probe,
     run_continuity_proof,
     run_model_continuity_probe,
     run_work_continuity_probe,
@@ -291,6 +292,91 @@ json.dump({
         self.assertEqual(proof["candidate_rationale"], "derived only from bounded context")
         self.assertEqual(before, after)
         self.assertFalse(proof["checks"]["production_state_mutated"])
+
+    def test_compressed_model_probe_bounds_history_without_mutating_source(self) -> None:
+        """Compressed provider context keeps recent meaning while full SQLite history stays authoritative."""
+        self.kernel.submit(
+            Proposal(
+                "compressed-create",
+                0,
+                (
+                    Operation(
+                        "create_work",
+                        "compressed",
+                        {
+                            "objective": "Prove semantic continuity under bounded context",
+                            "constraints": ["Keep full history authoritative"],
+                        },
+                    ),
+                ),
+            )
+        )
+        for index in range(12):
+            self.kernel.submit(
+                Proposal(
+                    f"compressed-{index}",
+                    index + 1,
+                    (
+                        Operation(
+                            "advance_work",
+                            "compressed",
+                            {
+                                "result": f"Accepted milestone {index}: durable progress remains replayable.",
+                                "open_obligations": ["Run the compressed continuity probe"],
+                            },
+                        ),
+                    ),
+                )
+            )
+
+        helper = """
+import json, sys
+context = json.load(sys.stdin)
+work = context["state"]["work:compressed"]
+assert "accepted_results" not in work
+assert work["accepted_result_count"] == 12
+assert work["omitted_accepted_results_count"] == 8
+assert len(work["accepted_results_recent"]) == 4
+assert work["accepted_results_recent"][-1].startswith("Accepted milestone 11")
+assert len(work["omitted_accepted_results_digest"]) == 64
+assert len(context["recent_receipts"]) <= 8
+json.dump({
+    "proposal_id": f"compressed-test-{context['revision']}",
+    "based_on_revision": context["revision"],
+    "operations": [{
+        "action": "advance_work",
+        "key": work["id"],
+        "value": {
+            "result": "Compressed context preserves the current objective and frontier.",
+            "open_obligations": ["Judge compressed semantic fidelity"]
+        }
+    }],
+    "rationale": "used only the compressed provider context"
+}, sys.stdout)
+"""
+        before = self.kernel.record.history()
+        proof = run_compressed_model_continuity_probe(
+            self.path,
+            "compressed",
+            (sys.executable, "-c", helper),
+            provider="test-provider",
+            model="test-model",
+        )
+        after = Kernel(Record(self.path)).record.history()
+
+        self.assertTrue(proof["passed"])
+        self.assertEqual(proof["assessment_status"], "semantic_review_pending")
+        self.assertEqual(proof["compression"]["accepted_result_count"], 12)
+        self.assertEqual(proof["compression"]["accepted_results_exposed"], 4)
+        self.assertEqual(proof["compression"]["accepted_results_omitted"], 8)
+        self.assertLess(
+            proof["compression"]["compressed_context_bytes"],
+            proof["compression"]["full_context_bytes"],
+        )
+        self.assertTrue(proof["checks"]["full_accepted_history_not_exposed"])
+        self.assertTrue(proof["checks"]["omitted_history_anchored_by_digest"])
+        self.assertFalse(proof["checks"]["production_state_mutated"])
+        self.assertEqual(before, after)
 
     def test_kernel_depends_on_storage_contract_not_sqlite_connection(self) -> None:
         """
