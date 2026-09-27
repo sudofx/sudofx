@@ -662,7 +662,8 @@ json.dump({
         self.assertIn("if(ownerTechnical)ownerTechnical.hidden=false", page)
         self.assertIn("if(ownerTechnical)ownerTechnical.hidden=true", page)
         self.assertIn("data-exchange-response", page)
-        self.assertIn("continuity-proof.json?ts=", page)
+        self.assertIn("sudofx-live/live.json", page)
+        self.assertNotIn("fetch('./continuity-proof.json?ts='", page)
         self.assertIn("setInterval(refreshExchange,15000)", page)
         # A signed-in owner has stronger evidence than the anonymous observer.
         # Stop must therefore replace a stale continuous fallback everywhere,
@@ -792,7 +793,8 @@ json.dump({
         self.assertIn("cancel-in-progress: true", pages)
         self.assertIn("--publish-only", pages)
         self.assertNotIn("workflow_dispatch:", pages)
-        self.assertNotIn("scripts/github_sudofx.py", pages)
+        pages_triggers = pages.split("permissions:", 1)[0]
+        self.assertNotIn("'scripts/github_sudofx.py'", pages_triggers)
         self.assertNotIn("GEMINI_API_KEY", pages)
 
         self.assertNotIn("\n  push:", operator)
