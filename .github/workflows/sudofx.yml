@@ -85,14 +85,6 @@ jobs:
         # Tests run before any stateful action. A broken implementation must not
         # be allowed to append history merely because the workflow was dispatched.
         run: PYTHONPATH=src python -m unittest discover -s tests -v
-      - name: Record continuity-metrics frontier PASS
-        if: github.event_name == 'push' && contains(github.event.head_commit.message, '[metrics-frontier-pass]')
-        run: |
-          PYTHONPATH=src python scripts/github_sudofx.py \
-            --action work-advance \
-            --key handoff-v1 \
-            --value '{"result":"Continuity-quality measurement is now governed and durable. The kernel supports structured semantic assessments with verdict, criterion judgments, compression metrics, and provider/run/context provenance; the first promoted-default PASS assessment is stored in authoritative SQLite; the observer derives a Continuity quality view from that record; and assessment history is excluded from model context, represented only by count plus digest so measurement cannot bloat the handoff being measured.","open_obligations":["Owner-controlled sustained Gemini trial: only after an explicit Start command, run the promoted 1-milestone/0-receipt compressed handoff policy across repeated fresh Gemini cycles, collect comparable governed semantic assessments, and stop visibly on the first semantic, governance, provider, or infrastructure failure. Continuous mode remains stopped until that explicit owner action."]}'
-
       - name: Continue current milestone automatically
         # Observer mode: one stable command handles the next safe milestone step.
         # The operator should not have to carry work IDs or long context between devices.
