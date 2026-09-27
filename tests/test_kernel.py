@@ -720,7 +720,9 @@ json.dump({
         self.assertIn('data-owner-backup hidden>Backup</button>', page)
         self.assertIn("'/api/backup'", page)
         self.assertIn("public state", page)
-        self.assertIn("sessionStorage.setItem(ownerSessionKey", page)
+        self.assertIn("localStorage.setItem(ownerSessionKey", page)
+        self.assertIn("localStorage.getItem(ownerSessionKey", page)
+        self.assertNotIn("sessionStorage.getItem(ownerSessionKey", page)
         self.assertNotIn("GITHUB_CLIENT_SECRET", page)
 
     def test_exported_runner_state_continues_after_bounded_model_review(self) -> None:
