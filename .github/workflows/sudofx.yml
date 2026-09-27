@@ -28,7 +28,7 @@ on:
       action:
         description: Verify only, or run one governed operation
         type: choice
-        options: [auto, verify, backup, prove-work, prove-model, export-handoff, work-create, work-advance, work-complete, set, delete]
+        options: [auto, verify, backup, operator-stop, prove-work, prove-model, export-handoff, work-create, work-advance, work-complete, set, delete]
         default: auto
         required: true
       key:
@@ -95,12 +95,18 @@ jobs:
       - name: Apply governed operation
         # Only a manual dispatch enters the mutation path. The adapter restores
         # and verifies sudofx-state, appends one receipt, checkpoints, and renders.
-        if: github.event_name == 'workflow_dispatch' && inputs.action != 'auto' && inputs.action != 'verify' && inputs.action != 'backup' && inputs.action != 'prove-work' && inputs.action != 'prove-model' && inputs.action != 'export-handoff'
+        if: github.event_name == 'workflow_dispatch' && inputs.action != 'auto' && inputs.action != 'verify' && inputs.action != 'backup' && inputs.action != 'prove-work' && inputs.action != 'prove-model' && inputs.action != 'export-handoff' && inputs.action != 'operator-stop'
         env:
           ACTION: ${{ inputs.action }}
           KEY: ${{ inputs.key }}
           VALUE: ${{ inputs.value }}
         run: PYTHONPATH=src python scripts/github_sudofx.py --action "$ACTION" --key "$KEY" --value "$VALUE"
+      - name: Record authenticated operator Stop
+        # Stop is safety-first: the control service disables and cancels the
+        # continuation chain before dispatching this durable transition. Workflow
+        # concurrency then ensures any later Start records after this event.
+        if: github.event_name == 'workflow_dispatch' && inputs.action == 'operator-stop'
+        run: PYTHONPATH=src python scripts/github_sudofx.py --operator-transition stop
       - name: Probe real work continuity
         # This path restores authoritative state but submits only against a
         # temporary snapshot. It publishes derived proof and must leave the
