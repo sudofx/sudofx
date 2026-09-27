@@ -330,6 +330,42 @@ json.dump({
                 )
             )
 
+        assessment = {
+            "verdict": "pass",
+            "criteria": {
+                "objective_fidelity": "pass",
+                "frontier_fidelity": "pass",
+                "unsupported_claims": "pass",
+                "actionability": "pass",
+            },
+            "metrics": {
+                "context_bytes": 1200,
+                "full_context_bytes": 10000,
+                "compression_ratio": 0.88,
+                "accepted_results_exposed": 1,
+                "receipt_count_exposed": 0,
+            },
+            "provenance": {
+                "artifact_run_id": "123",
+                "artifact_commit": "abc123",
+                "context_digest": "d" * 64,
+                "provider": "test-provider",
+                "model": "test-model",
+            },
+            "note": "structured semantic evidence",
+        }
+        assessment_receipt = self.kernel.submit(
+            Proposal(
+                "compressed-assessment",
+                13,
+                (Operation("record_assessment", "compressed", assessment),),
+            )
+        )
+        self.assertEqual(assessment_receipt.status, "accepted")
+        stored_work = self.kernel.context(work_id="compressed").state["work:compressed"]
+        self.assertEqual(stored_work["semantic_assessments"], [assessment])
+        self.assertEqual(stored_work["open_obligations"], ["Run the compressed continuity probe"])
+
         helper = """
 import json, sys
 context = json.load(sys.stdin)
@@ -340,6 +376,9 @@ assert work["omitted_accepted_results_count"] == 8
 assert len(work["accepted_results_recent"]) == 4
 assert work["accepted_results_recent"][-1].startswith("Accepted milestone 11")
 assert len(work["omitted_accepted_results_digest"]) == 64
+assert "semantic_assessments" not in work
+assert work["semantic_assessment_count"] == 1
+assert len(work["semantic_assessments_digest"]) == 64
 assert len(context["recent_receipts"]) <= 8
 json.dump({
     "proposal_id": f"compressed-test-{context['revision']}",
@@ -375,7 +414,10 @@ json.dump({
             proof["compression"]["full_context_bytes"],
         )
         self.assertTrue(proof["checks"]["full_accepted_history_not_exposed"])
+        self.assertTrue(proof["checks"]["assessment_history_not_exposed"])
         self.assertTrue(proof["checks"]["omitted_history_anchored_by_digest"])
+        self.assertTrue(proof["checks"]["assessment_history_anchored_by_digest"])
+        self.assertEqual(proof["compression"]["semantic_assessment_count"], 1)
         self.assertFalse(proof["checks"]["production_state_mutated"])
         self.assertEqual(before, after)
 
