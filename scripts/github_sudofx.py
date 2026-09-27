@@ -187,6 +187,7 @@ def main() -> int:
     parser.add_argument("--publish-only", action="store_true")
     parser.add_argument("--prove-work")
     parser.add_argument("--prove-model")
+    parser.add_argument("--prove-anthropic")
     parser.add_argument("--export-handoff")
     parser.add_argument("--backup")
     parser.add_argument("--prove-vacuum-recovery", action="store_true")
@@ -272,7 +273,7 @@ def main() -> int:
             checkpoint()
             kernel = Kernel(Record(DATA))
         auto_handoff_id = AUTO_HANDOFF_ID
-    if not args.publish_only and not args.prove_work and not args.prove_model and not args.export_handoff and not args.prove_vacuum_recovery and not args.auto:
+    if not args.publish_only and not args.prove_work and not args.prove_model and not args.prove_anthropic and not args.export_handoff and not args.prove_vacuum_recovery and not args.auto:
         if not args.action or not args.key:
             parser.error("--action and --key are required for a mutation")
         context = kernel.context()
@@ -338,16 +339,19 @@ def main() -> int:
     # deterministic fixture so every build still checks the mechanism.
     prove_work_id = args.prove_work.strip() if args.prove_work is not None else None
     prove_model_id = args.prove_model.strip() if args.prove_model is not None else None
+    prove_anthropic_id = args.prove_anthropic.strip() if args.prove_anthropic is not None else None
     handoff_id = args.export_handoff.strip() if args.export_handoff is not None else None
     if args.prove_work is not None and not prove_work_id:
         parser.error("--prove-work requires a non-empty work ID")
     if args.prove_model is not None and not prove_model_id:
         parser.error("--prove-model requires a non-empty work ID")
+    if args.prove_anthropic is not None and not prove_anthropic_id:
+        parser.error("--prove-anthropic requires a non-empty work ID")
     if args.export_handoff is not None and not handoff_id:
         parser.error("--export-handoff requires a non-empty work ID")
-    selected_read_only = [value for value in (prove_work_id, prove_model_id, handoff_id, auto_handoff_id) if value]
+    selected_read_only = [value for value in (prove_work_id, prove_model_id, prove_anthropic_id, handoff_id, auto_handoff_id) if value]
     if len(selected_read_only) > 1:
-        parser.error("--prove-work, --prove-model, --export-handoff, and --auto are mutually exclusive")
+        parser.error("--prove-work, --prove-model, --prove-anthropic, --export-handoff, and --auto are mutually exclusive")
 
     if prove_model_id:
         model = os.environ.get("GEMINI_MODEL", "").strip()
@@ -358,6 +362,17 @@ def main() -> int:
             prove_model_id,
             (sys.executable, str(ROOT / "scripts" / "gemini_provider.py")),
             provider="Google Gemini",
+            model=model,
+        )
+    elif prove_anthropic_id:
+        model = os.environ.get("ANTHROPIC_MODEL", "").strip()
+        if not model:
+            parser.error("ANTHROPIC_MODEL is required for --prove-anthropic")
+        continuity_proof = run_model_continuity_probe(
+            DATA,
+            prove_anthropic_id,
+            (sys.executable, str(ROOT / "scripts" / "anthropic_provider.py")),
+            provider="Anthropic",
             model=model,
         )
     elif prove_work_id:
