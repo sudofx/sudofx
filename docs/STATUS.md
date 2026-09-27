@@ -138,9 +138,13 @@ repeatability batches in addition to the earlier finite proofs. Paid-vendor
 substitution remains deliberately deferred until the owner chooses to spend on
 provider breadth rather than deepen the free-vendor baseline.
 
-Continuous mode is technically eligible to resume under the promoted compressed
-policy, but it remains intentionally **owner-stopped**. Nothing in these finite
-proofs turns continuous execution back on automatically.
+Continuous mode is technically eligible to resume, but it remains intentionally
+**owner-stopped**. The next continuous run no longer repeats one packet shape:
+a deterministic seven-phase stress matrix varies which continuity cues survive
+into each fresh-model handoff. Some cycles remove the latest readable milestone,
+some remove the previous model observation, and the frontier-only phase removes
+both. Authority, provenance, and adversarial phases test different failure modes
+without allowing the model to choose its own curriculum.
 
 Every live-model cycle remains a test rather than an authoritative model
 mutation:
@@ -172,12 +176,12 @@ The next work remains intentionally narrow:
 
 - retain the structured assessment contract for future judged probes so continuity quality remains comparable over time
 - treat bounded, explicitly judged batches as the default experiment shape; continuous mode remains available for deliberate sustained trials
-- compare objective fidelity, frontier fidelity, unsupported-claim discipline, actionability, context size, and compression across future context or provider changes
+- compare objective fidelity, frontier fidelity, unsupported-claim discipline, actionability, context size, and compression across deterministic handoff-dropout conditions and future provider changes
 - preserve assessment provenance and keep all durable operational truth in SQLite
 - prevent assessment/history growth from leaking back into provider context
 - keep the uncompressed Gemini path only as an explicit diagnostic baseline
 - migrate authoritative persistence out of the public Git ref before any private or identifying context is stored
-- choose whether the next semantic boundary is another real provider, a longer time gap, or a human-maintainer replacement; Gemini repeatability is no longer the blocking evidence
+- use the seven-phase dropout matrix to locate the semantic floor before spending on another provider; provider substitution, a longer time gap, and human-maintainer replacement remain later independent boundaries
 - establish an independent/private backup target before sensitive durable context exists
 - resist product breadth that weakens the kernel experiment
 
