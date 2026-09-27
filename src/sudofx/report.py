@@ -161,53 +161,75 @@ def _receipt_rows(history: tuple[dict[str, object], ...]) -> str:
 
 def _exchange_panel(proof: dict[str, object]) -> str:
     """
-    Translate the provider boundary into the conversation an operator cares about.
+    Render the continuity experiment as three human-readable windows.
 
-    The complete proof remains available as a derived JSON artifact. This view
-    deliberately omits transport metadata and test mechanics: it shows the
-    bounded meaning sent to Gemini, Gemini's semantic answer, and the system's
-    governed treatment of that answer without promoting any of those projections
-    into authority.
+    Technical evidence still exists in SQLite and the derived JSON proof, but the
+    main site is intentionally an observational surface rather than a debugging
+    dashboard. The operator should be able to see the question, the answer, and
+    the governed consequence without reading transport or storage mechanics.
     """
     review = proof.get("semantic_review", {})
     evidence = review.get("evidence", {}) if isinstance(review, dict) else {}
     if not isinstance(evidence, dict):
         evidence = {}
-    objective = evidence.get("objective", "No current objective was supplied.")
-    accepted = evidence.get("accepted_results", [])
-    obligations = evidence.get("open_obligations", [])
-    constraints = evidence.get("constraints", [])
+
+    trial = proof.get("overnight_trial", {})
+    if not isinstance(trial, dict):
+        trial = {}
+    task = str(
+        trial.get("task")
+        or "Using only the bounded durable context, reconstruct the work and propose one concrete next step."
+    )
+    phase = str(trial.get("phase", "")).replace("_", " ").strip()
+    cycle = trial.get("cycle")
+
     response = proof.get("candidate_result", "No Gemini response has been published yet.")
     rationale = proof.get("candidate_rationale", "")
-    action = (
-        "Governance accepted the proposal on an isolated verification snapshot. "
-        "The durable record was not changed; the next test cycle starts automatically."
-        if proof.get("assessment_status") == "semantic_review_pending"
-        else "No governed Gemini proposal has been published yet."
-    )
-    def items(value: object, empty: str) -> str:
-        values = value if isinstance(value, list) else []
-        return "".join(f"<li>{_escape(item)}</li>" for item in values) or f"<li>{empty}</li>"
+    if proof.get("kind") == "evolving overnight Gemini continuity observation":
+        summary = (
+            "A fresh Gemini instance received the bounded handoff and the current experiment lens. "
+            "Its proposal was checked only on an isolated SQLite snapshot. sudofx then recorded the "
+            "exchange as an untrusted observation so the next fresh Gemini can inherit that residue "
+            "without turning the model's claims into project truth."
+        )
+    elif proof.get("assessment_status") == "semantic_review_pending":
+        summary = (
+            "Gemini produced a bounded continuation candidate. Governance accepted the proposal only "
+            "on an isolated verification snapshot; authoritative project state was not advanced by the model."
+        )
+    else:
+        summary = "No completed Gemini exchange is available yet."
+
+    status = "LAST EXCHANGE"
+    if cycle:
+        status = f"CYCLE {cycle}"
+        if phase:
+            status += f" · {phase.upper()}"
 
     return f"""
       <section class="exchange" aria-label="Gemini exchange" data-artifact-run-id="{_escape(proof.get('artifact_run_id', ''))}">
         <div class="exchange-head">
-          <div><span class="eyebrow">Intelligence exchange</span><h2>What Gemini was asked</h2></div>
-          <span class="exchange-status" data-exchange-status>LAST EXCHANGE</span>
+          <div><span class="eyebrow">Gemini continuity</span><h2>Overnight exchange</h2></div>
+          <span class="exchange-status" data-exchange-status>{_escape(status)}</span>
         </div>
-        <p class="question">Using only the durable context below, reconstruct this work and propose one concrete next step.</p>
-        <dl class="context-brief">
-          <div><dt>Objective</dt><dd data-exchange-objective>{_escape(objective)}</dd></div>
-          <div><dt>Accepted progress</dt><dd><ul data-exchange-accepted>{items(accepted, 'None yet')}</ul></dd></div>
-          <div><dt>Current frontier</dt><dd><ul data-exchange-frontier>{items(obligations, 'No open obligation recorded')}</ul></dd></div>
-          <div><dt>Constraints</dt><dd><ul data-exchange-constraints>{items(constraints, 'No additional constraints')}</ul></dd></div>
-        </dl>
-        <div class="exchange-answer"><span>Gemini responded</span><p data-exchange-response>{_escape(response)}</p>
-          <small data-exchange-rationale{' hidden' if not rationale else ''}>{f'Why: {_escape(rationale)}' if rationale else ''}</small></div>
-        <div class="exchange-action"><span>What sudofx did</span><p data-exchange-action>{_escape(action)}</p></div>
+
+        <div class="exchange-window exchange-question">
+          <span>What Gemini was asked</span>
+          <p data-exchange-question>{_escape(task)}</p>
+        </div>
+
+        <div class="exchange-window exchange-answer">
+          <span>What Gemini responded</span>
+          <p data-exchange-response>{_escape(response)}</p>
+          <small data-exchange-rationale{' hidden' if not rationale else ''}>{f'Why: {_escape(rationale)}' if rationale else ''}</small>
+        </div>
+
+        <div class="exchange-window exchange-action">
+          <span>What happened</span>
+          <p data-exchange-action>{_escape(summary)}</p>
+        </div>
       </section>
     """
-
 
 def render(
     kernel: Kernel,
@@ -301,37 +323,21 @@ def render(
         else ""
     )
     observer_console_html = f"""
-        <section class="observer-console checking" aria-label="Development status"
+        <section class="observer-console checking observer-compact" aria-label="Live status"
                  data-repository="{_escape(repository)}" data-workflow="prove-model.yml"
                  data-fallback-state="{observer_static_state}"
                  data-fallback-activity="{_escape(observer_static_activity)}"
                  data-fallback-detail="{_escape(observer_static_detail)}">
-          <div class="observer-head">
-            <div>
-              <span class="eyebrow">Live development</span>
-              <h1>What sudofx is doing</h1>
-            </div>
-            <div class="observer-signal" aria-live="polite">
-              <span class="status-led checking" data-status-led aria-hidden="true"></span>
-              <span class="observer-state checking" data-observer-state>CHECKING…</span>
-            </div>
+          <div class="observer-signal" aria-live="polite">
+            <span class="status-led checking" data-status-led aria-hidden="true"></span>
+            <span class="observer-state checking" data-observer-state>CHECKING…</span>
+            <strong data-current-activity>Loading current status…</strong>
           </div>
-          <div class="observer-grid">
-            <div class="observer-cell primary"><span>Current activity</span><strong data-current-activity>Loading live workflow status…</strong></div>
-            <div class="observer-cell"><span>Current step</span><strong data-current-step>Checking GitHub…</strong></div>
-            <div class="observer-cell"><span>Latest run</span><strong data-latest-run>{_escape(verification.get("run_id", "unknown"))}</strong></div>
-            <div class="observer-cell"><span>Next cycle</span><strong data-next-check>Checking chain…</strong></div>
-          </div>
-          <div class="machine-activity" data-machine-activity hidden aria-live="polite">
-            <div class="machine-lights" aria-hidden="true">
-              <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
-            </div>
-            <div class="machine-track" aria-hidden="true"><span data-machine-text>PROCESSING VERIFIED WORK</span></div>
-          </div>
-          <div class="observer-detail">
-            <span data-observer-detail>Connecting to GitHub…</span>
-            <a href="https://github.com/{_escape(repository)}/actions/workflows/prove-model.yml">Open workflow ↗</a>
-          </div>
+          <span data-current-step hidden>Checking GitHub…</span>
+          <span data-latest-run hidden>{_escape(verification.get("run_id", "unknown"))}</span>
+          <span data-next-check hidden>Checking chain…</span>
+          <span data-observer-detail hidden>Connecting to GitHub…</span>
+          <div data-machine-activity hidden><span data-machine-text>PROCESSING</span></div>
         </section>
         """
     return f"""<!doctype html>
@@ -456,9 +462,17 @@ def render(
     .context-brief dt,.exchange-answer>span,.exchange-action>span {{ color:var(--accent); font:700 10px var(--mono); letter-spacing:.08em; text-transform:uppercase }}
     .context-brief dd {{ margin:0; font-size:14px; overflow-wrap:anywhere }}
     .context-brief ul {{ margin:0; padding-left:18px }}
-    .exchange-answer,.exchange-action {{ margin-top:16px; padding-top:14px; border-top:1px solid var(--line) }}
-    .exchange-answer p,.exchange-action p {{ margin:7px 0 0; font-size:15px; overflow-wrap:anywhere }}
-    .exchange-answer small {{ display:block; margin-top:8px; color:var(--muted) }}
+    .exchange-window {{ margin-top:14px; padding:18px; border:1px solid var(--line); background:var(--paper) }}
+    .exchange-window>span {{ color:var(--accent); font:700 10px var(--mono); letter-spacing:.08em; text-transform:uppercase }}
+    .exchange-window p {{ margin:8px 0 0; font-size:16px; line-height:1.55; overflow-wrap:anywhere }}
+    .exchange-question {{ border-left:4px solid var(--accent) }}
+    .exchange-answer {{ border-left:4px solid var(--green) }}
+    .exchange-action {{ border-left:4px solid var(--hot) }}
+    .exchange-answer small {{ display:block; margin-top:10px; color:var(--muted); line-height:1.45 }}
+    .observer-compact {{ padding:10px 0 18px; border:0; border-bottom:1px solid var(--line); background:transparent; margin-bottom:22px }}
+    .observer-compact .observer-signal {{ justify-content:flex-start; flex-wrap:wrap }}
+    .observer-compact [data-current-activity] {{ color:var(--muted); font-size:12px; font-weight:600 }}
+    .quiet-footer {{ margin-top:34px; padding-top:18px; border-top:1px solid var(--line); color:var(--muted); font:11px/1.5 var(--mono) }}
     .toolbar {{ display:flex; gap:10px; align-items:center; justify-content:space-between; margin:0 0 18px }}
     h2 {{ margin:0; font-size:23px; letter-spacing:-.03em }}
     .work-grid {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:14px; margin-bottom:52px }}
@@ -549,12 +563,7 @@ def render(
   </dialog>
   {observer_console_html}
   {_exchange_panel(continuity_proof)}
-  <section><div class="toolbar"><div><span class="eyebrow">{open_work} open</span><h2>Current work</h2></div></div>
-    <div class="work-grid">{_work_cards(context.state)}</div></section>
-  <details class="history"><summary>Activity history · showing {len(history)} of {total_receipts} receipts</summary>
-    <div class="history-tools"><input id="search" type="search" placeholder="Filter activity…" aria-label="Filter activity history"></div>
-    <div class="receipts" id="receipts">{_receipt_rows(history)}</div></details>
-  <footer>Verified durable record · revision {context.revision} · {int(health['database_bytes'])} database bytes · {health['replay_ms']} ms replay · Pages is a read-only view.</footer>
+  <footer class="quiet-footer">Technical record, receipts, provenance, and replay evidence remain in authoritative SQLite and GitHub Actions. This page is the human view.</footer>
 </main><script>
 const observer=document.querySelector('.observer-console');
 const observerState=document.querySelector('[data-observer-state]');
@@ -797,19 +806,25 @@ const refreshExchange=async()=>{{
     const runId=String(proof.artifact_run_id||'');
     if(!runId||runId===exchange.dataset.artifactRunId)return;
     exchange.dataset.artifactRunId=runId;
-    const evidence=proof.semantic_review?.evidence||{{}};
-    document.querySelector('[data-exchange-objective]').textContent=String(evidence.objective||'No current objective was supplied.');
-    updateList(document.querySelector('[data-exchange-accepted]'),evidence.accepted_results,'None yet');
-    updateList(document.querySelector('[data-exchange-frontier]'),evidence.open_obligations,'No open obligation recorded');
-    updateList(document.querySelector('[data-exchange-constraints]'),evidence.constraints,'No additional constraints');
+    const trial=proof.overnight_trial||{{}};
+    const task=String(trial.task||'Using only the bounded durable context, reconstruct the work and propose one concrete next step.');
+    document.querySelector('[data-exchange-question]').textContent=task;
     document.querySelector('[data-exchange-response]').textContent=String(proof.candidate_result||'No Gemini response was published.');
     const rationale=document.querySelector('[data-exchange-rationale]');
     rationale.textContent=proof.candidate_rationale?'Why: '+String(proof.candidate_rationale):'';
     rationale.hidden=!proof.candidate_rationale;
-    document.querySelector('[data-exchange-action]').textContent=proof.assessment_status==='semantic_review_pending'
-      ?'Governance accepted the proposal on an isolated verification snapshot. The durable record was not changed; the next test cycle starts automatically.'
-      :'No governed Gemini proposal was published.';
-    if(exchangeStatus){{exchangeStatus.textContent='UPDATED · RUN '+runId;exchangeStatus.className='exchange-status';}}
+    const overnight=proof.kind==='evolving overnight Gemini continuity observation';
+    document.querySelector('[data-exchange-action]').textContent=overnight
+      ?"A fresh Gemini instance received the bounded handoff and current experiment lens. Its proposal was checked only on an isolated SQLite snapshot. sudofx recorded the exchange as an untrusted observation so the next fresh Gemini can inherit that residue without turning the model's claims into project truth."
+      :(proof.assessment_status==='semantic_review_pending'
+        ?'Gemini produced a bounded continuation candidate. Governance accepted the proposal only on an isolated verification snapshot; authoritative project state was not advanced by the model.'
+        :'No completed Gemini exchange is available yet.');
+    if(exchangeStatus){{
+      const cycle=trial.cycle?'CYCLE '+trial.cycle:'UPDATED';
+      const phase=trial.phase?' · '+String(trial.phase).replaceAll('_',' ').toUpperCase():'';
+      exchangeStatus.textContent=cycle+phase;
+      exchangeStatus.className='exchange-status';
+    }}
   }}catch(error){{/* Keep the last published exchange visible while Pages catches up. */}}
 }};
 refreshObserver();
