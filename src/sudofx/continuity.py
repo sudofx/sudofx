@@ -617,17 +617,24 @@ def run_compressed_model_continuity_probe(
     prior_results = work.get("accepted_results", [])
     if not isinstance(prior_results, list) or not all(isinstance(item, str) for item in prior_results):
         raise AssertionError("work projection has invalid accepted_results")
+    assessments = work.get("semantic_assessments", [])
+    if not isinstance(assessments, list) or not all(isinstance(item, dict) for item in assessments):
+        raise AssertionError("work projection has invalid semantic_assessments")
     starting_work_revision = int(work.get("work_revision", 0))
     recent_results = prior_results[-recent_result_limit:]
     omitted_results = prior_results[:-recent_result_limit]
     omitted_digest = hashlib.sha256(canonical_json(omitted_results).encode()).hexdigest()
+    assessments_digest = hashlib.sha256(canonical_json(assessments).encode()).hexdigest()
 
     compressed_work = dict(work)
     compressed_work.pop("accepted_results", None)
+    compressed_work.pop("semantic_assessments", None)
     compressed_work["accepted_results_recent"] = recent_results
     compressed_work["accepted_result_count"] = len(prior_results)
     compressed_work["omitted_accepted_results_count"] = len(omitted_results)
     compressed_work["omitted_accepted_results_digest"] = omitted_digest
+    compressed_work["semantic_assessment_count"] = len(assessments)
+    compressed_work["semantic_assessments_digest"] = assessments_digest
     compressed_receipts = tuple(full.recent_receipts[-receipt_limit:]) if receipt_limit else ()
     compressed = Context(
         revision=full.revision,
@@ -711,6 +718,8 @@ def run_compressed_model_continuity_probe(
             "accepted_results_exposed": len(recent_results),
             "accepted_results_omitted": len(omitted_results),
             "omitted_accepted_results_digest": omitted_digest,
+            "semantic_assessment_count": len(assessments),
+            "semantic_assessments_digest": assessments_digest,
             "receipt_count_exposed": len(compressed_receipts),
         },
         "semantic_review": {
@@ -771,7 +780,9 @@ def run_compressed_model_continuity_probe(
             "source_record_verified": True,
             "provider_is_fresh_external_process": True,
             "full_accepted_history_not_exposed": "accepted_results" not in compressed_work,
+            "assessment_history_not_exposed": "semantic_assessments" not in compressed_work,
             "omitted_history_anchored_by_digest": bool(omitted_digest),
+            "assessment_history_anchored_by_digest": bool(assessments_digest),
             "proposal_crossed_normal_governance_on_snapshot": result_receipt.status == "accepted",
             "snapshot_replay_advanced_exactly_once": True,
             "production_record_head_unchanged": source_head_before == source_head_after,
