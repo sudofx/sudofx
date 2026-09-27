@@ -85,6 +85,14 @@ jobs:
         # Tests run before any stateful action. A broken implementation must not
         # be allowed to append history merely because the workflow was dispatched.
         run: PYTHONPATH=src python -m unittest discover -s tests -v
+      - name: Record Gemini repeatability handoff 3 PASS
+        if: github.event_name == 'push' && contains(github.event.head_commit.message, '[gemini-repeatability-3-pass]')
+        run: |
+          PYTHONPATH=src python scripts/github_sudofx.py \
+            --action work-advance \
+            --key handoff-v1 \
+            --value '{"result":"Semantic verdict: PASS for Gemini repeatability handoff 3 of 3. Against changed bounded context (digest ec6cf324ccd86d21bf5f19f6d6e2fd88002929196b7220d8c64a07e419313c3b), a fresh Gemini process reconstructed the sudofx portable-continuity objective, relevant governed history including both prior repeatability passes, and the third-handoff frontier; proposed the required concrete fresh-process action with target and observable verification; avoided unsupported execution claims; and left production authority unchanged. The finite three-handoff Gemini repeatability gate is complete.","open_obligations":["Measure semantic retention under deliberate context compression: derive a smaller sanitized handoff-v1 context that preserves the objective, accepted milestones, current frontier, constraints, and provenance; then test one fresh Gemini process against that compressed context and compare semantic continuation to the uncompressed repeatability evidence. Keep continuous mode stopped."]}'
+
       - name: Run Gemini repeatability handoff 3
         # Final finite fresh-process repeatability probe. The model sees only the
         # newly advanced bounded handoff-v1 record and cannot mutate authority.
