@@ -85,6 +85,7 @@ def apply_operation(state: dict[str, JsonValue], operation: dict[str, Any]) -> N
             "constraints": list(value.get("constraints", [])),
             "status": "open",
             "accepted_results": [],
+            "semantic_assessments": [],
             "open_obligations": [],
             "work_revision": 0,
         }
@@ -98,6 +99,14 @@ def apply_operation(state: dict[str, JsonValue], operation: dict[str, Any]) -> N
         results.append(value["result"])
         work["accepted_results"] = results
         work["open_obligations"] = list(value.get("open_obligations", []))
+        work["work_revision"] = int(work.get("work_revision", 0)) + 1
+        state[work_key(key)] = work
+    elif action == "record_assessment":
+        value = operation["value"]
+        work = dict(state[work_key(key)])
+        assessments = list(work.get("semantic_assessments", []))
+        assessments.append(value)
+        work["semantic_assessments"] = assessments
         work["work_revision"] = int(work.get("work_revision", 0)) + 1
         state[work_key(key)] = work
     elif action == "complete_work":
