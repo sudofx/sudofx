@@ -284,4 +284,14 @@ export async function handleRequest(request, env, githubFetch = fetch) {
   }
 }
 
-export default { fetch: handleRequest };
+export default {
+  /**
+   * Cloudflare owns this three-argument interface: request, environment, then
+   * execution context. The context is lifecycle authority, not a fetch client.
+   * Keep it outside handleRequest's test seam so production can never mistake
+   * ctx for the injected GitHub transport used by contract tests.
+   */
+  fetch(request, env) {
+    return handleRequest(request, env);
+  },
+};

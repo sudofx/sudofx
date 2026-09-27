@@ -8,7 +8,7 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { handleRequest } from "./worker.mjs";
+import worker, { handleRequest } from "./worker.mjs";
 
 const env = {
   GITHUB_CLIENT_ID: "client",
@@ -77,6 +77,20 @@ test("login uses GitHub OAuth with PKCE and the exact callback", async () => {
   assert.equal(target.searchParams.get("code_challenge_method"), "S256");
   assert.ok(target.searchParams.get("state"));
   assert.ok(target.searchParams.get("code_challenge"));
+});
+
+test("Cloudflare execution context never becomes the GitHub transport", async () => {
+  // Cloudflare always supplies a third execution-context argument. The public
+  // adapter must ignore it here; only direct handleRequest tests may inject a
+  // synthetic GitHub transport into the confidential provider boundary.
+  const context = { waitUntil() { throw new Error("context must stay lifecycle-only"); } };
+  const response = await worker.fetch(
+    new Request("https://control.example/auth/login"),
+    env,
+    context,
+  );
+  assert.equal(response.status, 302);
+  assert.equal(new URL(response.headers.get("Location")).origin, "https://github.com");
 });
 
 test("OAuth provider failures stay inside the Worker error boundary", async () => {
