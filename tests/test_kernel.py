@@ -763,12 +763,40 @@ json.dump({
         )
         self.assertIn("actions: write", workflow)
         self.assertIn("continue-again:", workflow)
-        self.assertIn("needs: deploy", workflow)
+        self.assertIn("needs: continue", workflow)
         self.assertIn("gh workflow run prove-model.yml", workflow)
+        self.assertIn("gh workflow run pages.yml", workflow)
+        self.assertNotIn("actions/deploy-pages", workflow)
+        self.assertNotIn("actions/upload-pages-artifact", workflow)
         self.assertIn("operator_start:", workflow)
         self.assertIn("--operator-start", workflow)
         self.assertNotIn("cron:", workflow)
         self.assertNotIn("\n  push:", workflow)
+
+    def test_ci_pages_and_authority_workflows_are_separated(self) -> None:
+        """Push CI, replaceable publication, and state mutation must use distinct lanes."""
+        root = Path(__file__).parents[1] / ".github/workflows"
+        ci = (root / "ci.yml").read_text(encoding="utf-8")
+        pages = (root / "pages.yml").read_text(encoding="utf-8")
+        operator = (root / "sudofx.yml").read_text(encoding="utf-8")
+        continuity = (root / "prove-model.yml").read_text(encoding="utf-8")
+
+        self.assertIn("\n  push:", ci)
+        self.assertIn("pull_request:", ci)
+        self.assertIn("cancel-in-progress: true", ci)
+        self.assertNotIn("GEMINI_API_KEY", ci)
+        self.assertNotIn("workflow_dispatch:", operator.split("on:", 1)[0])
+
+        self.assertIn("group: sudofx-pages", pages)
+        self.assertIn("cancel-in-progress: true", pages)
+        self.assertIn("--publish-only", pages)
+        self.assertNotIn("GEMINI_API_KEY", pages)
+
+        self.assertNotIn("\n  push:", operator)
+        self.assertIn("group: sudofx-authority-v3", operator)
+        self.assertIn("group: sudofx-authority-v3", continuity)
+        self.assertNotIn("group: sudofx-pages", operator)
+        self.assertNotIn("group: sudofx-pages", continuity)
 
     def test_recovery_workflow_retains_verified_backup_outside_pages(self) -> None:
         """Owner backup must be finite, authenticated, and excluded from public output."""
