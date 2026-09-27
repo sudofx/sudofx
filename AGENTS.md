@@ -62,3 +62,25 @@ logic should approach the 2:1 target; simple glue should remain concise.
 Review comments as executable design constraints. A change is incomplete when
 the code works but its authority, invariants, or failure semantics would need to
 be rediscovered by the next maintainer.
+
+
+## Database-first operational truth
+
+The SQLite database is the single authoritative source of durable operational
+truth. Events, proposals, governance decisions, transitions, receipts,
+provenance, commitments, and derived state belong there rather than in persistent
+JSON, JSONL, Markdown, HTML, workflow artifacts, or generated Pages output.
+
+Flat files are appropriate for source, configuration, migrations, tests, and
+temporary exports. Human-readable pages, APIs, reports, feeds, proof artifacts,
+and static sites are projections generated from database queries or bounded
+runtime evidence. Never create a second persistent state model merely to make a
+view easier to render.
+
+Keep storage contracts backend-independent. SQLite is the initial implementation,
+not a semantic dependency of the kernel; a future PostgreSQL or other backend
+must be able to replace it without changing proposal, governance, transition,
+receipt, or context meaning.
+
+Principle: one authoritative database -> everything else is a view, query, or
+export.
