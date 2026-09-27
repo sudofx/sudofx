@@ -155,11 +155,9 @@ def main() -> int:
     )
     obligations = list(dict.fromkeys([*current_obligations, candidate_action]))
     result_text = (
-        f"Phase {trial.get('phase', 'unknown')}. "
-        f"Reconstruction: {semantic['reconstruction']} "
-        f"Chosen action: {semantic['chosen_action']} "
-        f"Target: {semantic['target']} "
-        f"Verification: {semantic['verification']}"
+        f"Gemini understood: {semantic['reconstruction']} "
+        f"Gemini suggests: {semantic['chosen_action']} "
+        f"We would know it worked if: {semantic['verification']}"
     )
     json.dump(
         {
