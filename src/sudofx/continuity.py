@@ -518,6 +518,11 @@ def run_model_continuity_probe(
         "starting_work_revision": starting_work_revision,
         "prior_accepted_result_count": len(prior_results),
         "candidate_result": candidate_result,
+        # Rationale is untrusted provider explanation, but it is the most human-
+        # legible account of why Gemini proposed this step. Publishing it beside
+        # the governed outcome helps an operator evaluate the core exchange
+        # without exposing transport logs or mistaking prose for authority.
+        "candidate_rationale": result.proposal.rationale,
         "candidate_open_obligations": obligations,
         "receipt": {
             "proposal_id": result.receipt.proposal_id,

@@ -55,7 +55,10 @@ jobs:
           python-version: '3.13'
       - name: Verify the kernel
         run: PYTHONPATH=src python -m unittest discover -s tests -v
-      - name: Continue current milestone
+      - name: Ask Gemini and govern its response
+        # This human-readable step name is also live observer telemetry. The
+        # public page can truthfully say the system is waiting on Gemini while
+        # this bounded provider call is active without exposing API mechanics.
         env:
           GEMINI_MODEL: gemini-3.5-flash-lite
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}

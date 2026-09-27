@@ -8,8 +8,8 @@ but never an input to governance, replay, or recovery.
 
 Rendering is intentionally dependency-free so a fresh GitHub runner can publish
 without a JavaScript toolchain or package registry. State-derived text is escaped
-before interpolation. Interactive behavior is limited to live observer telemetry, semantic review,
-filtering, disclosure, and theme preference.
+before interpolation. Interactive behavior is limited to live observer telemetry,
+history filtering, disclosure, and theme preference.
 
 The browser receives no GitHub token and cannot mutate the record directly.
 """
@@ -26,22 +26,6 @@ from .kernel import Kernel
 def _escape(value: object) -> str:
     """Escape all durable or operator text before placing it in HTML attributes or content."""
     return html.escape(str(value), quote=True)
-
-
-def _state_cards(state: dict[str, object]) -> str:
-    """Render non-work keys separately so generic kernel state remains inspectable."""
-    visible = {key: value for key, value in state.items() if not key.startswith("work:")}
-    if not visible:
-        return '<div class="empty">No general state has been recorded.</div>'
-    return "".join(
-        f"""
-        <article class="state-card">
-          <div class="state-key">{_escape(key)}</div>
-          <pre>{_escape(json.dumps(value, indent=2, ensure_ascii=False))}</pre>
-        </article>
-        """
-        for key, value in sorted(visible.items())
-    )
 
 
 def _work_cards(state: dict[str, object]) -> str:
@@ -126,6 +110,56 @@ def _receipt_rows(history: tuple[dict[str, object], ...]) -> str:
     return "".join(rows)
 
 
+def _exchange_panel(proof: dict[str, object]) -> str:
+    """
+    Translate the provider boundary into the conversation an operator cares about.
+
+    The complete proof remains available as a derived JSON artifact. This view
+    deliberately omits transport metadata and test mechanics: it shows the
+    bounded meaning sent to Gemini, Gemini's semantic answer, and the system's
+    governed treatment of that answer without promoting any of those projections
+    into authority.
+    """
+    review = proof.get("semantic_review", {})
+    evidence = review.get("evidence", {}) if isinstance(review, dict) else {}
+    if not isinstance(evidence, dict):
+        evidence = {}
+    objective = evidence.get("objective", "No current objective was supplied.")
+    accepted = evidence.get("accepted_results", [])
+    obligations = evidence.get("open_obligations", [])
+    constraints = evidence.get("constraints", [])
+    response = proof.get("candidate_result", "No Gemini response has been published yet.")
+    rationale = proof.get("candidate_rationale", "")
+    action = (
+        "Governance accepted the proposal on an isolated verification snapshot. "
+        "The durable record was not changed; the result is waiting for human judgment."
+        if proof.get("assessment_status") == "semantic_review_pending"
+        else "No governed Gemini proposal has been published yet."
+    )
+    def items(value: object, empty: str) -> str:
+        values = value if isinstance(value, list) else []
+        return "".join(f"<li>{_escape(item)}</li>" for item in values) or f"<li>{empty}</li>"
+
+    return f"""
+      <section class="exchange" aria-label="Gemini exchange" data-artifact-run-id="{_escape(proof.get('artifact_run_id', ''))}">
+        <div class="exchange-head">
+          <div><span class="eyebrow">Intelligence exchange</span><h2>What Gemini was asked</h2></div>
+          <span class="exchange-status" data-exchange-status>LAST EXCHANGE</span>
+        </div>
+        <p class="question">Using only the durable context below, reconstruct this work and propose one concrete next step.</p>
+        <dl class="context-brief">
+          <div><dt>Objective</dt><dd data-exchange-objective>{_escape(objective)}</dd></div>
+          <div><dt>Accepted progress</dt><dd><ul data-exchange-accepted>{items(accepted, 'None yet')}</ul></dd></div>
+          <div><dt>Current frontier</dt><dd><ul data-exchange-frontier>{items(obligations, 'No open obligation recorded')}</ul></dd></div>
+          <div><dt>Constraints</dt><dd><ul data-exchange-constraints>{items(constraints, 'No additional constraints')}</ul></dd></div>
+        </dl>
+        <div class="exchange-answer"><span>Gemini responded</span><p data-exchange-response>{_escape(response)}</p>
+          <small data-exchange-rationale{' hidden' if not rationale else ''}>{f'Why: {_escape(rationale)}' if rationale else ''}</small></div>
+        <div class="exchange-action"><span>What sudofx did</span><p data-exchange-action>{_escape(action)}</p></div>
+      </section>
+    """
+
+
 def render(
     kernel: Kernel,
     *,
@@ -143,26 +177,9 @@ def render(
     """
     context = kernel.context(receipt_limit=0)
     history = kernel.record.history()
-    accepted = sum(event["status"] == "accepted" for event in history)
-    rejected = len(history) - accepted
     work_items = [value for key, value in context.state.items() if key.startswith("work:")]
     open_work = sum(isinstance(item, dict) and item.get("status") == "open" for item in work_items)
     verification = verification or {}
-    verified_commit = verification.get("commit", "")
-    verified_run = verification.get("run_url", "")
-    verification_html = (
-        f"""
-        <section class="verification" aria-label="Build verification">
-          <div>
-            <span class="eyebrow">Phone-ready verification</span>
-            <h2>Tests passed before this page was published.</h2>
-            <code>{_escape(verified_commit[:12] if verified_commit else "local / unknown commit")}</code>
-          </div>
-          {f'<a class="action" href="{_escape(verified_run)}">Open Action run ↗</a>' if verified_run else ''}
-        </section>
-        """
-    )
-
     continuity_proof = continuity_proof or {}
     observer_waiting = continuity_proof.get("assessment_status") == "semantic_review_pending"
     observer_static_state = "WAITING FOR YOU" if observer_waiting else "IDLE"
@@ -172,24 +189,23 @@ def render(
         else "No bounded operation currently running"
     )
     observer_console_html = f"""
-        <section class="observer-console" aria-label="Development observer"
-                 data-repository="{_escape(repository)}"
-                 data-workflow="prove-model.yml">
+        <section class="observer-console checking" aria-label="Development status"
+                 data-repository="{_escape(repository)}" data-workflow="prove-model.yml"
+                 data-fallback-state="{observer_static_state}"
+                 data-fallback-activity="{_escape(observer_static_activity)}">
           <div class="observer-head">
             <div>
-              <span class="eyebrow">Observer mode</span>
-              <h2>Development status</h2>
+              <span class="eyebrow">Live development</span>
+              <h1>What sudofx is doing</h1>
             </div>
             <div class="observer-signal" aria-live="polite">
-              <span class="status-led idle" data-status-led aria-hidden="true"></span>
-              <span class="observer-state" data-observer-state>{observer_static_state}</span>
+              <span class="status-led checking" data-status-led aria-hidden="true"></span>
+              <span class="observer-state checking" data-observer-state>CHECKING…</span>
             </div>
           </div>
-          <p class="observer-note">Live workflow telemetry comes from GitHub. Durable work, receipts, and decisions still come from the SQLite record.</p>
           <div class="observer-grid">
-            <div class="observer-cell"><span>Current activity</span><strong data-current-activity>{_escape(observer_static_activity)}</strong></div>
-            <div class="observer-cell"><span>Tests</span><strong data-test-status>Last published build passed</strong></div>
-            <div class="observer-cell"><span>Current step</span><strong data-current-step>None</strong></div>
+            <div class="observer-cell primary"><span>Current activity</span><strong data-current-activity>Loading live workflow status…</strong></div>
+            <div class="observer-cell"><span>Current step</span><strong data-current-step>Checking GitHub…</strong></div>
             <div class="observer-cell"><span>Latest run</span><strong data-latest-run>{_escape(verification.get("run_id", "unknown"))}</strong></div>
           </div>
           <div class="machine-activity" data-machine-activity hidden aria-live="polite">
@@ -199,63 +215,11 @@ def render(
             <div class="machine-track" aria-hidden="true"><span data-machine-text>PROCESSING VERIFIED WORK</span></div>
           </div>
           <div class="observer-detail">
-            <span data-observer-detail>Checking live workflow status…</span>
+            <span data-observer-detail>Connecting to GitHub…</span>
             <a href="https://github.com/{_escape(repository)}/actions/workflows/prove-model.yml">Open workflow ↗</a>
           </div>
         </section>
         """
-    proof_passed = continuity_proof.get("passed") is True
-    proof_checks = continuity_proof.get("checks", {})
-    if not isinstance(proof_checks, dict):
-        proof_checks = {}
-    proof_check_rows = "".join(
-        f"<li><b>{'PASS' if value is True else 'FAIL'}</b> {_escape(str(name).replace('_', ' '))}</li>"
-        for name, value in proof_checks.items()
-        if name != "production_state_mutated"
-    )
-    semantic_review = continuity_proof.get("semantic_review", {})
-    if not isinstance(semantic_review, dict):
-        semantic_review = {}
-    review_criteria = semantic_review.get("criteria", [])
-    if not isinstance(review_criteria, list):
-        review_criteria = []
-    review_rows = "".join(
-        (
-            f'<li class="review-item" data-review-id="{_escape(item.get("id", ""))}">'
-            f'<span class="review-question">{_escape(item.get("question", ""))}</span>'
-            '<div class="review-choices" role="group" aria-label="Choose semantic review verdict">'
-            '<button type="button" data-choice="pass">Pass</button>'
-            '<button type="button" data-choice="fail">Fail</button>'
-            '<button type="button" data-choice="uncertain">Uncertain</button>'
-            '</div></li>'
-        )
-        for item in review_criteria
-        if isinstance(item, dict) and item.get("id")
-    )
-    continuity_html = (
-        f"""
-        <section class="continuity-proof" aria-label="Continuity proof" data-artifact-run-id="{_escape(continuity_proof.get("artifact_run_id", ""))}" data-artifact-commit="{_escape(continuity_proof.get("artifact_commit", ""))}">
-          <div class="proof-head">
-            <div>
-              <span class="eyebrow">{_escape(continuity_proof.get('kind', 'Disposable continuity proof'))}</span>
-              <h2>{'Technical pass · semantic review pending' if continuity_proof.get('assessment_status') == 'semantic_review_pending' else ('Passed' if proof_passed else 'Not run')}</h2>
-            </div>
-            <span class="proof-status {'passed' if proof_passed else ''}">{'PASS' if proof_passed else 'N/A'}</span>
-          </div>
-          <div class="latest-result-bar">
-            <button type="button" class="get-latest-result">Get latest result</button>
-            <span class="latest-result-status" role="status" aria-live="polite">Run {_escape(continuity_proof.get("artifact_run_id", "unknown"))}</span>
-          </div>
-          <p>{_escape(continuity_proof.get('proves', 'No continuity proof was supplied for this projection.'))}</p>
-          {f'<code class="context-digest">context {_escape(str(continuity_proof.get("context_digest", ""))[:16])}…</code>' if continuity_proof.get("context_digest") else '<code class="context-digest"></code>'}
-          {f'<ul class="proof-checks">{proof_check_rows}</ul>' if proof_check_rows else ''}
-          <div class="model-candidate"{' hidden' if not continuity_proof.get("candidate_result") else ''}><b>Candidate continuation</b><p>{_escape(continuity_proof.get("candidate_result", ""))}</p></div>
-          {f'<div class="semantic-review" data-review-version="{_escape(semantic_review.get("version", ""))}" data-context-digest="{_escape(str(continuity_proof.get("context_digest", "")))}" data-work-id="{_escape(continuity_proof.get("work_id", ""))}" data-provider="{_escape(continuity_proof.get("provider", ""))}" data-model="{_escape(continuity_proof.get("model", ""))}"><b>Human semantic review · v{_escape(semantic_review.get("version", ""))}</b><p>{_escape(semantic_review.get("rule", ""))}</p><ul>{review_rows}</ul><div class="overall-review"><span>Overall semantic verdict</span><div class="review-choices" role="group" aria-label="Choose overall semantic verdict"><button type="button" data-overall="pass">Pass</button><button type="button" data-overall="fail">Fail</button><button type="button" data-overall="uncertain">Uncertain</button></div></div><button type="button" class="copy-review">Copy review</button><span class="copy-status" role="status" aria-live="polite"></span><div class="refresh-backdrop" hidden aria-hidden="true"></div><div class="refresh-panel" hidden role="dialog" aria-modal="true" aria-labelledby="refresh-title"><div><b id="refresh-title">Review copied</b><p>Refreshing this page in <span class="refresh-count">5</span> seconds…</p></div><div class="refresh-actions"><button type="button" class="refresh-now">Refresh now</button><button type="button" class="refresh-cancel">Cancel</button></div></div></div>' if review_rows else ''}
-          {f'<p class="proof-limit"><b>Boundary:</b> {_escape(continuity_proof.get("does_not_prove", ""))}</p>' if proof_passed else ''}
-          {f'<a class="proof-json" href="./continuity-proof.json">Inspect machine-readable proof →</a>' if proof_passed else ''}
-        </section>
-        """
-    )
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -274,33 +238,27 @@ def render(
     * {{ box-sizing:border-box }}
     body {{ margin:0; background:var(--paper); color:var(--ink); font:16px/1.45 system-ui,-apple-system,sans-serif }}
     body:before {{ content:""; display:block; height:5px; background:var(--green) }}
-    main {{ width:min(980px,100%); margin:auto; padding:clamp(20px,5vw,56px) }}
-    /* The header grid gives the identity and theme control independent ownership
-       of the top row. The tagline then spans a second row, so longer copy can
-       wrap without displacing the control or requiring fragile positioning. */
+    main {{ width:min(980px,100%); margin:auto; padding:clamp(14px,4vw,40px) }}
+    /* Identity stays compact because live status—not project explanation—is the
+       first reason an operator opens this page on a phone. */
     header {{ display:grid; grid-template-columns:minmax(0,1fr) auto; grid-template-areas:"brand theme" "tagline tagline";
-      column-gap:24px; row-gap:22px; align-items:start; padding-bottom:44px }}
-    .brand-block {{ grid-area:brand; display:inline-flex; flex-direction:column; align-items:flex-start; gap:8px; min-width:0 }}
-    .brand {{ color:var(--ink); text-decoration:none; font:900 clamp(34px,9vw,76px)/.85 var(--mono); letter-spacing:-.08em }}
+      column-gap:20px; row-gap:8px; align-items:start; padding-bottom:16px }}
+    .brand-block {{ grid-area:brand; display:inline-flex; align-items:baseline; gap:12px; min-width:0 }}
+    .brand {{ color:var(--ink); text-decoration:none; font:900 clamp(30px,8vw,48px)/.85 var(--mono); letter-spacing:-.08em }}
     .brand i {{ color:var(--green); font-style:normal }}
     .inspired {{ color:var(--muted); text-decoration:none; font:700 9px/1 var(--mono); letter-spacing:.12em; text-transform:uppercase }}
     .inspired b {{ color:var(--green) }}
     .brand:hover,.inspired:hover {{ color:var(--hot) }}
-    .tagline {{ grid-area:tagline; max-width:520px; color:var(--muted); font-size:14px; text-align:left }}
+    .tagline {{ grid-area:tagline; max-width:520px; color:var(--muted); font-size:12px; text-align:left }}
     .eyebrow {{ font:700 11px/1 var(--mono); letter-spacing:.14em; text-transform:uppercase; color:var(--green) }}
-    .hero {{ border-top:1px solid var(--line); padding:34px 0 46px }}
-    h1 {{ margin:10px 0 0; max-width:760px; font-size:clamp(30px,6vw,58px); line-height:1; letter-spacing:-.045em }}
-    .metrics {{ display:grid; grid-template-columns:repeat(3,1fr); gap:1px; background:var(--line); border:1px solid var(--line); margin:0 0 22px }}
-    .metric {{ background:var(--surface); padding:20px }}
-    .metric strong {{ display:block; font:700 clamp(28px,7vw,46px)/1 var(--mono); margin-top:9px }}
-    .verification {{ display:flex; align-items:center; justify-content:space-between; gap:20px; margin:0 0 44px;
-      padding:18px 20px; border:1px solid var(--line); border-left:4px solid var(--green); background:var(--surface) }}
-    .verification h2 {{ margin:5px 0 8px; font-size:18px }}
-    .observer-console {{ margin:0 0 22px; padding:20px; border:1px solid var(--line); background:var(--surface) }}
+    .observer-console {{ margin:0 0 32px; padding:18px; border:1px solid var(--line); border-top:4px solid var(--accent); background:var(--surface) }}
+    .observer-console.working {{ border-top-color:var(--green) }}
+    .observer-console.failed {{ border-top-color:#f7768e }}
     .observer-head {{ display:flex; align-items:flex-start; justify-content:space-between; gap:18px }}
-    .observer-head h2 {{ margin:5px 0 0; font-size:24px }}
+    .observer-head h1 {{ margin:6px 0 16px; font-size:clamp(24px,6vw,34px); line-height:1; letter-spacing:-.04em }}
     .observer-signal {{ display:flex; align-items:center; gap:9px }}
     .status-led {{ width:12px; height:12px; border-radius:50%; flex:0 0 12px; animation:led-blink 1.1s ease-in-out infinite }}
+    .status-led.checking {{ background:var(--accent); box-shadow:0 0 9px var(--accent) }}
     .status-led.idle,.status-led.waiting {{ background:#e0af68; box-shadow:0 0 8px #e0af68 }}
     .status-led.working {{ background:var(--green); box-shadow:0 0 10px var(--green) }}
     .status-led.failed {{ background:#f7768e; box-shadow:0 0 10px #f7768e }}
@@ -309,8 +267,8 @@ def render(
     .observer-state.working {{ color:var(--green); border-color:var(--green) }}
     .observer-state.failed {{ color:var(--hot); border-color:var(--hot) }}
     .observer-state.waiting {{ color:var(--accent); border-color:var(--accent) }}
-    .observer-note {{ margin:12px 0 16px; color:var(--muted); font-size:13px }}
-    .observer-grid {{ display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:var(--line); border:1px solid var(--line) }}
+    .observer-state.checking {{ color:var(--accent); border-color:var(--accent) }}
+    .observer-grid {{ display:grid; grid-template-columns:2fr 1fr 1fr; gap:1px; background:var(--line); border:1px solid var(--line) }}
     .observer-cell {{ min-width:0; padding:14px; background:var(--paper) }}
     .observer-cell span {{ display:block; color:var(--muted); font:700 9px var(--mono); letter-spacing:.08em; text-transform:uppercase }}
     .observer-cell strong {{ display:block; margin-top:7px; font-size:13px; line-height:1.25; overflow-wrap:anywhere }}
@@ -333,51 +291,22 @@ def render(
     @keyframes machine-pulse {{ 0%,24% {{ opacity:1; box-shadow:0 0 8px var(--green) }} 25%,100% {{ opacity:.18; box-shadow:none }} }}
     @keyframes machine-scroll {{ from {{ transform:translateX(0) }} to {{ transform:translateX(-200%) }} }}
     @media (prefers-reduced-motion: reduce) {{ .machine-activity.working .machine-lights i,.machine-track span {{ animation:none }} }}
-
-
-    .continuity-proof {{ margin:0 0 44px; padding:20px; border:1px solid var(--line); background:var(--surface) }}
-    .proof-head {{ display:flex; align-items:flex-start; justify-content:space-between; gap:18px }}
-    .proof-head h2 {{ margin:5px 0 0; font-size:24px }}
-    .proof-status {{ padding:5px 9px; border:1px solid var(--line); font:800 11px var(--mono); color:var(--muted) }}
-    .proof-status.passed {{ border-color:var(--green); color:var(--green) }}
-    .latest-result-bar {{ display:flex; align-items:center; gap:10px; justify-content:space-between; margin:14px 0 }}
-    .get-latest-result {{ min-height:44px; padding:0 14px; border:1px solid var(--accent); border-radius:4px; background:var(--paper); color:var(--ink); font:700 12px var(--mono); cursor:pointer }}
-    .latest-result-status {{ color:var(--muted); font:11px var(--mono); text-align:right }}
-    .continuity-proof p {{ max-width:760px }}
-    .proof-checks {{ display:grid; gap:7px; margin:18px 0; padding:0; list-style:none; font:12px/1.4 var(--mono) }}
-    .proof-checks b {{ color:var(--green) }}
-    .proof-limit {{ color:var(--muted); font-size:13px }}
-    .model-candidate {{ margin:18px 0; padding:14px; border:1px solid var(--line); background:var(--paper) }}
-    .model-candidate b {{ color:var(--accent); font:700 10px var(--mono); letter-spacing:.08em; text-transform:uppercase }}
-    .semantic-review {{ margin:18px 0; padding:14px; border:1px solid var(--line); background:var(--surface) }}
-    .semantic-review>b {{ color:var(--accent); font:700 10px var(--mono); letter-spacing:.08em; text-transform:uppercase }}
-    .semantic-review ul {{ display:grid; gap:14px; margin:14px 0 0; padding:0; list-style:none }}
-    .review-item {{ display:grid; gap:9px; padding:12px 0; border-top:1px solid var(--line) }}
-    .review-question {{ font-size:14px; line-height:1.35 }}
-    .review-choices {{ display:grid; grid-template-columns:repeat(3,1fr); gap:6px }}
-    .review-choices button,.copy-review {{ min-height:44px; border:1px solid var(--line); border-radius:4px; background:var(--paper); color:var(--ink); font:700 12px var(--mono); cursor:pointer }}
-    .review-choices button.selected {{ border-color:var(--accent); background:var(--accent); color:var(--paper) }}
-    .overall-review {{ display:grid; gap:9px; margin-top:18px; padding-top:16px; border-top:1px solid var(--line) }}
-    .overall-review>span {{ font:700 12px var(--mono); text-transform:uppercase; letter-spacing:.05em }}
-    .copy-review {{ width:100%; margin-top:14px; background:var(--ink); color:var(--paper) }}
-    .copy-review:disabled {{ cursor:not-allowed; opacity:.45 }}
-    .copy-status {{ display:block; min-height:18px; margin-top:8px; color:var(--muted); font:11px var(--mono) }}
-    .refresh-backdrop {{ position:fixed; inset:0; z-index:30; background:rgba(8,10,20,.66); backdrop-filter:blur(2px); -webkit-backdrop-filter:blur(2px) }}
-    .refresh-backdrop[hidden],.refresh-panel[hidden] {{ display:none }}
-    .refresh-panel {{ position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); width:min(90vw,420px); z-index:31; padding:22px; border:1px solid var(--accent); border-radius:8px; background:var(--surface); box-shadow:0 24px 80px rgba(0,0,0,.48) }}
-    .refresh-panel b {{ font:700 12px var(--mono); text-transform:uppercase; letter-spacing:.06em; color:var(--accent) }}
-    .refresh-panel p {{ margin:7px 0 12px; font-size:14px }}
-    .refresh-actions {{ display:grid; grid-template-columns:1fr 1fr; gap:8px }}
-    .refresh-actions button {{ min-height:44px; border:1px solid var(--line); border-radius:4px; background:var(--paper); color:var(--ink); font:700 12px var(--mono); cursor:pointer }}
-    .refresh-now {{ border-color:var(--accent)!important }}
-    .proof-json {{ color:var(--accent); font:700 12px var(--mono); text-decoration:none }}
+    .exchange {{ margin:0 0 38px; padding:18px; border:1px solid var(--line); background:var(--surface) }}
+    .exchange-head {{ display:flex; align-items:flex-start; justify-content:space-between; gap:16px }}
+    .exchange-head h2 {{ margin-top:6px }}
+    .exchange-status {{ padding:5px 8px; border:1px solid var(--line); color:var(--muted); font:800 10px var(--mono); letter-spacing:.04em; white-space:nowrap }}
+    .exchange-status.working {{ color:var(--green); border-color:var(--green) }}
+    .question {{ margin:18px 0; padding:14px; border-left:4px solid var(--accent); background:var(--paper); font-size:16px; font-weight:650 }}
+    .context-brief {{ display:grid; gap:1px; margin:0; background:var(--line); border:1px solid var(--line) }}
+    .context-brief>div {{ display:grid; grid-template-columns:140px 1fr; gap:14px; padding:12px; background:var(--paper) }}
+    .context-brief dt,.exchange-answer>span,.exchange-action>span {{ color:var(--accent); font:700 10px var(--mono); letter-spacing:.08em; text-transform:uppercase }}
+    .context-brief dd {{ margin:0; font-size:14px; overflow-wrap:anywhere }}
+    .context-brief ul {{ margin:0; padding-left:18px }}
+    .exchange-answer,.exchange-action {{ margin-top:16px; padding-top:14px; border-top:1px solid var(--line) }}
+    .exchange-answer p,.exchange-action p {{ margin:7px 0 0; font-size:15px; overflow-wrap:anywhere }}
+    .exchange-answer small {{ display:block; margin-top:8px; color:var(--muted) }}
     .toolbar {{ display:flex; gap:10px; align-items:center; justify-content:space-between; margin:0 0 18px }}
     h2 {{ margin:0; font-size:23px; letter-spacing:-.03em }}
-    .action {{ display:inline-flex; align-items:center; min-height:44px; padding:0 16px; color:var(--paper); background:var(--ink); text-decoration:none; font:700 13px var(--mono); border-radius:2px }}
-    .action:hover {{ background:var(--hot) }}
-    .state-grid {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; margin-bottom:52px }}
-    .state-card {{ min-width:0; background:var(--surface); border:1px solid var(--line); padding:17px }}
-    .state-key {{ font:700 12px var(--mono); color:var(--accent); overflow-wrap:anywhere }}
     .work-grid {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:14px; margin-bottom:52px }}
     .work-card {{ min-width:0; background:var(--surface); border:1px solid var(--line); border-top:4px solid var(--green); padding:19px }}
     .work-head {{ display:flex; justify-content:space-between; align-items:center; gap:10px }}
@@ -389,8 +318,9 @@ def render(
     .work-section b,.final-result b {{ color:var(--accent); font:700 10px var(--mono); letter-spacing:.08em; text-transform:uppercase }}
     .work-section ul,.work-section ol {{ margin:8px 0 0; padding-left:20px }} .work-section li+li {{ margin-top:6px }}
     .final-result p {{ margin:8px 0 0 }}
-    pre {{ margin:14px 0 0; white-space:pre-wrap; overflow-wrap:anywhere; font:14px/1.4 var(--mono) }}
     .empty {{ padding:28px; border:1px dashed var(--line); color:var(--muted); background:rgba(255,255,255,.28) }}
+    .history {{ margin-top:8px; border-top:1px solid var(--line); padding-top:20px }}
+    .history>summary {{ cursor:pointer; color:var(--muted); font:700 12px var(--mono); letter-spacing:.08em; text-transform:uppercase }}
     .history-tools {{ display:flex; gap:10px; margin:14px 0 }}
     input {{ width:100%; min-height:44px; border:1px solid var(--line); border-radius:0; background:var(--surface); color:var(--ink); padding:0 13px; font:16px var(--mono) }}
     .receipts {{ display:grid; gap:6px }}
@@ -413,9 +343,13 @@ def render(
     .data-switch-track i {{ display:block; width:18px; height:18px; border-radius:50%; background:var(--muted); transition:transform .2s ease,background .2s ease }}
     .theme-switch input:checked + .data-switch-track i {{ transform:translateX(17px); background:var(--green) }}
     .theme-switch input:focus-visible + .data-switch-track {{ outline:3px solid var(--green); outline-offset:3px }}
-    @media(max-width:600px) {{ header {{ column-gap:16px; row-gap:24px }}
-      .metrics {{ grid-template-columns:1fr }} .verification {{ align-items:flex-start; flex-direction:column }}
-      .observer-grid {{ grid-template-columns:1fr 1fr }} .observer-detail {{ align-items:flex-start; flex-direction:column }}
+    @media(max-width:600px) {{ header {{ column-gap:16px }}
+      .observer-head {{ gap:12px }} .observer-signal {{ align-items:flex-start }}
+      .observer-state {{ max-width:112px; text-align:center }}
+      .observer-grid {{ grid-template-columns:1fr 1fr }} .observer-cell.primary {{ grid-column:1/-1 }}
+      .observer-detail {{ align-items:flex-start; flex-direction:column }}
+      .context-brief>div {{ grid-template-columns:1fr; gap:5px }}
+      .exchange-head {{ align-items:flex-start; flex-direction:column }}
       .toolbar {{ align-items:flex-end }}
       .receipt {{ grid-template-columns:38px 76px 1fr }} .revision {{ grid-column:3 }} .receipt-detail {{ grid-column:1/-1 }} }}
   </style>
@@ -425,34 +359,25 @@ def render(
     <a class="inspired" href="https://sudofx.github.io/wake/">Inspired by WAKE<b>✳︎</b></a></div>
     <label class="theme-switch" title="Follow system theme"><input id="theme-toggle" type="checkbox" role="switch" aria-label="Use dark theme"><span class="data-switch-track" aria-hidden="true"><i></i></span></label>
     <div class="tagline">Durable, accountable work across interchangeable intelligences.</div></header>
-  <section class="hero"><div class="eyebrow">Verified durable record</div><h1>The intelligence can disappear. The work remains.</h1></section>
-  <section class="metrics" aria-label="Record summary">
-    <div class="metric"><span class="eyebrow">Revision</span><strong>{context.revision}</strong></div>
-    <div class="metric"><span class="eyebrow">Accepted</span><strong>{accepted}</strong></div>
-    <div class="metric"><span class="eyebrow">Rejected</span><strong>{rejected}</strong></div>
-  </section>
   {observer_console_html}
-  {verification_html}
-  {continuity_html}
-  <section><div class="toolbar"><div><span class="eyebrow">{open_work} open</span><h2>Durable work</h2></div></div>
+  {_exchange_panel(continuity_proof)}
+  <section><div class="toolbar"><div><span class="eyebrow">{open_work} open</span><h2>Current work</h2></div></div>
     <div class="work-grid">{_work_cards(context.state)}</div></section>
-  <section><div class="toolbar"><h2>General state</h2></div>
-    <div class="state-grid">{_state_cards(context.state)}</div></section>
-  <section><div class="toolbar"><h2>Receipts</h2><span class="eyebrow">Newest first</span></div>
-    <div class="history-tools"><input id="search" type="search" placeholder="Filter the record…" aria-label="Filter receipts"></div>
-    <div class="receipts" id="receipts">{_receipt_rows(history)}</div></section>
-  <footer>Hash-linked and replay-verified before publication · Pages is a projection, never the authority.</footer>
+  <details class="history"><summary>Activity history · {len(history)} receipts</summary>
+    <div class="history-tools"><input id="search" type="search" placeholder="Filter activity…" aria-label="Filter activity history"></div>
+    <div class="receipts" id="receipts">{_receipt_rows(history)}</div></details>
+  <footer>Verified durable record · revision {context.revision} · Pages is a read-only view.</footer>
 </main><script>
 const observer=document.querySelector('.observer-console');
 const observerState=document.querySelector('[data-observer-state]');
 const statusLed=document.querySelector('[data-status-led]');
 const currentActivity=document.querySelector('[data-current-activity]');
-const testStatus=document.querySelector('[data-test-status]');
 const currentStep=document.querySelector('[data-current-step]');
 const latestRun=document.querySelector('[data-latest-run]');
 const observerDetail=document.querySelector('[data-observer-detail]');
 const machineActivity=document.querySelector('[data-machine-activity]');
 const machineText=document.querySelector('[data-machine-text]');
+const exchangeStatus=document.querySelector('[data-exchange-status]');
 const refreshObserver=async()=>{{
   if(!observer)return;
   const repo=observer.dataset.repository, workflow=observer.dataset.workflow;
@@ -464,18 +389,18 @@ const refreshObserver=async()=>{{
     latestRun.textContent='#'+String(run.run_number||run.id);
     const running=run.status!=='completed';
     const visualState=running?'working':(run.conclusion==='failure'?'failed':({json.dumps(observer_static_state)}==='WAITING FOR YOU'?'waiting':'idle'));
+    observer.className='observer-console '+visualState;
     observerState.className='observer-state '+visualState;
     observerState.textContent=running?'WORKING':(run.conclusion==='failure'?'FAILED':{json.dumps(observer_static_state)});
     if(statusLed)statusLed.className='status-led '+visualState;
-    currentActivity.textContent=running?'Bounded development cycle running':(run.conclusion==='failure'?'Workflow needs inspection':{json.dumps(observer_static_activity)});
+    currentActivity.textContent=running?'Waiting for Gemini and governing its response':(run.conclusion==='failure'?'Workflow needs inspection':{json.dumps(observer_static_activity)});
+    if(exchangeStatus){{exchangeStatus.textContent=running?'WAITING ON GEMINI':'LAST EXCHANGE';exchangeStatus.className='exchange-status '+(running?'working':'');}}
     const jobsResponse=await fetch(run.jobs_url,{{cache:'no-store'}});
     if(jobsResponse.ok){{
       const jobsData=await jobsResponse.json(), jobs=Array.isArray(jobsData.jobs)?jobsData.jobs:[];
       const steps=jobs.flatMap(job=>Array.isArray(job.steps)?job.steps:[]);
       const active=steps.find(step=>step.status==='in_progress')||steps.find(step=>step.status==='queued');
-      const verify=steps.find(step=>step.name==='Verify the kernel');
       currentStep.textContent=active?active.name:(run.status==='completed'?'Complete':'Starting');
-      if(verify)testStatus.textContent=verify.status==='completed'?(verify.conclusion==='success'?'PASS':'FAIL'):'RUNNING';
       if(machineActivity){{
         machineActivity.hidden=!running;
         machineActivity.classList.toggle('working',running);
@@ -489,148 +414,52 @@ const refreshObserver=async()=>{{
     observerDetail.textContent='GitHub updated '+updated.toLocaleString()+' · auto-refreshes every 15s';
   }}catch(error){{
     observerDetail.textContent='Live GitHub telemetry unavailable · showing last published durable state';
+    observer.className='observer-console '+(observer.dataset.fallbackState==='WAITING FOR YOU'?'waiting':'idle');
+    observerState.className='observer-state '+(observer.dataset.fallbackState==='WAITING FOR YOU'?'waiting':'idle');
+    observerState.textContent=observer.dataset.fallbackState;
+    currentActivity.textContent=observer.dataset.fallbackActivity;
+    currentStep.textContent='Live detail unavailable';
     if(machineActivity)machineActivity.hidden=true;
-    if(statusLed)statusLed.className='status-led idle';
+    if(statusLed)statusLed.className='status-led '+(observer.dataset.fallbackState==='WAITING FOR YOU'?'waiting':'idle');
   }}
+}};
+const exchange=document.querySelector('.exchange');
+const updateList=(node,values,empty)=>{{
+  if(!node)return;
+  const items=Array.isArray(values)&&values.length?values:[empty];
+  node.replaceChildren(...items.map(value=>{{const li=document.createElement('li');li.textContent=String(value);return li;}}));
+}};
+const refreshExchange=async()=>{{
+  if(!exchange)return;
+  try{{
+    const response=await fetch('./continuity-proof.json?ts='+Date.now(),{{cache:'no-store'}});
+    if(!response.ok)throw new Error('proof unavailable');
+    const proof=await response.json();
+    const runId=String(proof.artifact_run_id||'');
+    if(!runId||runId===exchange.dataset.artifactRunId)return;
+    exchange.dataset.artifactRunId=runId;
+    const evidence=proof.semantic_review?.evidence||{{}};
+    document.querySelector('[data-exchange-objective]').textContent=String(evidence.objective||'No current objective was supplied.');
+    updateList(document.querySelector('[data-exchange-accepted]'),evidence.accepted_results,'None yet');
+    updateList(document.querySelector('[data-exchange-frontier]'),evidence.open_obligations,'No open obligation recorded');
+    updateList(document.querySelector('[data-exchange-constraints]'),evidence.constraints,'No additional constraints');
+    document.querySelector('[data-exchange-response]').textContent=String(proof.candidate_result||'No Gemini response was published.');
+    const rationale=document.querySelector('[data-exchange-rationale]');
+    rationale.textContent=proof.candidate_rationale?'Why: '+String(proof.candidate_rationale):'';
+    rationale.hidden=!proof.candidate_rationale;
+    document.querySelector('[data-exchange-action]').textContent=proof.assessment_status==='semantic_review_pending'
+      ?'Governance accepted the proposal on an isolated verification snapshot. The durable record was not changed; the result is waiting for human judgment.'
+      :'No governed Gemini proposal was published.';
+    if(exchangeStatus){{exchangeStatus.textContent='UPDATED · RUN '+runId;exchangeStatus.className='exchange-status';}}
+  }}catch(error){{/* Keep the last published exchange visible while Pages catches up. */}}
 }};
 refreshObserver();
+refreshExchange();
 setInterval(refreshObserver,15000);
+setInterval(refreshExchange,15000);
 const search=document.querySelector('#search');
-search.addEventListener('input',()=>{{const q=search.value.toLowerCase();document.querySelectorAll('.receipt').forEach(r=>r.hidden=!r.dataset.search.toLowerCase().includes(q))}});
+if(search)search.addEventListener('input',()=>{{const q=search.value.toLowerCase();document.querySelectorAll('.receipt').forEach(r=>r.hidden=!r.dataset.search.toLowerCase().includes(q))}});
 document.querySelectorAll('.receipt').forEach(r=>r.addEventListener('click',()=>r.setAttribute('aria-expanded',r.classList.contains('open'))));
-const proof=document.querySelector('.continuity-proof');
-const latestButton=document.querySelector('.get-latest-result');
-const latestStatus=document.querySelector('.latest-result-status');
-const applyLatestProof=data=>{{
-  const incoming=String(data.artifact_run_id||'');
-  const current=String(proof?.dataset.artifactRunId||'');
-  if(!incoming){{latestStatus.textContent='Latest proof has no run ID';return false;}}
-  if(incoming===current){{latestStatus.textContent='No newer result yet · run '+incoming;return false;}}
-  proof.dataset.artifactRunId=incoming;
-  proof.dataset.artifactCommit=String(data.artifact_commit||'');
-  latestStatus.textContent='Loaded run '+incoming;
-  const digest=String(data.context_digest||'');
-  const digestNode=proof.querySelector('.context-digest');
-  digestNode.textContent=digest?'context '+digest.slice(0,16)+'…':'';
-  const candidate=proof.querySelector('.model-candidate');
-  const candidateText=candidate.querySelector('p');
-  candidate.hidden=!data.candidate_result;
-  candidateText.textContent=String(data.candidate_result||'');
-  const reviewNode=proof.querySelector('.semantic-review');
-  if(reviewNode){{
-    reviewNode.dataset.contextDigest=digest;
-    reviewNode.dataset.workId=String(data.work_id||'');
-    reviewNode.dataset.provider=String(data.provider||'');
-    reviewNode.dataset.model=String(data.model||'');
-    reviewNode.dataset.reviewVersion=String(data.semantic_review?.version||'');
-    const criteria=Array.isArray(data.semantic_review?.criteria)?data.semantic_review.criteria:[];
-    const list=reviewNode.querySelector('ul');
-    list.replaceChildren(...criteria.map(item=>{{
-      const li=document.createElement('li');li.className='review-item';li.dataset.reviewId=String(item.id||'');
-      const q=document.createElement('span');q.className='review-question';q.textContent=String(item.question||'');
-      const choices=document.createElement('div');choices.className='review-choices';choices.setAttribute('role','group');choices.setAttribute('aria-label','Choose semantic review verdict');
-      for(const value of ['pass','fail','uncertain']){{
-        const b=document.createElement('button');b.type='button';b.dataset.choice=value;b.textContent=value[0].toUpperCase()+value.slice(1);choices.appendChild(b);
-      }}
-      li.append(q,choices);return li;
-    }}));
-    initializeReviewControls(reviewNode);
-  }}
-  return true;
-}};
-if(latestButton){{
-  latestButton.addEventListener('click',async()=>{{
-    latestButton.disabled=true;latestStatus.textContent='Checking…';
-    try{{
-      const response=await fetch('./continuity-proof.json?ts='+Date.now(),{{cache:'no-store'}});
-      if(!response.ok)throw new Error('HTTP '+response.status);
-      const data=await response.json();
-      applyLatestProof(data);
-    }}catch(error){{
-      latestStatus.textContent='Could not load latest result';
-    }}finally{{latestButton.disabled=false;}}
-  }});
-}}
-const initializeReviewControls=review=>{{
-  const choices={{}}, items=[...review.querySelectorAll('.review-item')], overallButtons=[...review.querySelectorAll('[data-overall]')];
-  const copyButton=review.querySelector('.copy-review'), status=review.querySelector('.copy-status');
-  items.forEach(item=>{{
-    choices[item.dataset.reviewId]='pass';
-    item.querySelector('[data-choice="pass"]')?.classList.add('selected');
-  }});
-  choices.__overall='pass';
-  overallButtons.find(button=>button.dataset.overall==='pass')?.classList.add('selected');
-  const updateCopyState=()=>{{
-    copyButton.disabled=false;
-    copyButton.textContent='Copy review';
-  }};
-  review.querySelectorAll('.review-item [data-choice]').forEach(button=>button.addEventListener('click',()=>{{
-    const item=button.closest('.review-item'), id=item.dataset.reviewId;
-    choices[id]=button.dataset.choice;
-    item.querySelectorAll('[data-choice]').forEach(peer=>peer.classList.toggle('selected',peer===button));
-    updateCopyState();
-  }}));
-  overallButtons.forEach(button=>button.addEventListener('click',()=>{{
-    choices.__overall=button.dataset.overall;
-    overallButtons.forEach(peer=>peer.classList.toggle('selected',peer===button));
-    updateCopyState();
-  }}));
-  copyButton.addEventListener('click',async()=>{{
-    if(copyButton.disabled)return;
-    const lines=[
-      'SUDOFX_SEMANTIC_REVIEW v'+review.dataset.reviewVersion,
-      'artifact_run_id='+(proof?.dataset.artifactRunId||''),
-      'artifact_commit='+(proof?.dataset.artifactCommit||''),
-      'context_digest='+review.dataset.contextDigest,
-      'work_id='+review.dataset.workId,
-      'provider='+review.dataset.provider,
-      'model='+review.dataset.model,
-      ...items.map(item=>item.dataset.reviewId+'='+choices[item.dataset.reviewId]),
-      'overall='+choices.__overall,
-    ];
-    const payload=lines.join('\\n');
-    try{{
-      await navigator.clipboard.writeText(payload);
-    }}catch(error){{
-      const area=document.createElement('textarea');
-      area.value=payload;area.style.position='fixed';area.style.opacity='0';
-      document.body.appendChild(area);area.select();
-      document.execCommand('copy');area.remove();
-    }}
-    copyButton.textContent='Copied — paste into ChatGPT';
-    status.textContent='Review copied to clipboard. No authoritative state was changed.';
-    const backdrop=review.querySelector('.refresh-backdrop');
-    const panel=review.querySelector('.refresh-panel');
-    const count=review.querySelector('.refresh-count');
-    const refreshNow=review.querySelector('.refresh-now');
-    const refreshCancel=review.querySelector('.refresh-cancel');
-    let remaining=5, timer=null, cancelled=false;
-    backdrop.hidden=false;
-    panel.hidden=false;
-    count.textContent=String(remaining);
-    const stopTimer=()=>{{if(timer!==null)clearTimeout(timer);timer=null;}};
-    const refreshPage=()=>{{
-      stopTimer();
-      const target=new URL(window.location.href);
-      target.searchParams.set('refresh',String(Date.now()));
-      window.location.replace(target.toString());
-    }};
-    const tick=()=>{{
-      if(cancelled)return;
-      remaining-=1;
-      count.textContent=String(remaining);
-      if(remaining<=0)refreshPage();
-      else timer=setTimeout(tick,1000);
-    }};
-    refreshNow.onclick=refreshPage;
-    refreshCancel.onclick=()=>{{cancelled=true;stopTimer();backdrop.hidden=true;panel.hidden=true;status.textContent='Review copied. Automatic refresh cancelled.';}};
-    timer=setTimeout(tick,1000);
-  }});
-  updateCopyState();
-}};
-const review=document.querySelector('.semantic-review');
-if(review)initializeReviewControls(review);
-
 const toggle=document.querySelector('#theme-toggle');
 const saved=()=>{{try{{return localStorage.getItem('wake-theme')}}catch{{return null}}}};
 const sync=()=>{{const dark=document.documentElement.dataset.theme==='dark',manual=Boolean(saved());toggle.checked=dark;toggle.setAttribute('aria-label',dark?'Use light theme':'Use dark theme');toggle.closest('.theme-switch').title=manual?`Manual ${{dark?'dark':'light'}} theme`:`Following system ${{dark?'dark':'light'}} theme`}};

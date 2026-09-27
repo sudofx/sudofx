@@ -231,6 +231,7 @@ json.dump({
             "Recover meaning after provider replacement",
         )
         self.assertIn("evaluate semantic fidelity", proof["candidate_result"])
+        self.assertEqual(proof["candidate_rationale"], "derived only from bounded context")
         self.assertEqual(before, after)
         self.assertFalse(proof["checks"]["production_state_mutated"])
 
@@ -354,7 +355,7 @@ json.dump({
             self.kernel.context()
 
     def test_static_report_exposes_state_and_receipt_provenance(self) -> None:
-        """The public projection must preserve navigation, theme, and traceability."""
+        """The phone projection prioritizes status and the human-readable exchange."""
         self.kernel.submit(Proposal("p1", 0, (Operation("set", "objective", "continue"),)))
         page = render(
             self.kernel,
@@ -366,68 +367,45 @@ json.dump({
                 "passed": True,
                 "artifact_run_id": "123",
                 "artifact_commit": "0123456789abcdef",
-                "proves": "Fresh process continued bounded work.",
-                "does_not_prove": "Real model semantic reconstruction.",
-                "checks": {
-                    "provider_is_fresh_external_process": True,
-                    "production_state_mutated": False,
-                },
+                "assessment_status": "semantic_review_pending",
+                "candidate_result": "Reconstruction: continue safely. Proposed next step: inspect the frontier.",
+                "candidate_rationale": "The durable objective identifies the frontier.",
                 "semantic_review": {
-                    "version": 1,
-                    "status": "pending",
-                    "rule": "Human review only.",
-                    "criteria": [
-                        {
-                            "id": "objective_fidelity",
-                            "question": "Does it preserve the objective?",
-                            "status": "pending",
-                        }
-                    ],
+                    "evidence": {
+                        "objective": "Preserve the work across model replacement",
+                        "accepted_results": ["Bounded context reached Gemini"],
+                        "open_obligations": ["Inspect the frontier"],
+                        "constraints": ["Do not mutate production during proof"],
+                    }
                 },
             },
         )
-        self.assertIn("Tests passed before this page was published.", page)
-        self.assertIn("Disposable continuity proof", page)
-        self.assertIn("Fresh process continued bounded work.", page)
-        self.assertIn("continuity-proof.json", page)
-        self.assertIn("Human semantic review", page)
-        self.assertIn("Get latest result", page)
-        self.assertIn("data-artifact-run-id=\"123\"", page)
-        self.assertIn("data-artifact-commit=\"0123456789abcdef\"", page)
-        self.assertIn("artifact_run_id=", page)
-        self.assertIn("artifact_commit=", page)
+        self.assertLess(page.index("What sudofx is doing"), page.index("Current work"))
+        self.assertIn("CHECKING…", page)
+        self.assertIn("Loading live workflow status…", page)
+        self.assertIn("What Gemini was asked", page)
+        self.assertIn("Preserve the work across model replacement", page)
+        self.assertIn("Bounded context reached Gemini", page)
+        self.assertIn("Inspect the frontier", page)
+        self.assertIn("Do not mutate production during proof", page)
+        self.assertIn("Gemini responded", page)
+        self.assertIn("Reconstruction: continue safely", page)
+        self.assertIn("Why: The durable objective identifies the frontier.", page)
+        self.assertIn("What sudofx did", page)
+        self.assertIn("isolated verification snapshot", page)
+        self.assertIn("data-exchange-response", page)
         self.assertIn("continuity-proof.json?ts=", page)
-        self.assertIn("No newer result yet", page)
-        self.assertIn("initializeReviewControls", page)
-        self.assertIn("Does it preserve the objective?", page)
-        self.assertIn("Pass", page)
-        self.assertIn("Fail", page)
-        self.assertIn("Uncertain", page)
-        self.assertIn("Copy review", page)
-        self.assertIn("choices[item.dataset.reviewId]='pass'", page)
-        self.assertIn("choices.__overall='pass'", page)
-        self.assertIn("SUDOFX_SEMANTIC_REVIEW", page)
-        self.assertIn("navigator.clipboard.writeText", page)
-        self.assertIn("Refreshing this page in", page)
-        self.assertIn("Refresh now", page)
-        self.assertIn("Cancel", page)
-        self.assertIn("remaining=5", page)
-        self.assertIn("window.location.replace", page)
-        self.assertIn("searchParams.set('refresh'", page)
-        self.assertIn("refresh-backdrop", page)
-        self.assertIn("top:50%; transform:translate(-50%,-50%)", page)
-        self.assertIn("Automatic refresh cancelled.", page)
-        self.assertIn("No authoritative state was changed.", page)
-        self.assertIn("const payload=lines.join(", page)
-        self.assertNotIn("lines.join('\n')", page)
-        self.assertIn("0123456789ab", page)
-        self.assertIn("actions/runs/123", page)
+        self.assertIn("setInterval(refreshExchange,15000)", page)
+        self.assertIn("Activity history", page)
+        self.assertNotIn("General state", page)
+        self.assertNotIn("Technical pass", page)
+        self.assertNotIn("Phone-ready verification", page)
         self.assertIn("objective", page)
         self.assertIn("continue", page)
         self.assertIn("proposal p1", page)
         self.assertNotIn("Run operation", page)
         self.assertIn("data-status-led", page)
-        self.assertIn("status-led idle", page)
+        self.assertIn("status-led checking", page)
         self.assertIn("led-blink", page)
         self.assertIn("wake-theme", page)
         self.assertIn("data-theme=dark", page)
@@ -442,8 +420,6 @@ json.dump({
         self.assertIn("grid-area:theme; justify-self:end", page)
         self.assertIn('class="brand" href="./"', page)
         self.assertIn('href="https://sudofx.github.io/wake/">Inspired by WAKE', page)
-        self.assertNotIn("Continuity Challenge", page)
-        self.assertNotIn("Copy challenge", page)
 
     def test_exported_runner_state_stops_at_human_review_boundary(self) -> None:
         """
@@ -609,7 +585,7 @@ json.dump({
             )
         )
         page = render(self.kernel)
-        self.assertIn("Durable work", page)
+        self.assertIn("Current work", page)
         self.assertIn("Visible work", page)
         self.assertNotIn("Create or advance", page)
 

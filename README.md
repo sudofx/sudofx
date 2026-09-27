@@ -345,8 +345,11 @@ Run the proof suite with:
 ## Phone Interface
 
 The static interface is designed for GitHub Pages and can be opened locally with
-`sudofx serve`. It shows replayed state and the exact accepted and rejected receipt
-chain, with a compact phone layout and searchable history.
+`sudofx serve`. Its phone-first view puts live development status first, then
+shows the human-readable context sent to Gemini, Gemini's response, and the
+governed outcome. Current work remains visible and the exact accepted/rejected
+receipt chain is preserved in a collapsed, searchable history instead of
+dominating the operating view.
 
 In GitHub, the `sudofx — operate & publish` workflow is the authenticated control
 plane. A manual run accepts a `set` or `delete` proposal, applies deterministic
