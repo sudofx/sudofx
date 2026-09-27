@@ -711,13 +711,22 @@ json.dump({
         self.assertIn("grid-area:theme; justify-self:end", page)
         self.assertIn('class="brand" href="./"', page)
         self.assertIn('href="https://sudofx.github.io/wake/" target="_blank"', page)
-        # Public markup exposes only a login affordance. Start and Stop remain
-        # hidden until the control service verifies the encrypted owner session.
+        # Operator access uses the same masthead popover contract as WAKE. The
+        # authenticated actions remain hidden until the control service verifies
+        # the encrypted session, even though the sign-in link is always visible.
         self.assertIn('href="https://control.example/auth/login"', page)
+        self.assertLess(page.index('data-owner-access'), page.index('</header>'))
+        self.assertIn('class="owner-menu-toggle"', page)
+        self.assertIn('data-owner-menu-label>Operator</span>', page)
         self.assertIn('data-owner-controls hidden', page)
+        self.assertIn('class="owner-control-actions"', page)
         self.assertIn('data-owner-start>Start</button>', page)
         self.assertIn('data-owner-stop>Stop</button>', page)
         self.assertIn('data-owner-backup hidden>Backup</button>', page)
+        self.assertIn('data-owner-signout>Sign out</button>', page)
+        self.assertIn('position:absolute; top:0; right:0; z-index:2000', page)
+        self.assertIn('position:fixed; top:52px; right:16px', page)
+        self.assertIn("setOwnerMenu(ownerControls.hidden)", page)
         self.assertIn("'/api/backup'", page)
         self.assertIn("public state", page)
         self.assertIn("sessionStorage.setItem(ownerSessionKey", page)

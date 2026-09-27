@@ -256,6 +256,26 @@ def render(
         if observer_continuous
         else "No continuous cycle is active. Start the continuation workflow to resume."
     )
+    # Authentication remains a presentation-layer gateway to the separate
+    # control service; moving it into the masthead must not make Pages an
+    # authority or expose authenticated actions before session verification.
+    # This structure intentionally matches WAKE's compact operator popover so
+    # both related tools keep the same location and interaction vocabulary.
+    owner_access_html = (
+        f'''<div class="owner-access" data-owner-access>
+      <a class="owner-login" data-owner-login href="{_escape(control_url)}/auth/login">Operator sign in</a>
+      <button class="owner-menu-toggle" data-owner-menu-toggle type="button" aria-expanded="false" aria-haspopup="true" hidden>
+        <i aria-hidden="true"></i><span data-owner-menu-label>Operator</span>
+      </button>
+      <div class="owner-controls" data-owner-controls hidden aria-live="polite">
+        <div class="owner-control-heading"><strong>Operator controls</strong><span data-owner-identity></span><span data-owner-control-status>Checking controls…</span></div>
+        <div class="owner-control-actions"><button type="button" data-owner-start>Start</button><button type="button" data-owner-stop>Stop</button><button type="button" data-owner-backup hidden>Backup</button></div>
+        <button class="owner-signout" type="button" data-owner-signout>Sign out</button>
+      </div>
+    </div>'''
+        if control_url
+        else ""
+    )
     observer_console_html = f"""
         <section class="observer-console checking" aria-label="Development status"
                  data-repository="{_escape(repository)}" data-workflow="prove-model.yml"
@@ -288,14 +308,6 @@ def render(
             <span data-observer-detail>Connecting to GitHub…</span>
             <a href="https://github.com/{_escape(repository)}/actions/workflows/prove-model.yml">Open workflow ↗</a>
           </div>
-          {f'''<div class="owner-access" data-owner-access>
-            <a class="owner-login" data-owner-login href="{_escape(control_url)}/auth/login">Operator sign in</a>
-            <div class="owner-controls" data-owner-controls hidden aria-live="polite">
-              <span data-owner-identity></span>
-              <span data-owner-control-status>Checking controls…</span>
-              <div><button type="button" data-owner-start>Start</button><button type="button" data-owner-stop>Stop</button><button type="button" data-owner-backup hidden>Backup</button></div>
-            </div>
-          </div>''' if control_url else ''}
         </section>
         """
     return f"""<!doctype html>
@@ -320,8 +332,8 @@ def render(
     main {{ width:min(980px,100%); max-width:100%; min-width:0; margin:auto; padding:clamp(14px,4vw,40px) }}
     /* Identity stays compact because live status—not project explanation—is the
        first reason an operator opens this page on a phone. */
-    header {{ display:grid; grid-template-columns:minmax(0,1fr) auto; grid-template-areas:"brand theme" "tagline tagline";
-      column-gap:20px; row-gap:8px; align-items:start; padding-bottom:16px }}
+    header {{ position:relative; display:grid; grid-template-columns:minmax(0,1fr) auto; grid-template-areas:"brand theme" "tagline tagline";
+      column-gap:20px; row-gap:8px; align-items:start; padding:36px 0 16px }}
     .brand-block {{ grid-area:brand; display:inline-flex; align-items:baseline; gap:12px; min-width:0 }}
     .brand {{ color:var(--ink); text-decoration:none; font:900 clamp(30px,8vw,48px)/.85 var(--mono); letter-spacing:-.08em }}
     .brand i {{ color:var(--green); font-style:normal }}
@@ -356,19 +368,28 @@ def render(
     .observer-cell strong {{ display:block; margin-top:7px; font-size:13px; line-height:1.25; overflow-wrap:anywhere }}
     .observer-detail {{ display:flex; justify-content:space-between; gap:14px; margin-top:12px; color:var(--muted); font:11px var(--mono) }}
     .observer-detail a {{ color:var(--accent); text-decoration:none; white-space:nowrap }}
-    .owner-access {{ margin-top:14px; padding-top:14px; border-top:1px solid var(--line); font:11px var(--mono) }}
-    .owner-login {{ color:var(--muted); text-decoration:none }}
-    .owner-controls {{ display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px 14px; align-items:center }}
-    .owner-controls>* {{ min-width:0 }}
-    .owner-controls>[data-owner-control-status] {{ overflow-wrap:anywhere }}
-    .owner-controls[hidden] {{ display:none }}
-    .owner-controls>[data-owner-control-status] {{ color:var(--muted) }}
-    .owner-controls>div {{ grid-column:1/-1; display:grid; grid-template-columns:repeat(3,1fr); gap:8px }}
-    .owner-controls button {{ min-height:44px; border:1px solid var(--line); background:var(--paper); color:var(--ink); font:800 12px var(--mono); cursor:pointer }}
+    /* Operator access is a masthead popover, not durable report content. Its
+       elevated layer and mobile fixed panel mirror WAKE while keeping every
+       authenticated action hidden until the control service accepts a session. */
+    .owner-access {{ position:absolute; top:0; right:0; z-index:2000; font:10px var(--mono) }}
+    .owner-login,.owner-menu-toggle {{ display:inline-flex; align-items:center; color:var(--muted); white-space:nowrap; padding:5px 0 }}
+    .owner-login {{ text-decoration:none }}
+    .owner-menu-toggle {{ gap:7px; border:0; background:transparent; font:700 10px var(--mono); letter-spacing:.2px; cursor:pointer }}
+    .owner-menu-toggle i {{ width:7px; height:7px; border-radius:50%; background:var(--muted); box-shadow:0 0 0 1px color-mix(in srgb,var(--muted) 45%,transparent) }}
+    .owner-menu-toggle.is-active i {{ background:var(--green); box-shadow:0 0 8px color-mix(in srgb,var(--green) 65%,transparent) }}
+    .owner-menu-toggle:hover,.owner-menu-toggle:focus-visible,.owner-login:hover,.owner-login:focus-visible {{ color:var(--ink) }}
+    .owner-controls {{ position:absolute; top:calc(100% + 8px); right:0; width:250px; padding:14px; background:var(--surface); border:1px solid var(--line); box-shadow:0 14px 36px #0003; display:grid; gap:12px }}
+    .owner-controls[hidden],.owner-menu-toggle[hidden] {{ display:none!important }}
+    .owner-control-heading {{ display:grid; gap:3px; padding-bottom:10px; border-bottom:1px solid var(--line) }}
+    .owner-control-heading strong {{ font:800 10px var(--mono); letter-spacing:.6px; text-transform:uppercase }}
+    .owner-control-heading span {{ min-width:0; color:var(--muted); white-space:normal; font:10px/1.45 var(--mono); overflow-wrap:anywhere }}
+    .owner-control-actions {{ display:grid; grid-template-columns:repeat(3,1fr); gap:6px }}
+    .owner-controls button {{ border:1px solid var(--line); border-radius:4px; background:var(--surface); color:var(--ink); padding:7px 8px; font:800 10px var(--mono); cursor:pointer }}
     .owner-controls [data-owner-start] {{ border-color:var(--green); color:var(--green) }}
     .owner-controls [data-owner-stop] {{ border-color:#f7768e; color:#f7768e }}
     .owner-controls button:disabled {{ opacity:.45; cursor:wait }}
     .owner-controls button[hidden] {{ display:none }}
+    .owner-controls .owner-signout {{ width:100%; border-color:var(--line); color:var(--muted); background:transparent }}
     .machine-activity {{ margin-top:12px; border:1px solid var(--line); background:var(--paper); overflow:hidden }}
     .machine-activity[hidden] {{ display:none }}
     .machine-lights {{ display:grid; grid-template-columns:repeat(8,1fr); gap:6px; padding:10px 12px 8px }}
@@ -454,6 +475,10 @@ def render(
     .theme-switch input:checked + .data-switch-track i {{ transform:translateX(17px); background:var(--green) }}
     .theme-switch input:focus-visible + .data-switch-track {{ outline:3px solid var(--green); outline-offset:3px }}
     @media(max-width:600px) {{ header {{ column-gap:16px }}
+      .owner-controls {{ position:fixed; top:52px; right:16px; left:auto; width:min(320px,calc(100vw - 32px)); padding:16px; gap:10px; box-shadow:0 18px 46px #0005 }}
+      .owner-control-actions {{ grid-template-columns:1fr 1fr; gap:8px }}
+      .owner-control-actions [data-owner-backup] {{ grid-column:1/-1 }}
+      .owner-controls button {{ min-height:42px }}
       .observer-head {{ gap:12px }} .observer-signal {{ align-items:flex-start }}
       .observer-state {{ max-width:112px; text-align:center }}
       .observer-grid {{ grid-template-columns:1fr 1fr }} .observer-cell.primary {{ grid-column:1/-1 }}
@@ -468,7 +493,8 @@ def render(
   <header><div class="brand-block"><a class="brand" href="./" aria-label="sudofx home">sudo<i>fx</i></a>
     <a class="inspired" href="https://sudofx.github.io/wake/" target="_blank" rel="noopener noreferrer">Inspired by WAKE<b>✳︎</b></a></div>
     <label class="theme-switch" title="Follow system theme"><input id="theme-toggle" type="checkbox" role="switch" aria-label="Use dark theme"><span class="data-switch-track" aria-hidden="true"><i></i></span></label>
-    <div class="tagline">Durable, accountable work across interchangeable intelligences.</div></header>
+    <div class="tagline">Durable, accountable work across interchangeable intelligences.</div>
+    {owner_access_html}</header>
   {observer_console_html}
   {_exchange_panel(continuity_proof)}
   <section><div class="toolbar"><div><span class="eyebrow">{open_work} open</span><h2>Current work</h2></div></div>
@@ -491,12 +517,15 @@ const machineText=document.querySelector('[data-machine-text]');
 const exchangeStatus=document.querySelector('[data-exchange-status]');
 const controlUrl={json.dumps(control_url)};
 const ownerLogin=document.querySelector('[data-owner-login]');
+const ownerMenuToggle=document.querySelector('[data-owner-menu-toggle]');
+const ownerMenuLabel=document.querySelector('[data-owner-menu-label]');
 const ownerControls=document.querySelector('[data-owner-controls]');
 const ownerIdentity=document.querySelector('[data-owner-identity]');
 const ownerControlStatus=document.querySelector('[data-owner-control-status]');
 const ownerStart=document.querySelector('[data-owner-start]');
 const ownerStop=document.querySelector('[data-owner-stop]');
 const ownerBackup=document.querySelector('[data-owner-backup]');
+const ownerSignout=document.querySelector('[data-owner-signout]');
 const ownerSessionKey='sudofx-owner-session';
 const ownerFragment='#sudofx-control=';
 // OAuth returns encrypted session ciphertext in the fragment. Fragments never
@@ -514,6 +543,18 @@ const ownerRequest=async(path,method='GET')=>{{
   const body=await response.json().catch(()=>({{}}));
   if(!response.ok)throw new Error(body.error||'Owner control request failed');
   return body;
+}};
+// The popover is presentational state only. Closing it never changes workflow
+// authority, while signing out removes only this tab's encrypted session.
+const setOwnerMenu=(open)=>{{
+  if(!ownerMenuToggle||!ownerControls)return;
+  ownerControls.hidden=!open;
+  ownerMenuToggle.setAttribute('aria-expanded',String(open));
+}};
+const showOwnerSignedOut=()=>{{
+  setOwnerMenu(false);
+  if(ownerMenuToggle)ownerMenuToggle.hidden=true;
+  if(ownerLogin)ownerLogin.hidden=false;
 }};
 const applyOwnerWorkflowState=(state)=>{{
   // The authenticated control service reads the workflow's enabled flag and
@@ -541,13 +582,15 @@ const refreshOwnerControls=async()=>{{
   try{{
     const state=await ownerRequest('/api/session');
     ownerLogin.hidden=true;
-    ownerControls.hidden=false;
+    ownerMenuToggle.hidden=false;
     ownerIdentity.textContent='Signed in as '+state.login;
     const maintenance=state.maintenance||{{}};
     const databaseSize=Number(maintenance.databaseBytes||0);
     const storageRisk=maintenance.repositoryVisibility==='public'?'public state':maintenance.repositoryVisibility||'unknown visibility';
     const protection=maintenance.stateBranchProtected?'protected':'unprotected';
     const workflowLabel=state.enabled?(state.activeRuns.length?'Running now':'Enabled · next cycle starting'):'Stopped';
+    ownerMenuLabel.textContent='Operator · '+workflowLabel;
+    ownerMenuToggle.classList.toggle('is-active',state.enabled);
     ownerControlStatus.textContent=workflowLabel+' · DB '+databaseSize+' bytes · '+storageRisk+' · '+protection;
     ownerStart.disabled=state.enabled;
     ownerStop.disabled=!state.enabled;
@@ -556,8 +599,7 @@ const refreshOwnerControls=async()=>{{
     return state;
   }}catch{{
     try{{sessionStorage.removeItem(ownerSessionKey)}}catch{{}}
-    ownerControls.hidden=true;
-    ownerLogin.hidden=false;
+    showOwnerSignedOut();
     return null;
   }}
 }};
@@ -569,6 +611,11 @@ const operateOwnerControl=async(path)=>{{
 if(ownerStart)ownerStart.addEventListener('click',()=>operateOwnerControl('/api/start'));
 if(ownerStop)ownerStop.addEventListener('click',()=>operateOwnerControl('/api/stop'));
 if(ownerBackup)ownerBackup.addEventListener('click',()=>operateOwnerControl('/api/backup'));
+if(ownerMenuToggle)ownerMenuToggle.addEventListener('click',(event)=>{{event.stopPropagation();setOwnerMenu(ownerControls.hidden);}});
+if(ownerControls)ownerControls.addEventListener('click',(event)=>event.stopPropagation());
+if(ownerSignout)ownerSignout.addEventListener('click',()=>{{try{{sessionStorage.removeItem(ownerSessionKey)}}catch{{}}showOwnerSignedOut();}});
+document.addEventListener('click',()=>setOwnerMenu(false));
+document.addEventListener('keydown',(event)=>{{if(event.key==='Escape')setOwnerMenu(false);}});
 // The workflow owns a success-only successor chain. This field describes that
 // lifecycle rather than estimating a wall-clock time that no longer exists.
 const updateNextCheck=(state)=>{{
