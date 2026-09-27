@@ -365,6 +365,11 @@ json.dump({
         stored_work = self.kernel.context(work_id="compressed").state["work:compressed"]
         self.assertEqual(stored_work["semantic_assessments"], [assessment])
         self.assertEqual(stored_work["open_obligations"], ["Run the compressed continuity probe"])
+        page = render(self.kernel)
+        self.assertIn("Continuity quality", page)
+        self.assertIn("88.0%", page)
+        self.assertIn("test-provider", page)
+        self.assertIn("run 123", page)
 
         helper = """
 import json, sys
