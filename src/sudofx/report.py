@@ -263,6 +263,10 @@ def render(
     # absent URL removes the authentication affordance entirely so local exports
     # and partially configured deployments never imply controls are available.
     control_url = control_url.rstrip("/")
+    # The public page embeds only public-safe technical projection data. The
+    # operator session controls visibility, not confidentiality: hidden HTML is
+    # not a security boundary. Sensitive state must remain behind the authenticated
+    # service rather than being rendered into Pages at all.
     # The manual exchange is a derived, provider-neutral view of the same
     # compressed handoff used for automated continuity tests. It is embedded in
     # the current public-safe projection but stays inaccessible through normal
@@ -473,6 +477,18 @@ def render(
     .observer-compact .observer-signal {{ justify-content:flex-start; flex-wrap:wrap }}
     .observer-compact [data-current-activity] {{ color:var(--muted); font-size:12px; font-weight:600 }}
     .quiet-footer {{ margin-top:34px; padding-top:18px; border-top:1px solid var(--line); color:var(--muted); font:11px/1.5 var(--mono) }}
+    .owner-technical[hidden] {{ display:none!important }}
+    .owner-technical {{ margin-top:42px; padding-top:28px; border-top:2px solid var(--accent) }}
+    .technical-head {{ display:flex; align-items:flex-start; justify-content:space-between; gap:14px; margin-bottom:18px }}
+    .technical-head h2 {{ margin-top:6px }}
+    .technical-badge {{ padding:5px 8px; border:1px solid var(--accent); color:var(--accent); font:800 9px var(--mono); letter-spacing:.08em }}
+    .technical-stats {{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:1px; margin-bottom:28px; border:1px solid var(--line); background:var(--line) }}
+    .technical-stats>div {{ padding:12px; background:var(--surface); min-width:0 }}
+    .technical-stats span,.technical-provenance span {{ display:block; color:var(--muted); font:700 9px var(--mono); letter-spacing:.08em; text-transform:uppercase }}
+    .technical-stats strong {{ display:block; margin-top:5px; font:700 13px var(--mono); overflow-wrap:anywhere }}
+    .technical-provenance {{ display:grid; grid-template-columns:130px minmax(0,1fr); gap:8px 14px; margin-top:24px; padding:14px; border:1px solid var(--line); background:var(--surface) }}
+    .technical-provenance code {{ overflow-wrap:anywhere }}
+    @media(max-width:600px) {{ .technical-stats {{ grid-template-columns:1fr 1fr }} .technical-provenance {{ grid-template-columns:1fr }} }}
     .toolbar {{ display:flex; gap:10px; align-items:center; justify-content:space-between; margin:0 0 18px }}
     h2 {{ margin:0; font-size:23px; letter-spacing:-.03em }}
     .work-grid {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:14px; margin-bottom:52px }}
@@ -563,7 +579,34 @@ def render(
   </dialog>
   {observer_console_html}
   {_exchange_panel(continuity_proof)}
-  <footer class="quiet-footer">Technical record, receipts, provenance, and replay evidence remain in authoritative SQLite and GitHub Actions. This page is the human view.</footer>
+  <section class="owner-technical" data-owner-technical hidden aria-label="Operator technical view">
+    <div class="technical-head">
+      <div><span class="eyebrow">Operator only</span><h2>Technical view</h2></div>
+      <span class="technical-badge">AUTHENTICATED VIEW</span>
+    </div>
+    <div class="technical-stats">
+      <div><span>Record revision</span><strong>{context.revision}</strong></div>
+      <div><span>Database</span><strong>{int(health['database_bytes'])} B</strong></div>
+      <div><span>Replay</span><strong>{health['replay_ms']} ms</strong></div>
+      <div><span>Receipts</span><strong>{total_receipts}</strong></div>
+    </div>
+    <section>
+      <div class="toolbar"><div><span class="eyebrow">{open_work} open</span><h2>Current work</h2></div></div>
+      <div class="work-grid">{_work_cards(context.state)}</div>
+    </section>
+    <details class="history" open>
+      <summary>Activity history · showing {len(history)} of {total_receipts} receipts</summary>
+      <div class="history-tools"><input id="search" type="search" placeholder="Filter activity…" aria-label="Filter activity history"></div>
+      <div class="receipts" id="receipts">{_receipt_rows(history)}</div>
+    </details>
+    <div class="technical-provenance">
+      <span>Published run</span><code>{_escape(verification.get("run_id", "unknown"))}</code>
+      <span>Commit</span><code>{_escape(verification.get("commit", "unknown"))}</code>
+      <span>SQLite quick check</span><code>{_escape(health.get("quick_check", "unknown"))}</code>
+      <span>Schema</span><code>{_escape(health.get("schema_version", "unknown"))}</code>
+    </div>
+  </section>
+  <footer class="quiet-footer">Public view shows the experiment. Authenticated operator sessions unlock the technical record and controls.</footer>
 </main><script>
 const observer=document.querySelector('.observer-console');
 const observerState=document.querySelector('[data-observer-state]');
@@ -588,6 +631,7 @@ const ownerStop=document.querySelector('[data-owner-stop]');
 const ownerBackup=document.querySelector('[data-owner-backup]');
 const ownerHandoff=document.querySelector('[data-owner-handoff]');
 const ownerSignout=document.querySelector('[data-owner-signout]');
+const ownerTechnical=document.querySelector('[data-owner-technical]');
 const handoffDialog=document.querySelector('[data-handoff-dialog]');
 const handoffPrompt=document.querySelector('[data-handoff-prompt]');
 const handoffResponse=document.querySelector('[data-handoff-response]');
@@ -632,6 +676,7 @@ const showOwnerSignedOut=()=>{{
   setOwnerMenu(false);
   if(ownerMenuToggle)ownerMenuToggle.hidden=true;
   if(ownerLogin)ownerLogin.hidden=false;
+  if(ownerTechnical)ownerTechnical.hidden=true;
 }};
 const applyOwnerWorkflowState=(state)=>{{
   // The authenticated control service reads the workflow's enabled flag and
@@ -660,6 +705,7 @@ const refreshOwnerControls=async()=>{{
     const state=await ownerRequest('/api/session');
     ownerLogin.hidden=true;
     ownerMenuToggle.hidden=false;
+    if(ownerTechnical)ownerTechnical.hidden=false;
     ownerIdentity.textContent='Signed in as '+state.login;
     const maintenance=state.maintenance||{{}};
     const databaseSize=Number(maintenance.databaseBytes||0);
