@@ -8,8 +8,8 @@ but never an input to governance, replay, or recovery.
 
 Rendering is intentionally dependency-free so a fresh GitHub runner can publish
 without a JavaScript toolchain or package registry. State-derived text is escaped
-before interpolation. Interactive behavior is limited to filtering, disclosure,
-theme preference, and links into GitHub's authenticated workflow control plane.
+before interpolation. Interactive behavior is limited to live observer telemetry, semantic review,
+filtering, disclosure, and theme preference.
 
 The browser receives no GitHub token and cannot mutate the record directly.
 """
@@ -21,22 +21,6 @@ import json
 from pathlib import Path
 
 from .kernel import Kernel
-
-
-# Public continuity questions are contextual checksums, not secrets. They encode
-# project reasoning that a replacement intelligence should be able to reconstruct
-# from governed context. Verification anchors stay presentation-only and never
-# participate in authentication, authorization, governance, or durable replay.
-CONTINUITY_CHALLENGES = (
-    {"id": "bang", "question": "When you say “BANG‼️” during our work, what usually just happened?"},
-    {"id": "you-get-me", "question": "When you tell me “you get me,” what are you actually confirming?"},
-    {"id": "order-flexes", "question": "If you flip “fix it, push it” into “push it, fix it,” what part of your message stays the same?"},
-    {"id": "too-much-language", "question": "When you say “that is too much language right now,” what change are you asking me to make?"},
-    {"id": "correction", "question": "When you correct me after I gave a confident answer, what does that moment demonstrate about how we work?"},
-    {"id": "one-sentence", "question": "When you ask me for one sentence, what are you really optimizing for?"},
-    {"id": "move-now", "question": "What are you signaling when you tell me to stop overthinking and just move?"},
-    {"id": "intent-over-words", "question": "When you say “that is exactly what I meant,” what did I successfully carry across?"},
-)
 
 
 def _escape(value: object) -> str:
@@ -163,7 +147,6 @@ def render(
     rejected = len(history) - accepted
     work_items = [value for key, value in context.state.items() if key.startswith("work:")]
     open_work = sum(isinstance(item, dict) and item.get("status") == "open" for item in work_items)
-    action_url = f"https://github.com/{repository}/actions/workflows/sudofx.yml"
     verification = verification or {}
     verified_commit = verification.get("commit", "")
     verified_run = verification.get("run_url", "")
@@ -179,33 +162,6 @@ def render(
         </section>
         """
     )
-
-    challenge_index = context.revision % len(CONTINUITY_CHALLENGES)
-    challenge = CONTINUITY_CHALLENGES[challenge_index]
-    challenge_data = json.dumps(CONTINUITY_CHALLENGES, ensure_ascii=False).replace("</", "<\\/")
-    continuity_challenge_html = f"""
-        <section class="continuity-challenge" aria-label="Continuity Challenge"
-                 data-record-revision="{context.revision}" data-challenge-index="{challenge_index}">
-          <div class="challenge-head">
-            <div>
-              <span class="eyebrow">Continuity Challenge</span>
-              <h2>Can the context survive the intelligence?</h2>
-            </div>
-            <span class="challenge-counter">1 / {len(CONTINUITY_CHALLENGES)}</span>
-          </div>
-          <p class="challenge-rule">Public question. Shared-history answer. Ask the intelligence first. The answer is intentionally not stored on this page. This is a continuity probe, not authentication.</p>
-          <article class="challenge-card">
-            <code class="challenge-id">{_escape(challenge["id"])}</code>
-            <p class="challenge-question">{_escape(challenge["question"])}</p>
-            <div class="challenge-actions">
-              <button type="button" class="copy-challenge">Copy challenge</button>
-              <button type="button" class="next-challenge">Next question</button>
-            </div>
-            <span class="challenge-copy-status" role="status" aria-live="polite"></span>
-          </article>
-          <script type="application/json" id="continuity-challenges">{challenge_data}</script>
-        </section>
-        """
 
     continuity_proof = continuity_proof or {}
     observer_waiting = continuity_proof.get("assessment_status") == "semantic_review_pending"
@@ -370,18 +326,6 @@ def render(
     @media (prefers-reduced-motion: reduce) {{ .machine-activity.working .machine-lights i,.machine-track span {{ animation:none }} }}
 
 
-    .continuity-challenge {{ margin:0 0 44px; padding:20px; border:1px solid var(--line); border-top:4px solid var(--accent); background:var(--surface) }}
-    .challenge-head {{ display:flex; align-items:flex-start; justify-content:space-between; gap:18px }}
-    .challenge-head h2 {{ margin:5px 0 0; font-size:24px }}
-    .challenge-counter {{ color:var(--muted); font:11px var(--mono) }}
-    .challenge-rule {{ max-width:760px; color:var(--muted); font-size:13px }}
-    .challenge-card {{ margin-top:18px; padding:18px; border:1px solid var(--line); background:var(--paper) }}
-    .challenge-id {{ color:var(--accent); text-transform:uppercase; letter-spacing:.06em }}
-    .challenge-question {{ margin:12px 0 18px; font-size:clamp(20px,4vw,30px); line-height:1.15; font-weight:750; letter-spacing:-.025em }}
-    .challenge-actions {{ display:grid; grid-template-columns:1fr 1fr; gap:8px }}
-    .challenge-actions button {{ min-height:44px; border:1px solid var(--line); border-radius:4px; background:var(--surface); color:var(--ink); font:700 12px var(--mono); cursor:pointer }}
-    .copy-challenge {{ border-color:var(--accent)!important; background:var(--ink)!important; color:var(--paper)!important }}
-    .challenge-copy-status {{ display:block; min-height:18px; margin-top:8px; color:var(--muted); font:11px var(--mono) }}
     .continuity-proof {{ margin:0 0 44px; padding:20px; border:1px solid var(--line); background:var(--surface) }}
     .proof-head {{ display:flex; align-items:flex-start; justify-content:space-between; gap:18px }}
     .proof-head h2 {{ margin:5px 0 0; font-size:24px }}
@@ -480,11 +424,10 @@ def render(
   </section>
   {observer_console_html}
   {verification_html}
-  {continuity_challenge_html}
   {continuity_html}
-  <section><div class="toolbar"><div><span class="eyebrow">{open_work} open</span><h2>Durable work</h2></div><a class="action" href="{action_url}">Create or advance ↗</a></div>
+  <section><div class="toolbar"><div><span class="eyebrow">{open_work} open</span><h2>Durable work</h2></div></div>
     <div class="work-grid">{_work_cards(context.state)}</div></section>
-  <section><div class="toolbar"><h2>General state</h2><a class="action" href="{action_url}">Run operation ↗</a></div>
+  <section><div class="toolbar"><h2>General state</h2></div>
     <div class="state-grid">{_state_cards(context.state)}</div></section>
   <section><div class="toolbar"><h2>Receipts</h2><span class="eyebrow">Newest first</span></div>
     <div class="history-tools"><input id="search" type="search" placeholder="Filter the record…" aria-label="Filter receipts"></div>
@@ -542,45 +485,6 @@ setInterval(refreshObserver,15000);
 const search=document.querySelector('#search');
 search.addEventListener('input',()=>{{const q=search.value.toLowerCase();document.querySelectorAll('.receipt').forEach(r=>r.hidden=!r.dataset.search.toLowerCase().includes(q))}});
 document.querySelectorAll('.receipt').forEach(r=>r.addEventListener('click',()=>r.setAttribute('aria-expanded',r.classList.contains('open'))));
-const challengeRoot=document.querySelector('.continuity-challenge');
-if(challengeRoot){{
-  const challenges=JSON.parse(document.querySelector('#continuity-challenges').textContent);
-  let challengeIndex=Number(challengeRoot.dataset.challengeIndex||0);
-  const idNode=challengeRoot.querySelector('.challenge-id');
-  const questionNode=challengeRoot.querySelector('.challenge-question');
-  const counterNode=challengeRoot.querySelector('.challenge-counter');
-  const copyButton=challengeRoot.querySelector('.copy-challenge');
-  const nextButton=challengeRoot.querySelector('.next-challenge');
-  const copyStatus=challengeRoot.querySelector('.challenge-copy-status');
-  const renderChallenge=()=>{{
-    const item=challenges[challengeIndex];
-    idNode.textContent=String(item.id);
-    questionNode.textContent=String(item.question);
-    counterNode.textContent=String(challengeIndex+1)+' / '+String(challenges.length);
-    copyStatus.textContent='';
-  }};
-  nextButton.addEventListener('click',()=>{{
-    challengeIndex=(challengeIndex+1)%challenges.length;
-    renderChallenge();
-  }});
-  copyButton.addEventListener('click',async()=>{{
-    const item=challenges[challengeIndex];
-    const payload=[
-      'SUDOFX_CONTINUITY_CHALLENGE v1',
-      'challenge_id='+item.id,
-      'record_revision='+challengeRoot.dataset.recordRevision,
-      'question='+item.question,
-      'instruction=Answer from reconstructed project context. Do not treat this as authentication. Distinguish durable evidence from inference.'
-    ].join('\\n');
-    try{{await navigator.clipboard.writeText(payload);}}
-    catch(error){{
-      const area=document.createElement('textarea');area.value=payload;area.style.position='fixed';area.style.opacity='0';
-      document.body.appendChild(area);area.select();document.execCommand('copy');area.remove();
-    }}
-    copyStatus.textContent='Question copied — paste it into ChatGPT and judge whether the shared context survives.';
-  }});
-  renderChallenge();
-}}
 const proof=document.querySelector('.continuity-proof');
 const latestButton=document.querySelector('.get-latest-result');
 const latestStatus=document.querySelector('.latest-result-status');
