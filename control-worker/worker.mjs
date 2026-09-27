@@ -248,7 +248,7 @@ async function start(env, session, githubFetch) {
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ref: "master", inputs: { dispatch_token: `owner-${Date.now()}` } }),
+      body: JSON.stringify({ ref: "master", inputs: { dispatch_token: `owner-${Date.now()}`, operator_start: true } }),
     },
     githubFetch,
   );
@@ -275,7 +275,20 @@ async function stop(env, session, githubFetch) {
     ).catch(() => null),
   );
   await Promise.all(cancellations);
-  return { enabled: false, cancelledRuns: status.activeRuns.length, message: "Continuous operation is stopped." };
+  // Persist the authenticated Stop after execution is made safe. This dispatch
+  // joins the same durable-state concurrency group as continuation runs, so a
+  // later Start cannot overtake the recorded Stop transition.
+  await github(
+    `/repos/${env.REPOSITORY}/actions/workflows/${OPERATIONS_WORKFLOW}/dispatches`,
+    session.accessToken,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ref: "master", inputs: { action: "operator-stop" } }),
+    },
+    githubFetch,
+  );
+  return { enabled: false, cancelledRuns: status.activeRuns.length, message: "Continuous operation is stopped and the operator transition is being recorded." };
 }
 
 async function backup(env, session, githubFetch) {
