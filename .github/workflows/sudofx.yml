@@ -84,6 +84,7 @@ jobs:
         # This finite experiment executes only the accepted derived-snapshot
         # maintenance action. The source database remains authority; a governed
         # work transition is appended only after every recovery check passes.
+        # This retry runs after duplicate experimental plumbing was removed.
         if: github.event_name == 'push' && contains(github.event.head_commit.message, '[handoff-v1-vacuum-proof]')
         run: |
           PYTHONPATH=src python scripts/github_sudofx.py --prove-vacuum-recovery
