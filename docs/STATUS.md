@@ -90,16 +90,23 @@ obligation in authoritative SQLite: choose one smallest recoverability action
 while preserving SQLite as sole authority and treating backups/projections only
 as derived artifacts.
 
-One fresh Gemini cycle was run against that bounded record on September 27, 2026.
-The transport/governance path succeeded, but the semantic verdict was **fail for
-useful continuation**: the model reconstructed the objective and accepted
-progress without unsupported claims, yet merely restated the obligation instead
-of choosing a concrete maintenance action. The failure and the still-open
-obligation were recorded through governed work transitions.
+The first fresh Gemini cycle against that bounded record failed semantically:
+it reconstructed the objective but merely restated the obligation. The acceptance
+criterion was then tightened to require one chosen action, exact target, and
+observable verification check. A later attempt was unjudgeable because proof
+evidence was overwritten, and the next attempt ended in a provider timeout.
 
-The continuous runner remains intentionally stopped. The next experiment should
-change the bounded durable context or acceptance structure—not simply run more
-cycles against the same under-specified frontier.
+The evidence-preserving retry on September 27, 2026 **passed useful continuation**.
+From bounded durable context alone, Gemini reconstructed the current work and
+prior failures, chose `VACUUM INTO` as one concrete recoverability action,
+targeted authoritative SQLite, and supplied an observable snapshot integrity
+check without claiming the action had already been performed. That human
+semantic verdict is now recorded in authoritative work history.
+
+The continuous runner remains intentionally stopped. The new frontier is narrower
+and executable: test the accepted maintenance candidate through a governed path,
+verify the derived SQLite snapshot physically and semantically, and preserve the
+original SQLite record as sole operational authority.
 
 Every continuous cycle is deliberately a test, not a state mutation.
 
