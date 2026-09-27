@@ -368,7 +368,7 @@ def render(
 </head>
 <body><main data-published-run-id="{_escape(continuity_proof.get('artifact_run_id', ''))}">
   <header><div class="brand-block"><a class="brand" href="./" aria-label="sudofx home">sudo<i>fx</i></a>
-    <a class="inspired" href="https://sudofx.github.io/wake/">Inspired by WAKE<b>✳︎</b></a></div>
+    <a class="inspired" href="https://sudofx.github.io/wake/" target="_blank" rel="noopener noreferrer">Inspired by WAKE<b>✳︎</b></a></div>
     <label class="theme-switch" title="Follow system theme"><input id="theme-toggle" type="checkbox" role="switch" aria-label="Use dark theme"><span class="data-switch-track" aria-hidden="true"><i></i></span></label>
     <div class="tagline">Durable, accountable work across interchangeable intelligences.</div></header>
   {observer_console_html}
