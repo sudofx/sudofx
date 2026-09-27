@@ -233,6 +233,12 @@ def render(
             <div class="observer-cell"><span>Current step</span><strong data-current-step>None</strong></div>
             <div class="observer-cell"><span>Latest run</span><strong data-latest-run>{_escape(verification.get("run_id", "unknown"))}</strong></div>
           </div>
+          <div class="machine-activity" data-machine-activity hidden aria-live="polite">
+            <div class="machine-lights" aria-hidden="true">
+              <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+            </div>
+            <div class="machine-track" aria-hidden="true"><span data-machine-text>PROCESSING VERIFIED WORK</span></div>
+          </div>
           <div class="observer-detail">
             <span data-observer-detail>Checking live workflow status…</span>
             <a href="https://github.com/{_escape(repository)}/actions/workflows/prove-model.yml">Open workflow ↗</a>
@@ -345,6 +351,23 @@ def render(
     .observer-cell strong {{ display:block; margin-top:7px; font-size:13px; line-height:1.25; overflow-wrap:anywhere }}
     .observer-detail {{ display:flex; justify-content:space-between; gap:14px; margin-top:12px; color:var(--muted); font:11px var(--mono) }}
     .observer-detail a {{ color:var(--accent); text-decoration:none; white-space:nowrap }}
+    .machine-activity {{ margin-top:12px; border:1px solid var(--line); background:var(--paper); overflow:hidden }}
+    .machine-activity[hidden] {{ display:none }}
+    .machine-lights {{ display:grid; grid-template-columns:repeat(8,1fr); gap:6px; padding:10px 12px 8px }}
+    .machine-lights i {{ display:block; height:6px; background:var(--line); opacity:.45 }}
+    .machine-activity.working .machine-lights i {{ background:var(--green); animation:machine-pulse 1s steps(1,end) infinite }}
+    .machine-activity.working .machine-lights i:nth-child(2) {{ animation-delay:.125s }}
+    .machine-activity.working .machine-lights i:nth-child(3) {{ animation-delay:.25s }}
+    .machine-activity.working .machine-lights i:nth-child(4) {{ animation-delay:.375s }}
+    .machine-activity.working .machine-lights i:nth-child(5) {{ animation-delay:.5s }}
+    .machine-activity.working .machine-lights i:nth-child(6) {{ animation-delay:.625s }}
+    .machine-activity.working .machine-lights i:nth-child(7) {{ animation-delay:.75s }}
+    .machine-activity.working .machine-lights i:nth-child(8) {{ animation-delay:.875s }}
+    .machine-track {{ overflow:hidden; border-top:1px solid var(--line); padding:8px 0; white-space:nowrap; color:var(--green); font:700 10px/1 var(--mono); letter-spacing:.12em; text-transform:uppercase }}
+    .machine-track span {{ display:inline-block; min-width:100%; padding-left:100%; animation:machine-scroll 8s linear infinite }}
+    @keyframes machine-pulse {{ 0%,24% {{ opacity:1; box-shadow:0 0 8px var(--green) }} 25%,100% {{ opacity:.18; box-shadow:none }} }}
+    @keyframes machine-scroll {{ from {{ transform:translateX(0) }} to {{ transform:translateX(-200%) }} }}
+    @media (prefers-reduced-motion: reduce) {{ .machine-activity.working .machine-lights i,.machine-track span {{ animation:none }} }}
 
 
     .continuity-challenge {{ margin:0 0 44px; padding:20px; border:1px solid var(--line); border-top:4px solid var(--accent); background:var(--surface) }}
@@ -475,6 +498,8 @@ const testStatus=document.querySelector('[data-test-status]');
 const currentStep=document.querySelector('[data-current-step]');
 const latestRun=document.querySelector('[data-latest-run]');
 const observerDetail=document.querySelector('[data-observer-detail]');
+const machineActivity=document.querySelector('[data-machine-activity]');
+const machineText=document.querySelector('[data-machine-text]');
 const refreshObserver=async()=>{{
   if(!observer)return;
   const repo=observer.dataset.repository, workflow=observer.dataset.workflow;
@@ -496,11 +521,20 @@ const refreshObserver=async()=>{{
       const verify=steps.find(step=>step.name==='Verify the kernel');
       currentStep.textContent=active?active.name:(run.status==='completed'?'Complete':'Starting');
       if(verify)testStatus.textContent=verify.status==='completed'?(verify.conclusion==='success'?'PASS':'FAIL'):'RUNNING';
+      if(machineActivity){{
+        machineActivity.hidden=!running;
+        machineActivity.classList.toggle('working',running);
+      }}
+      if(machineText && running){{
+        const stepName=active?active.name:'Starting bounded development cycle';
+        machineText.textContent='ACTIVE · '+stepName+' · RUN '+String(run.run_number||run.id)+' · VERIFIED TELEMETRY';
+      }}
     }}
     const updated=new Date(run.updated_at||run.created_at);
     observerDetail.textContent='GitHub updated '+updated.toLocaleString()+' · auto-refreshes every 15s';
   }}catch(error){{
     observerDetail.textContent='Live GitHub telemetry unavailable · showing last published durable state';
+    if(machineActivity)machineActivity.hidden=true;
   }}
 }};
 refreshObserver();
