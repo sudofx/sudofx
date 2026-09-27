@@ -267,9 +267,10 @@ def render(
     :root[data-theme=dark] {{ color-scheme:dark; --paper:#24283b; --surface:#1f2335; --ink:#c0caf5;
       --muted:#a9b1d6; --line:#3b4261; --green:#3FB950; --accent:#bb9af7; --hot:#7aa2f7; --pale:#1f2335; }}
     * {{ box-sizing:border-box }}
-    body {{ margin:0; background:var(--paper); color:var(--ink); font:16px/1.45 system-ui,-apple-system,sans-serif }}
+    html,body {{ width:100%; max-width:100%; overflow-x:hidden; overscroll-behavior-x:none }}
+    body {{ margin:0; position:relative; background:var(--paper); color:var(--ink); font:16px/1.45 system-ui,-apple-system,sans-serif }}
     body:before {{ content:""; display:block; height:5px; background:var(--green) }}
-    main {{ width:min(980px,100%); margin:auto; padding:clamp(14px,4vw,40px) }}
+    main {{ width:min(980px,100%); max-width:100%; min-width:0; margin:auto; padding:clamp(14px,4vw,40px) }}
     /* Identity stays compact because live status—not project explanation—is the
        first reason an operator opens this page on a phone. */
     header {{ display:grid; grid-template-columns:minmax(0,1fr) auto; grid-template-areas:"brand theme" "tagline tagline";
@@ -309,7 +310,9 @@ def render(
     .observer-detail a {{ color:var(--accent); text-decoration:none; white-space:nowrap }}
     .owner-access {{ margin-top:14px; padding-top:14px; border-top:1px solid var(--line); font:11px var(--mono) }}
     .owner-login {{ color:var(--muted); text-decoration:none }}
-    .owner-controls {{ display:grid; grid-template-columns:1fr auto; gap:8px 14px; align-items:center }}
+    .owner-controls {{ display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px 14px; align-items:center }}
+    .owner-controls>* {{ min-width:0 }}
+    .owner-controls>[data-owner-control-status] {{ overflow-wrap:anywhere }}
     .owner-controls[hidden] {{ display:none }}
     .owner-controls>[data-owner-control-status] {{ color:var(--muted) }}
     .owner-controls>div {{ grid-column:1/-1; display:grid; grid-template-columns:repeat(3,1fr); gap:8px }}
