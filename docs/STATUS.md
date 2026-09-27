@@ -114,6 +114,20 @@ provider substitution: present the same bounded `handoff-v1` frontier to a
 materially different real model/provider and compare whether useful semantic
 continuation survives without changing the authority contract.
 
+The accepted maintenance candidate has now been tested through a real governed
+execution path. An earlier workflow incorrectly recorded that proof as successful
+even though its flag had no implementation; that false claim was explicitly
+corrected in durable history before the real proof ran.
+
+The corrected VACUUM INTO proof then passed: the derived snapshot passed SQLite
+integrity_check, replayed the same sudofx revision/state, and left the source
+revision/state/event head unchanged. The continuous runner remains intentionally
+stopped.
+
+The new frontier is provider substitution: give the same bounded handoff-v1
+context to a materially different real model/provider and compare whether useful
+continuation survives without changing the authority contract.
+
 Every continuous cycle is deliberately a test, not a state mutation.
 
 That distinction matters:
