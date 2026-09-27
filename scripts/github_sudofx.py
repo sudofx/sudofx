@@ -256,9 +256,29 @@ def main() -> int:
                 "create_work", args.key, {"objective": args.value, "constraints": []}
             )
         elif args.action == "work-advance":
-            operation = Operation(
-                "advance_work", args.key, {"result": args.value, "open_obligations": []}
-            )
+            # Workflow inputs are text transport, not authority. Accept either the
+            # original plain result string or a structured object carrying the
+            # current frontier. This preserves CLI parity and prevents a remote
+            # operator from accidentally erasing open obligations.
+            parsed = value_from(args.value)
+            if isinstance(parsed, dict):
+                result_text = parsed.get("result")
+                open_obligations = parsed.get("open_obligations", [])
+                if not isinstance(result_text, str) or not result_text.strip():
+                    raise ValueError("work-advance structured value requires non-empty result text")
+                if not isinstance(open_obligations, list) or not all(
+                    isinstance(item, str) and item.strip() for item in open_obligations
+                ):
+                    raise ValueError("work-advance open_obligations must be non-empty strings")
+                operation = Operation(
+                    "advance_work",
+                    args.key,
+                    {"result": result_text.strip(), "open_obligations": open_obligations},
+                )
+            else:
+                operation = Operation(
+                    "advance_work", args.key, {"result": args.value, "open_obligations": []}
+                )
         else:
             operation = Operation("complete_work", args.key, {"result": args.value})
         receipt = kernel.submit(Proposal(str(uuid.uuid4()), context.revision, (operation,), "GitHub operator proposal"))
