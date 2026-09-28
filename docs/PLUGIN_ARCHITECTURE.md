@@ -1,6 +1,6 @@
 # Plugin Architecture Direction
 
-Status: **Preserved design direction — not yet implemented**
+Status: **Preserved design direction — directory boundary now in use; runtime plugin API not yet frozen**
 
 ## Decision
 
@@ -50,11 +50,12 @@ At minimum, a plugin system should eventually define:
 sudofx/
   core/
   plugins/
+    manual_handoff/
     wake/
     <future-plugin>/
 ```
 
-The exact directory structure and API are intentionally undecided. Preserve the **boundary**, not premature implementation details.
+The top-level `plugins/` boundary is now real, beginning with the development-only `manual_handoff` extension. The runtime API remains intentionally undecided. Preserve the **boundary**, not premature implementation details.
 
 ## North-star test
 
