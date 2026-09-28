@@ -1182,6 +1182,8 @@ json.dump({
         self.assertEqual(saved["scorer_version"], 2)
         self.assertIn("visible COMPLETE JSON PACKET", saved["score_kind"])
         self.assertEqual(saved["raw_response"], json.dumps(response))
+        page = render(self.kernel)
+        self.assertIn("scorer v2", page)
 
         wrong_work = dict(response)
         wrong_work["work_id"] = "different-work"

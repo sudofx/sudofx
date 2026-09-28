@@ -169,11 +169,13 @@ def _work_cards(state: dict[str, object]) -> str:
                     f'<strong class="quality-{_escape(result)}">{_escape(str(result).upper())}</strong></div>'
                     for key, result in criteria.items()
                 ) if isinstance(criteria, dict) else ""
+                scorer_version = latest_handoff_evaluation.get("scorer_version")
+                scorer_label = f" · scorer v{_escape(scorer_version)}" if scorer_version is not None else " · legacy scorer"
                 handoff_evaluation_html = f"""
                   <div class="quality-block">
                     <div class="quality-head"><b>Manual handoff evaluation</b><span class="quality-verdict quality-{'pass' if passed == 7 else 'uncertain'}">{passed}/7</span></div>
                     <div class="quality-grid">{criteria_html}</div>
-                    <div class="quality-provenance">{_escape(latest_handoff_evaluation.get('vendor', ''))} · test {_escape(latest_handoff_evaluation.get('test_id', ''))}</div>
+                    <div class="quality-provenance">{_escape(latest_handoff_evaluation.get('vendor', ''))} · test {_escape(latest_handoff_evaluation.get('test_id', ''))}{scorer_label}</div>
                   </div>
                 """
         constraints_html = "".join(f"<li>{_escape(item)}</li>" for item in constraints)
