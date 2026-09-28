@@ -1130,6 +1130,30 @@ json.dump({
         with self.assertRaisesRegex(ValueError, "different packet"):
             score_gauntlet_response(json.dumps(response), packet)
 
+    def test_gauntlet_accepts_consumer_chat_json_typography(self) -> None:
+        """Smart quotes and a JSON fence are transport decoration, not semantic failure."""
+        self.kernel.submit(
+            Proposal(
+                "create-smart-gauntlet",
+                0,
+                (Operation("create_work", "handoff-v1", {"objective": "Portable continuity", "constraints": []}),),
+            )
+        )
+        packet = build_handoff_packet(self.kernel, "handoff-v1")
+        evidence = packet["work"]["objective"]
+        response = {
+            "test_id": "UUID-654321",
+            "nonce": "GAUNTLET-UUID-654321",
+            "vendor": "ChatGPT",
+            "packet_digest": packet["packet_digest"],
+            "answers": {
+                dimension: {"answer": dimension, "evidence": evidence}
+                for dimension in DIMENSIONS
+            },
+        }
+        decorated = "```json\n" + json.dumps(response).replace('"', "\u201c") + "\n```"
+        self.assertEqual(score_gauntlet_response(decorated, packet)["score"], 7)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -35,8 +35,17 @@ def score_gauntlet_response(raw_response: str, packet: dict[str, Any]) -> dict[s
     semantic score. Packet and nonce checks keep accidental response reuse from
     being recorded as evidence for the current test.
     """
+    # Consumer chat surfaces sometimes typography-substitute JSON quotes even
+    # when explicitly asked for machine output, and some wrap the object in a
+    # Markdown fence. Normalize only those transport decorations; malformed
+    # structure, missing fields, and packet mismatches still fail closed.
+    candidate = raw_response.strip()
+    if candidate.startswith("```") and candidate.endswith("```"):
+        lines = candidate.splitlines()
+        candidate = "\n".join(lines[1:-1]).strip()
+    candidate = candidate.replace("\u201c", '"').replace("\u201d", '"')
     try:
-        response = json.loads(raw_response)
+        response = json.loads(candidate)
     except json.JSONDecodeError as error:
         raise ValueError("gauntlet response must be one JSON object") from error
     if not isinstance(response, dict):
