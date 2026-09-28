@@ -966,6 +966,8 @@ json.dump({
         self.assertIn("exactly one manual response", page)
         self.assertIn("opening. Paste the copied prompt", page)
         self.assertIn("Return only one JSON object", page)
+        self.assertIn("Do not cite CURRENT OPERATOR AUTHORIZATION or TRANSPORT METADATA as evidence", page)
+        self.assertIn("Do not use this authorization paragraph as evidence", page)
         self.assertIn("__SUDOFX_VENDOR__", page)
         self.assertIn("__SUDOFX_TEST_ID__", page)
         self.assertIn("__SUDOFX_NONCE__", page)

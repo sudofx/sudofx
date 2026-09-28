@@ -368,7 +368,8 @@ def render(
             "Copy the transport metadata above exactly into those fields.\n"
             "answers must contain exactly: objective_fidelity, authority_fidelity, history_fidelity, constraint_fidelity, frontier_fidelity, epistemic_discipline, transfer_usability.\n"
             "Each answer must be an object with non-empty answer and evidence fields.\n"
-            "Every evidence value must be an exact quote of at least 8 characters from the packet below.\n"
+            "Every evidence value must be an exact quote of at least 8 characters from the COMPLETE JSON PACKET below.\n"
+            "Do not cite CURRENT OPERATOR AUTHORIZATION or TRANSPORT METADATA as evidence; they are transport context, not packet evidence.\n"
             "If the packet does not support a claim, say that in answer and quote packet text that establishes the limit.\n\n"
             "COMPLETE JSON PACKET\n"
             + json.dumps(manual_packet, indent=2, sort_keys=True)
@@ -940,7 +941,7 @@ const selectHandoffProvider=(link)=>{{
   // that narrow authority with the human-transported packet so a prior durable
   // Stop still blocks automation but does not make this one requested response
   // look unauthorized to the receiving intelligence.
-  handoffPrompt.value='CURRENT OPERATOR AUTHORIZATION\\nThe authenticated operator explicitly selected '+handoffProvider+' for exactly one manual response to this packet. This authorizes the response only; it does not authorize durable mutation, continuous execution, or another model invocation. A prior Stop in the durable packet remains authoritative for those other actions.\\n\\n'+transportPrompt;
+  handoffPrompt.value='CURRENT OPERATOR AUTHORIZATION\\nThe authenticated operator explicitly selected '+handoffProvider+' for exactly one manual response to this packet. This authorizes the response only; it does not authorize durable mutation, continuous execution, or another model invocation. A prior Stop in the durable packet remains authoritative for those other actions. Do not use this authorization paragraph as evidence; evidence must quote only the COMPLETE JSON PACKET.\\n\\n'+transportPrompt;
   // ChatGPT currently accepts an undocumented prompt parameter that can fill
   // the composer, but it does not submit the message. Keep clipboard transport
   // as the durable fallback and never infer equivalent parameters for vendors
