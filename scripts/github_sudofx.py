@@ -100,20 +100,56 @@ def latest_overnight_proof(kernel: Kernel) -> dict[str, object] | None:
     task = observation.get("task", "")
     work = kernel.context(work_id=AUTO_HANDOFF_ID).state.get(f"work:{AUTO_HANDOFF_ID}", {})
     assessments = work.get("semantic_assessments", []) if isinstance(work, dict) else []
-    matching_assessment = None
+    matching_reviews: dict[str, dict[str, object]] = {}
     for assessment in reversed(assessments if isinstance(assessments, list) else []):
         if not isinstance(assessment, dict) or assessment.get("kind") != "human_semantic_review_v1":
             continue
         provenance = assessment.get("provenance", {})
         if (
-            isinstance(provenance, dict)
-            and provenance.get("artifact_run_id") == observation.get("artifact_run_id")
-            and provenance.get("context_digest") == observation.get("context_digest")
+            not isinstance(provenance, dict)
+            or provenance.get("artifact_run_id") != observation.get("artifact_run_id")
+            or provenance.get("context_digest") != observation.get("context_digest")
         ):
-            matching_assessment = assessment
-            break
-    review_status = matching_assessment.get("verdict", "pending") if matching_assessment else "pending"
-    review_criteria = matching_assessment.get("criteria", {}) if matching_assessment else {}
+            continue
+        reviewer = str(provenance.get("reviewer", "operator")).strip().lower()
+        if reviewer in {"operator", "chatgpt"} and reviewer not in matching_reviews:
+            matching_reviews[reviewer] = assessment
+
+    reviewer_statuses = {
+        reviewer: str(matching_reviews.get(reviewer, {}).get("verdict", "pending"))
+        for reviewer in ("operator", "chatgpt")
+    }
+    if any(status == "pending" for status in reviewer_statuses.values()):
+        review_status = "pending"
+    elif any(status == "fail" for status in reviewer_statuses.values()):
+        review_status = "fail"
+    elif any(status == "uncertain" for status in reviewer_statuses.values()):
+        review_status = "uncertain"
+    else:
+        review_status = "pass"
+
+    review_criteria: dict[str, str] = {}
+    criterion_names = (
+        "objective_fidelity",
+        "history_fidelity",
+        "frontier_fidelity",
+        "compression_awareness",
+        "unsupported_claims",
+        "actionability",
+    )
+    for criterion in criterion_names:
+        values = []
+        for reviewer in ("operator", "chatgpt"):
+            criteria = matching_reviews.get(reviewer, {}).get("criteria", {})
+            values.append(criteria.get(criterion, "pending") if isinstance(criteria, dict) else "pending")
+        if "pending" in values:
+            review_criteria[criterion] = "pending"
+        elif "fail" in values:
+            review_criteria[criterion] = "fail"
+        elif "uncertain" in values:
+            review_criteria[criterion] = "uncertain"
+        else:
+            review_criteria[criterion] = "pass"
     return {
         # Preserve the legacy generic flag for consumers that predate the
         # explicit proof contract; never let it stand in for semantic fidelity.
@@ -146,18 +182,22 @@ def latest_overnight_proof(kernel: Kernel) -> dict[str, object] | None:
             "task": task,
         },
         "semantic_review": {
-            "version": 1,
+            "version": 2,
             "status": review_status,
+            "reviewers": {
+                reviewer: {
+                    "status": reviewer_statuses[reviewer],
+                    "criteria": (
+                        matching_reviews.get(reviewer, {}).get("criteria", {})
+                        if isinstance(matching_reviews.get(reviewer, {}).get("criteria", {}), dict)
+                        else {}
+                    ),
+                }
+                for reviewer in ("operator", "chatgpt")
+            },
             "criteria": [
                 {"id": criterion, "status": review_criteria.get(criterion, "pending")}
-                for criterion in (
-                    "objective_fidelity",
-                    "history_fidelity",
-                    "frontier_fidelity",
-                    "compression_awareness",
-                    "unsupported_claims",
-                    "actionability",
-                )
+                for criterion in criterion_names
             ],
             "evidence": {
                 "candidate_result": candidate_result,
