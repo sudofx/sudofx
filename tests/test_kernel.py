@@ -1289,7 +1289,7 @@ json.dump({
         self.assertIn("Manual handoff grounding", page)
         self.assertIn("Objective grounding", page)
         self.assertIn("Manual tests recorded <b>2</b>", page)
-        self.assertIn("Comparable batch <b>2 tests · 2 vendors · 14/14</b>", page)
+        self.assertIn("Comparable grounding batch <b>2 tests · 2 vendors · 14/14</b>", page)
         self.assertIn("Recent manual test history", page)
         self.assertIn(response["test_id"], page)
         self.assertIn(second_response["test_id"], page)
