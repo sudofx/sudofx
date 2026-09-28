@@ -270,7 +270,12 @@ def _probe(
         raise AssertionError("Gemini probe changed production authority")
 
     proof: dict[str, Any] = {
+        # "passed" remains a compatibility alias for older projections.
+        # The explicit fields below are the evidence contract: deterministic
+        # protocol/governance checks passed; semantic fidelity is not yet judged.
         "passed": True,
+        "protocol_gate_passed": True,
+        "semantic_review_status": "pending",
         "assessment_status": "semantic_review_pending",
         "kind": "evolving overnight Gemini continuity observation",
         "scope": "bounded derived context over isolated authoritative snapshot",

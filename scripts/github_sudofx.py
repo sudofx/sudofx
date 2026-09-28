@@ -99,7 +99,11 @@ def latest_overnight_proof(kernel: Kernel) -> dict[str, object] | None:
     phase = observation.get("phase", experiment.get("phase"))
     task = observation.get("task", "")
     return {
+        # Preserve the legacy generic flag for consumers that predate the
+        # explicit proof contract; never let it stand in for semantic fidelity.
         "passed": True,
+        "protocol_gate_passed": True,
+        "semantic_review_status": "pending",
         "assessment_status": "semantic_review_pending",
         "kind": "evolving overnight Gemini continuity observation",
         "provider": observation.get("provider", "Google Gemini"),

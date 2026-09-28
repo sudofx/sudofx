@@ -356,12 +356,16 @@ def _exchange_panel(proof: dict[str, object]) -> str:
         for key in ("semantic_lens", "exposure", "pressure")
         if str(coordinate.get(key, "")).strip()
     )
-    protocol_status = "PASS" if proof.get("passed") is True else "NOT PASSED"
-    semantic_status = (
-        "PENDING"
-        if proof.get("assessment_status") == "semantic_review_pending"
-        else str(proof.get("assessment_status", "UNKNOWN")).upper()
-    )
+    protocol_passed = proof.get("protocol_gate_passed")
+    if not isinstance(protocol_passed, bool):
+        protocol_passed = proof.get("passed") is True
+    protocol_status = "PASS" if protocol_passed else "NOT PASSED"
+    semantic_status = str(
+        proof.get(
+            "semantic_review_status",
+            "pending" if proof.get("assessment_status") == "semantic_review_pending" else proof.get("assessment_status", "unknown"),
+        )
+    ).upper()
 
     return f"""
       <section class="exchange" aria-label="Gemini exchange" data-artifact-run-id="{_escape(proof.get('artifact_run_id', ''))}">
@@ -1257,11 +1261,18 @@ const refreshExchange=async()=>{{
       coordinate.textContent=[point.semantic_lens,point.exposure,point.pressure].filter(Boolean).join(' · ')||'—';
     }}
     const protocol=document.querySelector('[data-exchange-protocol]');
-    if(protocol)protocol.textContent=proof.passed===true?'PASS':'NOT PASSED';
+    if(protocol){{
+      const protocolPassed=typeof proof.protocol_gate_passed==='boolean'
+        ?proof.protocol_gate_passed
+        :proof.passed===true;
+      protocol.textContent=protocolPassed?'PASS':'NOT PASSED';
+    }}
     const semantic=document.querySelector('[data-exchange-semantic]');
-    if(semantic)semantic.textContent=proof.assessment_status==='semantic_review_pending'
-      ?'PENDING'
-      :String(proof.assessment_status||'UNKNOWN').toUpperCase();
+    if(semantic)semantic.textContent=String(
+      proof.semantic_review_status
+      ||(proof.assessment_status==='semantic_review_pending'?'pending':proof.assessment_status)
+      ||'unknown'
+    ).toUpperCase();
   }}catch(error){{/* Keep the last known exchange visible if the disposable live view is briefly unavailable. */}}
 }};
 refreshObserver();
