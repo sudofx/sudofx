@@ -135,23 +135,23 @@ def _work_cards(state: dict[str, object]) -> str:
                 <div class="quality-provenance">{_escape(provider)} · {_escape(model)}{f' · run {_escape(run_id)}' if run_id else ''}</div>
               </div>
             """
-        gauntlet_runs = work.get("gauntlet_runs", [])
-        gauntlet_html = ""
-        if isinstance(gauntlet_runs, list) and gauntlet_runs:
-            latest_gauntlet = gauntlet_runs[-1]
-            if isinstance(latest_gauntlet, dict):
-                criteria = latest_gauntlet.get("criteria", {})
-                passed = int(latest_gauntlet.get("score", 0))
+        handoff_evaluations = work.get("handoff_evaluations", [])
+        handoff_evaluation_html = ""
+        if isinstance(handoff_evaluations, list) and handoff_evaluations:
+            latest_handoff_evaluation = handoff_evaluations[-1]
+            if isinstance(latest_handoff_evaluation, dict):
+                criteria = latest_handoff_evaluation.get("criteria", {})
+                passed = int(latest_handoff_evaluation.get("score", 0))
                 criteria_html = "".join(
                     f'<div><span>{_escape(key.replace("_", " "))}</span>'
                     f'<strong class="quality-{_escape(result)}">{_escape(str(result).upper())}</strong></div>'
                     for key, result in criteria.items()
                 ) if isinstance(criteria, dict) else ""
-                gauntlet_html = f"""
+                handoff_evaluation_html = f"""
                   <div class="quality-block">
-                    <div class="quality-head"><b>Continuity Gauntlet</b><span class="quality-verdict quality-{'pass' if passed == 7 else 'uncertain'}">{passed}/7</span></div>
+                    <div class="quality-head"><b>Manual handoff evaluation</b><span class="quality-verdict quality-{'pass' if passed == 7 else 'uncertain'}">{passed}/7</span></div>
                     <div class="quality-grid">{criteria_html}</div>
-                    <div class="quality-provenance">{_escape(latest_gauntlet.get('vendor', ''))} · test {_escape(latest_gauntlet.get('test_id', ''))}</div>
+                    <div class="quality-provenance">{_escape(latest_handoff_evaluation.get('vendor', ''))} · test {_escape(latest_handoff_evaluation.get('test_id', ''))}</div>
                   </div>
                 """
         constraints_html = "".join(f"<li>{_escape(item)}</li>" for item in constraints)
@@ -168,7 +168,7 @@ def _work_cards(state: dict[str, object]) -> str:
               {f'<div class="work-section"><b>Accepted results</b><ol>{results_html}</ol></div>' if results else ''}
               {f'<div class="work-section"><b>Open obligations</b><ul>{obligations_html}</ul></div>' if obligations else ''}
               {assessment_html}
-              {gauntlet_html}
+              {handoff_evaluation_html}
               {f'<div class="final-result"><b>Final result</b><p>{_escape(final)}</p></div>' if final else ''}
             </article>
             """
