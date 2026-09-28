@@ -95,11 +95,11 @@ jobs:
           # cancel-in-progress is false. Yielding here prevents the continuous
           # chain from starving an operator/Gauntlet mutation queued behind the
           # current cycle. A later explicit Start can resume the chain.
-          queued_operator_runs="$(gh api \
-            "repos/$GITHUB_REPOSITORY/actions/workflows/sudofx.yml/runs?status=queued&per_page=1" \
-            --jq '.total_count')"
-          if [[ "$queued_operator_runs" -gt 0 ]]; then
-            echo "Operator work is queued; yielding the authority lane instead of replacing it."
+          waiting_operator_runs="$(gh api \
+            "repos/$GITHUB_REPOSITORY/actions/workflows/sudofx.yml/runs?per_page=20" \
+            --jq '[.workflow_runs[] | select(.status != "completed")] | length')"
+          if [[ "$waiting_operator_runs" -gt 0 ]]; then
+            echo "Operator work is waiting; yielding the authority lane instead of replacing it."
             exit 0
           fi
           gh workflow run prove-model.yml --repo "$GITHUB_REPOSITORY" --ref master -f "dispatch_token=continuous-$PREVIOUS_RUN_ID" -f "runtime_ref=$RUNTIME_REF"
