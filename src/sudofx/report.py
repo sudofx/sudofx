@@ -445,11 +445,10 @@ def render(
     .sr-only {{ position:absolute!important; width:1px!important; height:1px!important; padding:0!important; margin:-1px!important; overflow:hidden!important; clip:rect(0,0,0,0)!important; white-space:nowrap!important; border:0!important }}
     .owner-access {{ position:relative; z-index:2000; font:10px var(--mono) }}
     .owner-login,.owner-menu-toggle {{ width:34px; height:34px; display:inline-grid; place-items:center; position:relative; color:var(--muted); padding:0; border:0; border-radius:50%; background:transparent; text-decoration:none; cursor:pointer }}
-    .settings-glyph {{ font:24px/1 system-ui,-apple-system,sans-serif; transform:translateY(-1px) }}
-    .owner-menu-toggle.is-active::after {{ content:""; position:absolute; width:7px; height:7px; right:1px; top:2px; border-radius:50%; background:var(--green); box-shadow:0 0 8px color-mix(in srgb,var(--green) 65%,transparent) }}
+    .settings-glyph {{ font:22px/1 system-ui,-apple-system,sans-serif; transform:translateY(-1px) }}
     .owner-menu-toggle:hover,.owner-menu-toggle:focus-visible,.owner-login:hover,.owner-login:focus-visible {{ color:var(--ink); background:color-mix(in srgb,var(--surface) 70%,transparent) }}
     .owner-controls {{ position:absolute; top:calc(100% + 8px); right:0; width:250px; padding:14px; background:var(--surface); border:1px solid var(--line); box-shadow:0 14px 36px #0003; display:grid; gap:12px }}
-    .owner-controls[hidden],.owner-menu-toggle[hidden] {{ display:none!important }}
+    .owner-controls[hidden],.owner-menu-toggle[hidden],.owner-login[hidden] {{ display:none!important }}
     .owner-control-heading {{ display:grid; gap:3px; padding-bottom:10px; border-bottom:1px solid var(--line) }}
     .owner-control-heading strong {{ font:800 10px var(--mono); letter-spacing:.6px; text-transform:uppercase }}
     .owner-control-heading span {{ min-width:0; color:var(--muted); white-space:normal; font:10px/1.45 var(--mono); overflow-wrap:anywhere }}
@@ -584,15 +583,14 @@ def render(
     /* The track is the complete visual control. A second theme glyph repeated
        the same meaning and introduced an unnecessary alignment relationship. */
     .data-switch-track {{ width:44px; height:26px; padding:2px; border:1px solid var(--line); background:var(--surface); border-radius:20px }}
-    .data-switch-track i {{ display:grid; place-items:center; width:20px; height:20px; border-radius:50%; background:var(--muted); color:var(--surface); transition:transform .2s ease,background .2s ease }}
-    .data-switch-track i::before {{ content:"☀"; font:13px/1 system-ui,-apple-system,sans-serif }}
-    .theme-switch input:checked + .data-switch-track i {{ transform:translateX(17px); background:var(--green); color:#172018 }}
+    .data-switch-track i {{ display:block; width:20px; height:20px; border-radius:50%; background:var(--muted); transition:transform .2s ease,background .2s ease }}
+    .theme-switch input:checked + .data-switch-track i {{ transform:translateX(17px); background:var(--green) }}
     .theme-switch input:focus-visible + .data-switch-track {{ outline:3px solid var(--green); outline-offset:3px }}
     @media(max-width:600px) {{ header {{ column-gap:12px; row-gap:16px; padding:26px 0 20px }}
-      .brand-block {{ gap:9px }}
-      .brand {{ font-size:clamp(30px,11vw,42px) }}
-      .inspired {{ font-size:8px; letter-spacing:.1em }}
-      .masthead-actions {{ gap:8px }}
+      .brand-block {{ gap:7px; min-width:0 }}
+      .brand {{ font-size:clamp(28px,9.5vw,36px); flex:0 0 auto }}
+      .inspired {{ font-size:7px; letter-spacing:.08em; flex:0 1 auto; overflow:hidden; text-overflow:clip }}
+      .masthead-actions {{ gap:7px }}
       .tagline {{ font-size:12px; line-height:1.45 }}
       .owner-controls {{ position:fixed; top:52px; right:16px; left:auto; width:min(320px,calc(100vw - 32px)); padding:16px; gap:10px; box-shadow:0 18px 46px #0005 }}
       .owner-control-actions {{ grid-template-columns:1fr 1fr; gap:8px }}
