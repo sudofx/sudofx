@@ -444,8 +444,8 @@ def render(
        authenticated action hidden until the control service accepts a session. */
     .sr-only {{ position:absolute!important; width:1px!important; height:1px!important; padding:0!important; margin:-1px!important; overflow:hidden!important; clip:rect(0,0,0,0)!important; white-space:nowrap!important; border:0!important }}
     .owner-access {{ position:relative; z-index:2000; font:10px var(--mono) }}
-    .owner-login,.owner-menu-toggle {{ width:34px; height:34px; display:inline-grid; place-items:center; position:relative; color:var(--muted); padding:0; border:0; border-radius:50%; background:transparent; text-decoration:none; cursor:pointer }}
-    .settings-glyph {{ font:22px/1 system-ui,-apple-system,sans-serif; transform:translateY(-1px) }}
+    .owner-login,.owner-menu-toggle {{ width:26px; height:26px; display:inline-grid; place-items:center; position:relative; color:var(--muted); padding:0; border:0; border-radius:50%; background:transparent; text-decoration:none; cursor:pointer }}
+    .settings-glyph {{ display:block; font:26px/1 system-ui,-apple-system,sans-serif; line-height:26px; transform:none }}
     .owner-menu-toggle:hover,.owner-menu-toggle:focus-visible,.owner-login:hover,.owner-login:focus-visible {{ color:var(--ink); background:color-mix(in srgb,var(--surface) 70%,transparent) }}
     .owner-controls {{ position:absolute; top:calc(100% + 8px); right:0; width:250px; padding:14px; background:var(--surface); border:1px solid var(--line); box-shadow:0 14px 36px #0003; display:grid; gap:12px }}
     .owner-controls[hidden],.owner-menu-toggle[hidden],.owner-login[hidden] {{ display:none!important }}
@@ -578,7 +578,7 @@ def render(
     footer {{ margin-top:64px; padding-top:22px; border-top:1px solid var(--line); color:var(--muted); font:12px var(--mono) }}
     /* Keeping the switch in normal grid flow anchors it to the upper-right while
        retaining its full touch target and respecting the phone's content inset. */
-    .theme-switch {{ display:flex; align-items:center; cursor:pointer; user-select:none }}
+    .theme-switch {{ display:flex; align-items:center; height:26px; cursor:pointer; user-select:none }}
     .theme-switch input {{ position:absolute; width:1px; height:1px; margin:0; opacity:0; pointer-events:none }}
     /* The track is the complete visual control. A second theme glyph repeated
        the same meaning and introduced an unnecessary alignment relationship. */
