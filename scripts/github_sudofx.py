@@ -41,6 +41,10 @@ import uuid
 from contextlib import closing
 from pathlib import Path
 
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 from sudofx import Kernel, Operation, Proposal
 from sudofx.record import Record
 from sudofx.continuity import (
@@ -52,10 +56,9 @@ from sudofx.continuity import (
 )
 from sudofx.report import export_site
 from sudofx.handoff import build_handoff_packet, export_handoff_packet
-from sudofx.gauntlet import gauntlet_packet_digest, score_gauntlet_response
+from plugins.manual_handoff.scoring import handoff_packet_digest, evaluate_handoff_response
 from sudofx.overnight import EXPERIMENT_STATE_KEY
 
-ROOT = Path(__file__).resolve().parents[1]
 DATA = ROOT / "data" / "sudofx.sqlite"
 STATE_BRANCH = "sudofx-state"
 LIVE_BRANCH = "sudofx-live"
@@ -227,7 +230,7 @@ def checkpoint() -> None:
 def frozen_handoff_packet(packet_digest: str, current_kernel: Kernel) -> dict[str, object]:
     """Resolve the exact governed packet snapshot named by a returned answer.
 
-    A Gauntlet may be in flight while other governed work advances. The state
+    A manual handoff evaluation may be in flight while other governed work advances. The state
     branch is append-only Git history, so it can reproduce the packet that was
     actually tested without turning disposable Pages output into authority.
     """
@@ -252,7 +255,7 @@ def frozen_handoff_packet(packet_digest: str, current_kernel: Kernel) -> dict[st
                 continue
             if candidate.get("packet_digest") == packet_digest:
                 return candidate
-    raise ValueError("gauntlet response names no packet in durable state history")
+    raise ValueError("handoff response names no packet in durable state history")
 
 
 def publish_live_projection(payload: dict[str, object]) -> None:
@@ -315,7 +318,7 @@ def main() -> int:
     parser.add_argument("--prove-vacuum-recovery", action="store_true")
     parser.add_argument("--auto", action="store_true")
     parser.add_argument("--operator-transition", choices=("start", "stop"))
-    parser.add_argument("--record-gauntlet", action="store_true")
+    parser.add_argument("--record-handoff-evaluation", action="store_true")
     parser.add_argument(
         "--action", choices=("set", "delete", "work-create", "work-advance", "record-assessment", "work-complete")
     )
@@ -433,21 +436,21 @@ def main() -> int:
             raise RuntimeError(f"operator {args.operator_transition} transition was {receipt.status}")
         checkpoint()
         kernel = Kernel(Record(DATA))
-    if args.record_gauntlet:
-        raw_response = os.environ.get("GAUNTLET_RESPONSE", "")
-        packet = frozen_handoff_packet(gauntlet_packet_digest(raw_response), kernel)
-        result = score_gauntlet_response(raw_response, packet)
+    if args.record_handoff_evaluation:
+        raw_response = os.environ.get("HANDOFF_RESPONSE", "")
+        packet = frozen_handoff_packet(handoff_packet_digest(raw_response), kernel)
+        result = evaluate_handoff_response(raw_response, packet)
         context = kernel.context()
         receipt = kernel.submit(Proposal(
             str(uuid.uuid4()), context.revision,
-            (Operation("record_gauntlet", AUTO_HANDOFF_ID, result),),
-            "Authenticated Shortcut submitted one human-transported gauntlet response",
+            (Operation("record_handoff_evaluation", AUTO_HANDOFF_ID, result),),
+            "Authenticated Shortcut submitted one human-transported handoff evaluation",
         ))
         if receipt.status != "accepted":
-            raise RuntimeError(f"gauntlet result was {receipt.status}: {receipt.reasons}")
+            raise RuntimeError(f"handoff evaluation was {receipt.status}: {receipt.reasons}")
         checkpoint()
         kernel = Kernel(Record(DATA))
-    if not args.publish_only and not args.prove_work and not args.prove_model and not args.prove_model_uncompressed and not args.prove_model_compressed and not args.prove_anthropic and not args.export_handoff and not args.prove_vacuum_recovery and not args.auto and not args.operator_transition and not args.record_gauntlet:
+    if not args.publish_only and not args.prove_work and not args.prove_model and not args.prove_model_uncompressed and not args.prove_model_compressed and not args.prove_anthropic and not args.export_handoff and not args.prove_vacuum_recovery and not args.auto and not args.operator_transition and not args.record_handoff_evaluation:
         if not args.action or not args.key:
             parser.error("--action and --key are required for a mutation")
         context = kernel.context()
