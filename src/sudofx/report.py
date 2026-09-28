@@ -666,7 +666,7 @@ def render(
       <div class="toolbar"><div><span class="eyebrow">{open_work} open</span><h2>Current work</h2></div></div>
       <div class="work-grid">{_work_cards(context.state)}</div>
     </section>
-    <details class="history" open>
+    <details class="history">
       <summary>Activity history · showing {len(history)} of {total_receipts} receipts</summary>
       <div class="history-tools"><input id="search" type="search" placeholder="Filter activity…" aria-label="Filter activity history"></div>
       <div class="receipts" id="receipts">{_receipt_rows(history)}</div>
