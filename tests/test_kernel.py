@@ -769,7 +769,7 @@ json.dump({
         self.assertIn("Live manual grounding evidence", page)
         self.assertIn("Exact packet grounding only · semantic fidelity is reviewed separately.", page)
         self.assertIn("Semantic review queue", page)
-        self.assertIn("Read-only review evidence. No semantic verdict is inferred from protocol success.", page)
+        self.assertIn("Human judgment is recorded separately from protocol success and is bound to this exact run + digest.", page)
         self.assertIn("data-semantic-review-criteria", page)
         self.assertIn("data-semantic-review-run", page)
         self.assertIn("data-semantic-review-digest", page)
