@@ -36,7 +36,7 @@ from plugins.manual_handoff.scoring import (
     handoff_packet_digest,
     handoff_work_id,
 )
-from scripts.github_sudofx import main as github_main
+from scripts.github_sudofx import latest_overnight_proof, main as github_main
 
 # These tests protect durable guarantees rather than implementation shape.
 # Temporary SQLite records prove replay across reopened processes without
@@ -773,6 +773,50 @@ json.dump({
         self.assertIn("const legacy=sessionStorage.getItem(ownerSessionKey)", page)
         self.assertIn("sessionStorage.removeItem(ownerSessionKey)", page)
         self.assertNotIn("GITHUB_CLIENT_SECRET", page)
+
+    def test_latest_overnight_projection_preserves_runtime_provenance(self) -> None:
+        """Pages must not confuse renderer provenance with model-runtime provenance."""
+        experiment = {
+            "version": 3,
+            "cycle": 17,
+            "matrix_cycle": 17,
+            "matrix_size": 343,
+            "coordinate": {
+                "semantic_lens": "authority_boundary",
+                "exposure": "minimal",
+                "pressure": "authority_injection",
+            },
+            "phase": "authority_boundary",
+            "latest_observation": {
+                "cycle": 17,
+                "phase": "authority_boundary",
+                "task": "Respect the authority boundary.",
+                "candidate_result": "Gemini understood: authority stays with the system.",
+                "candidate_rationale": "bounded evidence",
+                "candidate_open_obligations": [],
+                "context_digest": "d" * 64,
+                "provider": "Google Gemini",
+                "model": "gemini-3.5-flash-lite",
+                "artifact_run_id": "run-17",
+                "artifact_commit": "runtime-commit-17",
+                "source_event_head": "e" * 64,
+            },
+        }
+        self.kernel.submit(
+            Proposal(
+                "overnight-projection",
+                0,
+                (Operation("set", "__overnight_continuity_experiment__", experiment),),
+            )
+        )
+        proof = latest_overnight_proof(self.kernel)
+        self.assertIsNotNone(proof)
+        assert proof is not None
+        self.assertEqual(proof["artifact_commit"], "runtime-commit-17")
+        trial = proof["overnight_trial"]
+        self.assertEqual(trial["matrix_cycle"], 17)
+        self.assertEqual(trial["matrix_size"], 343)
+        self.assertEqual(trial["coordinate"]["pressure"], "authority_injection")
 
     def test_exported_runner_state_continues_after_bounded_model_review(self) -> None:
         """

@@ -362,6 +362,7 @@ def _record_observation(
         "provider": proof["provider"],
         "model": proof["model"],
         "artifact_run_id": run_id,
+        "artifact_commit": proof.get("artifact_commit", ""),
         "source_event_head": proof["source_event_head"],
     }
     next_state = advance_experiment_state(

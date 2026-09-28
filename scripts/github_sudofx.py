@@ -105,6 +105,10 @@ def latest_overnight_proof(kernel: Kernel) -> dict[str, object] | None:
         "provider": observation.get("provider", "Google Gemini"),
         "model": observation.get("model", ""),
         "artifact_run_id": observation.get("artifact_run_id", ""),
+        # Empty is deliberate for legacy observations that predate durable
+        # runtime provenance. Never substitute a Pages renderer commit for the
+        # model-execution commit.
+        "artifact_commit": observation.get("artifact_commit", ""),
         "source_event_head": observation.get("source_event_head", ""),
         "context_digest": observation.get("context_digest", ""),
         "candidate_result": candidate_result,
@@ -113,6 +117,9 @@ def latest_overnight_proof(kernel: Kernel) -> dict[str, object] | None:
         "overnight_trial": {
             "version": experiment.get("version"),
             "cycle": cycle,
+            "matrix_cycle": experiment.get("matrix_cycle"),
+            "matrix_size": experiment.get("matrix_size"),
+            "coordinate": experiment.get("coordinate", {}),
             "phase": phase,
             "task": task,
         },
