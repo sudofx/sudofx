@@ -36,8 +36,14 @@ checks the seven grounding dimensions, then asks the normal sudofx governance
 path to record the evaluation. The score measures literal packet grounding,
 not semantic truth.
 
-The iOS Shortcut is transport only. After Claude returns the JSON, the Shortcut
-copies that result and opens:
+The iOS Shortcut is transport only. After Claude returns the JSON, **Send
+handoff** posts the raw response to the remote operator's dedicated background
+route and finishes with a local notification. Its bearer is scoped to this one
+route; it is not a GitHub token and cannot select another capability. The
+Worker holds dispatch authority, while the workflow and governed SQLite record
+remain the only durable acceptance path.
+
+The authenticated browser fallback opens:
 
 ```text
 https://sudofx.github.io/sudofx/#handoff-evaluate
@@ -46,18 +52,19 @@ https://sudofx.github.io/sudofx/#handoff-evaluate
 The fragment contains no result or credential. The page restores or requests the
 existing operator login, opens the handoff panel, and requires one user tap on
 **Paste & submit result**. That tap reads the transient clipboard and submits the
-response through `remote_operator`; the Shortcut must not store a GitHub token,
-call `api.github.com`, or dispatch `sudofx.yml` itself.
+response through `remote_operator`.
 
-Replace the Shortcut's direct GitHub submission tail with exactly these actions:
+The primary iOS Shortcut tail is:
 
-1. **Copy to Clipboard** — input: Claude's complete returned JSON.
-2. **URL** — `https://sudofx.github.io/sudofx/#handoff-evaluate`
-3. **Open URLs** — input: the URL above.
+1. **Get Contents of URL** — POST the `response_text` file to
+   `https://sudofx-control.rob-71e.workers.dev/api/shortcut/handoff` with the
+   dedicated bearer stored in the Shortcut.
+2. **Show Notification** — `Response sent to sudofx.`
 
-Delete the old **Get Contents of URL** action that targeted GitHub, its
-`Authorization` header, and any stored GitHub token variable. Keep the earlier
-packet fetch, prompt construction, and Claude invocation unchanged.
+It must not call `api.github.com`, store a GitHub token, or dispatch
+`sudofx.yml` directly. Keep the earlier response/share-sheet handling unchanged.
+The copy-and-open actions above remain the non-iOS/browser fallback, not the
+preferred iPhone development loop.
 
 ## Boundary
 

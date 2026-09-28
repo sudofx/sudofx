@@ -71,6 +71,13 @@ the untrusted response, and asks normal governance to append the SQLite record.
 The page's encrypted operator session—not an iOS Shortcut token—is the authority
 that permits the dispatch.
 
+For the one-gesture iOS return path, `POST /api/shortcut/handoff` accepts the raw
+returned JSON under a dedicated `HANDOFF_SHORTCUT_TOKEN`. That bearer is not a
+GitHub credential and cannot select another action. The Worker keeps the
+server-side `GITHUB_DISPATCH_TOKEN`, forwards only `handoff-evaluate`, and leaves
+packet reconstruction, scoring, governance, and the SQLite append downstream.
+The authenticated browser route remains available as the non-iOS fallback.
+
 ## Removal test
 
 Deleting `plugins/remote_operator/` must leave the kernel, durable record,

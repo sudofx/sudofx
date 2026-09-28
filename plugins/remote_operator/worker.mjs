@@ -206,6 +206,65 @@ async function authorizedSession(request, env) {
   return session;
 }
 
+async function secretMatches(candidate, expected) {
+  /**Compare bearer credentials without exposing length or prefix agreement.
+   *
+   * The Shortcut credential authorizes exactly one transport route. It is not
+   * a GitHub token and cannot name a workflow or operation. Hashing both sides
+   * before the byte comparison keeps the comparison length fixed; the Worker
+   * still rejects a missing deployment secret rather than silently opening the
+   * route after a configuration mistake.
+   */
+  if (typeof candidate !== "string" || !candidate || typeof expected !== "string" || !expected) return false;
+  const encoder = new TextEncoder();
+  const [left, right] = await Promise.all([
+    crypto.subtle.digest("SHA-256", encoder.encode(candidate)),
+    crypto.subtle.digest("SHA-256", encoder.encode(expected)),
+  ]);
+  const leftBytes = new Uint8Array(left);
+  const rightBytes = new Uint8Array(right);
+  let difference = 0;
+  for (let index = 0; index < leftBytes.length; index += 1) difference |= leftBytes[index] ^ rightBytes[index];
+  return difference === 0;
+}
+
+async function shortcutHandoff(request, env, githubFetch) {
+  /**Accept one background iOS handoff without granting the phone GitHub access.
+   *
+   * The device credential is a narrow admission capability: it can submit only
+   * a bounded handoff response to the already compiled `handoff-evaluate`
+   * action. The response remains untrusted. The workflow reconstructs its
+   * frozen packet and governance owns the only SQLite append, so interruption,
+   * duplication, or a fabricated payload cannot create a parallel state model.
+   */
+  if (!capabilityEnabled(env, "handoff-evaluate")) return json(env, { error: "operator action is not enabled" }, 403);
+  const authorization = request.headers.get("Authorization") || "";
+  const candidate = authorization.startsWith("Bearer ") ? authorization.slice(7) : "";
+  if (!await secretMatches(candidate, env.HANDOFF_SHORTCUT_TOKEN)) {
+    return json(env, { error: "shortcut credential rejected" }, 401);
+  }
+  if (typeof env.GITHUB_DISPATCH_TOKEN !== "string" || !env.GITHUB_DISPATCH_TOKEN) {
+    return json(env, { error: "background dispatch is not configured" }, 503);
+  }
+  const response = await request.text();
+  try {
+    handoffResponseShape(response);
+  } catch (error) {
+    return json(env, { error: error.message }, 400);
+  }
+  await github(
+    `/repos/${env.REPOSITORY}/actions/workflows/${OPERATIONS_WORKFLOW}/dispatches`,
+    env.GITHUB_DISPATCH_TOKEN,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ref: "master", inputs: { action: "handoff-evaluate", response } }),
+    },
+    githubFetch,
+  );
+  return json(env, { accepted: true, action: "handoff-evaluate", message: "Handoff evaluation accepted for governed recording." });
+}
+
 async function workflowStatus(env, token, githubFetch) {
   const workflowResponse = await github(
     `/repos/${env.REPOSITORY}/actions/workflows/${WORKFLOW}`,
@@ -480,6 +539,13 @@ export async function handleRequest(request, env, githubFetch = fetch) {
     // are translated before control leaves the service's public interface.
     if (url.pathname === "/auth/login" && request.method === "GET") return await login(request, env);
     if (url.pathname === "/auth/callback" && request.method === "GET") return await callback(request, env, githubFetch);
+
+    // iOS Shortcuts does not share Safari's cookie/session container. This
+    // purpose-built route restores a one-gesture phone workflow while keeping
+    // its bearer incapable of invoking any other operator capability.
+    if (url.pathname === "/api/shortcut/handoff" && request.method === "POST") {
+      return await shortcutHandoff(request, env, githubFetch);
+    }
 
     // API calls must originate from the published interface and carry the
     // encrypted owner session. CORS is not treated as authorization; identity

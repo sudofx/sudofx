@@ -28,6 +28,12 @@ const handoffResponse = JSON.stringify({
   answers: {},
 });
 
+const shortcutEnv = {
+  ...env,
+  HANDOFF_SHORTCUT_TOKEN: "device-only-secret",
+  GITHUB_DISPATCH_TOKEN: "server-side-github-token",
+};
+
 async function ownerSession() {
   const loginResponse = await handleRequest(new Request("https://control.example/auth/login"), env);
   const authorization = new URL(loginResponse.headers.get("Location"));
@@ -87,6 +93,56 @@ test("handoff submission requires the existing encrypted operator session", asyn
     async () => { contacted = true; return new Response(null, { status: 204 }); },
   );
   assert.equal(response.status, 401);
+  assert.equal(contacted, false);
+});
+
+test("background Shortcut handoff has one compiled capability and preserves the response", async () => {
+  /**The device bearer never becomes general operator or GitHub authority.
+   *
+   * This contract proves the only route it can enter, the exact workflow input
+   * forwarded, and the separation between the device credential and the
+   * server-side GitHub token. SQLite acceptance remains downstream governance.
+   */
+  const calls = [];
+  const response = await handleRequest(
+    new Request("https://control.example/api/shortcut/handoff", {
+      method: "POST",
+      headers: { Authorization: "Bearer device-only-secret", "Content-Type": "text/plain" },
+      body: handoffResponse,
+    }),
+    shortcutEnv,
+    async (url, init) => {
+      calls.push([new URL(url).pathname, init.headers.Authorization, JSON.parse(init.body)]);
+      return new Response(null, { status: 204 });
+    },
+  );
+  assert.equal(response.status, 200);
+  assert.deepEqual(calls, [[
+    "/repos/sudofx/sudofx/actions/workflows/sudofx.yml/dispatches",
+    "Bearer server-side-github-token",
+    { ref: "master", inputs: { action: "handoff-evaluate", response: handoffResponse } },
+  ]]);
+});
+
+test("background Shortcut rejects missing or malformed authority before GitHub", async () => {
+  let contacted = false;
+  const githubFetch = async () => { contacted = true; return new Response(null, { status: 204 }); };
+  const unauthorized = await handleRequest(
+    new Request("https://control.example/api/shortcut/handoff", { method: "POST", body: handoffResponse }),
+    shortcutEnv,
+    githubFetch,
+  );
+  assert.equal(unauthorized.status, 401);
+  const malformed = await handleRequest(
+    new Request("https://control.example/api/shortcut/handoff", {
+      method: "POST",
+      headers: { Authorization: "Bearer device-only-secret" },
+      body: "not JSON",
+    }),
+    shortcutEnv,
+    githubFetch,
+  );
+  assert.equal(malformed.status, 400);
   assert.equal(contacted, false);
 });
 
