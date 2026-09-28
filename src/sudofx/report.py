@@ -754,6 +754,20 @@ const refreshOwnerControls=async()=>{{
   if(!controlUrl||!ownerControls||!ownerSession())return null;
   try{{
     const state=await ownerRequest('/api/session');
+    // Older deployed control workers may not yet include latestRun. Hydrate it
+    // from the same public GitHub workflow feed used by signed-out observers so
+    // authenticated and incognito views cannot disagree during rollout.
+    if(!state.latestRun&&observer){{
+      try{{
+        const repo=observer.dataset.repository, workflow=observer.dataset.workflow;
+        const latestResponse=await fetch('https://api.github.com/repos/'+repo+'/actions/workflows/'+workflow+'/runs?per_page=1',{{cache:'no-store'}});
+        if(latestResponse.ok){{
+          const latestData=await latestResponse.json();
+          const latest=Array.isArray(latestData.workflow_runs)?latestData.workflow_runs[0]:null;
+          if(latest)state.latestRun={{id:latest.id,status:latest.status,conclusion:latest.conclusion||null,url:latest.html_url}};
+        }}
+      }}catch{{}}
+    }}
     ownerLogin.hidden=true;
     ownerMenuToggle.hidden=false;
     if(ownerTechnical)ownerTechnical.hidden=false;
