@@ -110,7 +110,7 @@ def apply_operation(state: dict[str, JsonValue], operation: dict[str, Any]) -> N
         work["semantic_assessments"] = assessments
         work["work_revision"] = int(work.get("work_revision", 0)) + 1
         state[work_key(key)] = work
-    elif action in {"record_handoff_evaluation", "record_" + "ga" + "untlet"}:
+    elif action == "record_handoff_evaluation":
         # Raw vendor output is durable evidence, not authority over the work.
         # Keeping it under the governed work item preserves provenance while
         # preventing any answer text from mutating objective or frontier fields.
