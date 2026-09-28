@@ -657,7 +657,7 @@ def render(
       <span class="technical-badge">AUTHENTICATED VIEW</span>
     </div>
     <div class="technical-stats">
-      <div><span>Record revision</span><strong>{context.revision}</strong></div>
+      <div><span>Record revision</span><strong data-record-revision>{context.revision}</strong></div>
       <div><span>Database</span><strong>{int(health['database_bytes'])} B</strong></div>
       <div><span>Replay</span><strong>{health['replay_ms']} ms</strong></div>
       <div><span>Receipts</span><strong>{total_receipts}</strong></div>
@@ -691,6 +691,7 @@ const observerDetail=document.querySelector('[data-observer-detail]');
 const machineActivity=document.querySelector('[data-machine-activity]');
 const machineText=document.querySelector('[data-machine-text]');
 const exchangeStatus=document.querySelector('[data-exchange-status]');
+const recordRevision=document.querySelector('[data-record-revision]');
 const controlUrl={json.dumps(control_url)};
 const ownerLogin=document.querySelector('[data-owner-login]');
 const ownerMenuToggle=document.querySelector('[data-owner-menu-toggle]');
@@ -963,12 +964,22 @@ const publicAnswer=(proof)=>{{
   return raw;
 }};
 const liveExchangeUrl='https://raw.githubusercontent.com/'+(observer?.dataset.repository||'sudofx/sudofx')+'/sudofx-live/live.json';
+const liveHandoffUrl='https://raw.githubusercontent.com/'+(observer?.dataset.repository||'sudofx/sudofx')+'/sudofx-live/handoff-v1.json';
 const refreshExchange=async()=>{{
   if(!exchange)return;
   try{{
     const response=await fetch(liveExchangeUrl+'?ts='+Date.now(),{{cache:'no-store'}});
     if(!response.ok)throw new Error('proof unavailable');
     const proof=await response.json();
+    if(recordRevision){{
+      try{{
+        const handoffResponse=await fetch(liveHandoffUrl+'?ts='+Date.now(),{{cache:'no-store'}});
+        if(handoffResponse.ok){{
+          const handoff=await handoffResponse.json();
+          if(Number.isInteger(handoff.record_revision))recordRevision.textContent=String(handoff.record_revision);
+        }}
+      }}catch{{}}
+    }}
     const runId=String(proof.artifact_run_id||'');
     if(!runId||runId===exchange.dataset.artifactRunId)return;
     exchange.dataset.artifactRunId=runId;
