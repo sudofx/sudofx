@@ -29,6 +29,7 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: '3.13'
+      # Re-render only from authoritative state; an empty state branch is revision 0.
       - name: Render verified projection
         run: PYTHONPATH=src python scripts/github_sudofx.py --publish-only
       - name: Configure Pages
