@@ -17,6 +17,8 @@ from sudofx import (
     Operation,
     Proposal,
     ProviderError,
+    ProviderQuotaError,
+    ProviderTemporaryError,
 )
 from sudofx.record import APPLICATION_ID, SCHEMA_VERSION, IntegrityError, Record, StorageVersionError
 from sudofx.continuity import (
@@ -570,6 +572,16 @@ json.dump({
         with self.assertRaises(ProviderError):
             self.kernel.run(provider)
         self.assertEqual(self.kernel.record.history(), ())
+
+    def test_provider_exit_codes_classify_retryable_and_quota_failures(self) -> None:
+        """Continuous runners can recover provider noise but must stop on exhausted quota."""
+        retryable = CommandIntelligence((sys.executable, "-c", "import sys; sys.exit(75)"))
+        with self.assertRaises(ProviderTemporaryError):
+            retryable.propose(self.kernel.context())
+
+        quota = CommandIntelligence((sys.executable, "-c", "import sys; sys.exit(78)"))
+        with self.assertRaises(ProviderQuotaError):
+            quota.propose(self.kernel.context())
 
     def test_replay_survives_kernel_and_provider_replacement(self) -> None:
         """Replacing both active objects must preserve authoritative state."""
