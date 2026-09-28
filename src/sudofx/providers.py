@@ -36,6 +36,14 @@ class ProviderError(RuntimeError):
     """
 
 
+class ProviderTemporaryError(ProviderError):
+    """External/provider failure that should not stop a continuous runner."""
+
+
+class ProviderQuotaError(ProviderError):
+    """Confirmed provider quota exhaustion; continuous execution must stop."""
+
+
 def _proposal_from_json(raw: str) -> Proposal:
     """
     Convert provider JSON into the narrow, provider-neutral proposal contract.
@@ -130,6 +138,14 @@ class CommandIntelligence:
             raise ProviderError(f"provider command failed before proposing: {error}") from error
         if completed.returncode != 0:
             detail = completed.stderr.strip() or f"exit status {completed.returncode}"
+            if completed.returncode == 75:
+                raise ProviderTemporaryError(
+                    f"provider temporarily unavailable: {detail}"
+                )
+            if completed.returncode == 78:
+                raise ProviderQuotaError(
+                    f"provider quota exhausted: {detail}"
+                )
             raise ProviderError(f"provider command did not produce a proposal: {detail}")
         return _proposal_from_json(completed.stdout)
 
