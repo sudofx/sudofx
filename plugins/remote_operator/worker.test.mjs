@@ -19,6 +19,15 @@ const env = {
   REPOSITORY: "sudofx/sudofx",
 };
 
+const handoffResponse = JSON.stringify({
+  test_id: "UUID-123456",
+  nonce: "HANDOFF-UUID-123456",
+  vendor: "Claude",
+  work_id: "handoff-v1",
+  packet_digest: "a".repeat(64),
+  answers: {},
+});
+
 async function ownerSession() {
   const loginResponse = await handleRequest(new Request("https://control.example/auth/login"), env);
   const authorization = new URL(loginResponse.headers.get("Location"));
@@ -63,6 +72,21 @@ test("an unrelated web origin is rejected before GitHub is contacted", async () 
     async () => { contacted = true; return new Response(); },
   );
   assert.equal(response.status, 403);
+  assert.equal(contacted, false);
+});
+
+test("handoff submission requires the existing encrypted operator session", async () => {
+  let contacted = false;
+  const response = await handleRequest(
+    new Request("https://control.example/api/operate", {
+      method: "POST",
+      headers: { Origin: "https://sudofx.github.io", "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "handoff-evaluate", response: handoffResponse }),
+    }),
+    env,
+    async () => { contacted = true; return new Response(null, { status: 204 }); },
+  );
+  assert.equal(response.status, 401);
   assert.equal(contacted, false);
 });
 
@@ -145,7 +169,7 @@ test("authenticated session reports storage maintenance metadata without databas
   );
   assert.equal(response.status, 200);
   const body = await response.json();
-  assert.deepEqual(body.capabilities, ["start", "stop", "backup", "verify", "prove-work", "prove-model", "export-handoff", "storage-diagnostics"]);
+  assert.deepEqual(body.capabilities, ["start", "stop", "backup", "verify", "prove-work", "prove-model", "export-handoff", "handoff-evaluate", "storage-diagnostics"]);
   assert.deepEqual(body.maintenance, {
     repositoryVisibility: "public",
     stateBranchProtected: false,
@@ -277,6 +301,85 @@ test("Remote operator dispatches a bounded handoff export", async () => {
     "POST",
     { ref: "master", inputs: { action: "export-handoff", key: "phase2-real-handoff-001" } },
   ]]);
+});
+
+test("Authenticated handoff evaluation preserves untrusted JSON for the governed workflow", async () => {
+  /**
+   * The Worker spends the owner's existing GitHub authority only after session,
+   * origin, capability, size, and transport-shape checks. It must not score or
+   * rewrite model evidence; sudofx.yml reconstructs the packet and owns that gate.
+   */
+  const session = await ownerSession();
+  const operations = [];
+  const response = await handleRequest(
+    new Request("https://control.example/api/operate", {
+      method: "POST",
+      headers: {
+        Origin: "https://sudofx.github.io",
+        Authorization: `Bearer ${session}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ action: "handoff-evaluate", response: handoffResponse }),
+    }),
+    env,
+    async (url, init) => {
+      operations.push([new URL(url).pathname, init.method, JSON.parse(init.body)]);
+      return new Response(null, { status: 204 });
+    },
+  );
+  assert.equal(response.status, 200);
+  assert.deepEqual(operations, [[
+    "/repos/sudofx/sudofx/actions/workflows/sudofx.yml/dispatches",
+    "POST",
+    { ref: "master", inputs: { action: "handoff-evaluate", response: handoffResponse } },
+  ]]);
+  assert.equal((await response.json()).message, "Handoff evaluation accepted for governed recording.");
+});
+
+test("Handoff evaluation rejects malformed transport before GitHub is contacted", async () => {
+  const session = await ownerSession();
+  let contacted = false;
+  const response = await handleRequest(
+    new Request("https://control.example/api/operate", {
+      method: "POST",
+      headers: {
+        Origin: "https://sudofx.github.io",
+        Authorization: `Bearer ${session}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ action: "handoff-evaluate", response: '{"vendor":"Claude"}' }),
+    }),
+    env,
+    async () => { contacted = true; return new Response(null, { status: 204 }); },
+  );
+  assert.equal(response.status, 400);
+  assert.equal(contacted, false);
+  assert.deepEqual(await response.json(), { error: "handoff response is missing transport metadata" });
+});
+
+test("Handoff evaluation rejects oversized transport before GitHub is contacted", async () => {
+  const session = await ownerSession();
+  let contacted = false;
+  const oversized = JSON.stringify({
+    ...JSON.parse(handoffResponse),
+    padding: "x".repeat(48 * 1024),
+  });
+  const response = await handleRequest(
+    new Request("https://control.example/api/operate", {
+      method: "POST",
+      headers: {
+        Origin: "https://sudofx.github.io",
+        Authorization: `Bearer ${session}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ action: "handoff-evaluate", response: oversized }),
+    }),
+    env,
+    async () => { contacted = true; return new Response(null, { status: 204 }); },
+  );
+  assert.equal(response.status, 400);
+  assert.equal(contacted, false);
+  assert.deepEqual(await response.json(), { error: "handoff response must be between 1 byte and 48 KB" });
 });
 
 test("Text configuration can narrow capabilities but never invent new ones", async () => {

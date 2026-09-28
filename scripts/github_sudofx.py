@@ -502,7 +502,10 @@ def main() -> int:
         receipt = kernel.submit(Proposal(
             str(uuid.uuid4()), context.revision,
             (Operation("record_handoff_evaluation", selected_work_id, result),),
-            "Authenticated Shortcut submitted one human-transported handoff evaluation",
+            # The Shortcut carries bytes only. The Cloudflare session established
+            # operator identity before dispatch, while this workflow and the
+            # kernel remain the only path that can record the untrusted result.
+            "Authenticated operator submitted one human-transported handoff evaluation",
         ))
         if receipt.status != "accepted":
             raise RuntimeError(f"handoff evaluation was {receipt.status}: {receipt.reasons}")

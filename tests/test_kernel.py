@@ -934,8 +934,9 @@ json.dump({
 
         page = render(self.kernel, control_url="https://control.example")
         # Manual provider use belongs to the authenticated operator surface. The
-        # four destinations share one provider-neutral packet, and pasted output
-        # remains transient until the owner deliberately carries it to Codex.
+        # four destinations share one provider-neutral packet. Returned output
+        # remains transient until the existing operator session submits it to
+        # the bounded remote_operator capability.
         self.assertIn("Manual AI handoff", page)
         for provider in ("ChatGPT", "Claude", "Gemini", "DeepSeek"):
             self.assertIn(f'data-handoff-provider="{provider}"', page)
@@ -950,17 +951,25 @@ json.dump({
         self.assertIn("omitted_accepted_results_digest", page)
         self.assertNotIn('"accepted_results":', page)
         self.assertIn("navigator.clipboard.writeText", page)
+        self.assertIn("navigator.clipboard.readText", page)
         self.assertIn("Paste the complete response here", page)
-        self.assertIn("Copy for Codex analysis", page)
+        self.assertIn("Paste &amp; submit result", page)
+        self.assertIn("action:'handoff-evaluate',response", page)
+        self.assertIn("'/api/operate','POST'", page)
+        self.assertIn("#handoff-evaluate", page)
+        self.assertIn("sudofx-pending-handoff-evaluation", page)
+        self.assertIn("location.assign(controlUrl+'/auth/login')", page)
+        self.assertIn("if(pendingHandoffReturn()&&controlUrl)location.assign", page)
+        self.assertIn("capabilities.includes('handoff-evaluate')", page)
         self.assertNotIn("Keep it here", page)
         self.assertIn("CURRENT OPERATOR AUTHORIZATION", page)
         self.assertIn("exactly one manual response", page)
         self.assertIn("opening. Paste the copied prompt", page)
-        # The report is a Python-generated JavaScript program. Newlines inside
-        # this quoted packet must remain escaped in the emitted source or one
-        # optional handoff control will break the entire authentication UI.
-        self.assertIn("+'\\n\\n'+response", page)
-        self.assertNotIn("+'\n\n'+response", page)
+        # The response never enters a URL or persistent browser storage. The
+        # fragment carries intent only; the clipboard supplies transient text
+        # after an authenticated user gesture.
+        self.assertNotIn("encodeURIComponent(response)", page)
+        self.assertNotIn("localStorage.setItem(handoffReturnKey", page)
 
     def test_record_initializes_inside_an_existing_empty_directory(self) -> None:
         """A first cloud run may create a record once its explicit parent exists."""

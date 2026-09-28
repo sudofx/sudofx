@@ -666,8 +666,8 @@ def render(
       </div>
       <label class="handoff-field">Prompt to paste<textarea data-handoff-prompt readonly>{_escape(manual_prompt)}</textarea></label>
       <div class="handoff-actions"><button type="button" data-handoff-copy>Copy prompt</button></div>
-      <label class="handoff-field">Paste the response<textarea data-handoff-response placeholder="Paste the complete response here. It remains only in this browser page."></textarea></label>
-      <div class="handoff-actions"><button type="button" data-handoff-analyze>Copy for Codex analysis</button></div>
+      <label class="handoff-field">Returned JSON<textarea data-handoff-response spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="Paste the complete response here. It remains only in this browser page."></textarea></label>
+      <div class="handoff-actions"><button type="button" data-handoff-submit disabled>Paste &amp; submit result</button></div>
       <p class="handoff-note" data-handoff-status>Select a destination. The prompt will be copied automatically when the browser permits it.</p>
     </div>
   </dialog>
@@ -731,10 +731,13 @@ const handoffDialog=document.querySelector('[data-handoff-dialog]');
 const handoffPrompt=document.querySelector('[data-handoff-prompt]');
 const handoffResponse=document.querySelector('[data-handoff-response]');
 const handoffStatus=document.querySelector('[data-handoff-status]');
+const handoffSubmit=document.querySelector('[data-handoff-submit]');
 const handoffBasePrompt=handoffPrompt?.value||'';
 let handoffProvider='';
 const ownerSessionKey='sudofx-owner-session';
 const ownerFragment='#sudofx-control=';
+const handoffReturnFragment='#handoff-evaluate';
+const handoffReturnKey='sudofx-pending-handoff-evaluation';
 try{{
   if(!localStorage.getItem(ownerSessionKey)){{
     const legacy=sessionStorage.getItem(ownerSessionKey);
@@ -752,6 +755,15 @@ if(controlUrl && location.hash.startsWith(ownerFragment)){{
   }}catch{{}}
 }}
 const ownerSession=()=>{{try{{return localStorage.getItem(ownerSessionKey)||''}}catch{{return ''}}}};
+// The Shortcut transports no credential and no model response in its URL. Its
+// fragment is only a same-browser intent marker; the response remains on the
+// clipboard until an authenticated, user-initiated paste submits it.
+if(location.hash===handoffReturnFragment){{
+  try{{sessionStorage.setItem(handoffReturnKey,'1')}}catch{{}}
+  history.replaceState(null,'',location.pathname+location.search);
+}}
+const pendingHandoffReturn=()=>{{try{{return sessionStorage.getItem(handoffReturnKey)==='1'}}catch{{return false}}}};
+if(controlUrl&&pendingHandoffReturn()&&!ownerSession())location.assign(controlUrl+'/auth/login');
 const formatBytes=(value)=>{{
   // This is the browser equivalent of the server renderer's presentation-only
   // formatter. The Worker still returns the exact integer byte count; no display
@@ -763,8 +775,10 @@ const formatBytes=(value)=>{{
   const precision=amount>=100?0:1;
   return Number(amount.toFixed(precision))+' '+units[unit];
 }};
-const ownerRequest=async(path,method='GET')=>{{
-  const response=await fetch(controlUrl+path,{{method,headers:{{Authorization:'Bearer '+ownerSession()}}}});
+const ownerRequest=async(path,method='GET',payload=null)=>{{
+  const headers={{Authorization:'Bearer '+ownerSession()}};
+  if(payload!==null)headers['Content-Type']='application/json';
+  const response=await fetch(controlUrl+path,{{method,headers,body:payload===null?undefined:JSON.stringify(payload)}});
   const body=await response.json().catch(()=>({{}}));
   if(!response.ok)throw new Error(body.error||'Owner control request failed');
   return body;
@@ -840,11 +854,22 @@ const refreshOwnerControls=async()=>{{
     ownerStart.disabled=state.enabled;
     ownerStop.disabled=!state.enabled;
     if(ownerBackup){{ownerBackup.hidden=!Array.isArray(state.capabilities)||!state.capabilities.includes('backup');ownerBackup.disabled=false;}}
+    const handoffEvaluateEnabled=Array.isArray(state.capabilities)&&state.capabilities.includes('handoff-evaluate');
+    if(handoffSubmit)handoffSubmit.disabled=!handoffEvaluateEnabled;
+    if(pendingHandoffReturn()&&handoffEvaluateEnabled&&handoffDialog){{
+      try{{sessionStorage.removeItem(handoffReturnKey)}}catch{{}}
+      if(!handoffDialog.open)handoffDialog.showModal();
+      handoffStatus.textContent='Claude result ready. Tap Paste & submit result.';
+    }}
     applyOwnerWorkflowState(state);
     return state;
   }}catch{{
     try{{localStorage.removeItem(ownerSessionKey)}}catch{{}}
     showOwnerSignedOut();
+    // A Shortcut return may find an expired encrypted session. Preserve only
+    // the intent marker and re-enter the same OAuth gateway; the clipboard text
+    // never leaves the device until the replacement session is verified.
+    if(pendingHandoffReturn()&&controlUrl)location.assign(controlUrl+'/auth/login');
     return null;
   }}
 }};
@@ -917,15 +942,25 @@ document.querySelector('[data-handoff-copy]')?.addEventListener('click',async()=
   try{{await copyText(handoffPrompt.value);handoffStatus.textContent='Prompt copied.';}}
   catch{{handoffPrompt.focus();handoffPrompt.select();handoffStatus.textContent='Clipboard access was blocked; the prompt is selected.';}}
 }});
-document.querySelector('[data-handoff-analyze]')?.addEventListener('click',async()=>{{
-  const response=handoffResponse.value.trim();
-  if(!response){{handoffStatus.textContent='Paste the complete response first.';return;}}
-  // Python renders this JavaScript into HTML. Double escaping preserves the
-  // two newline escapes as JavaScript source; literal newlines would terminate
-  // the quoted string and prevent every operator/auth script from parsing.
-  const packet='Analyze this manual sudofx continuity response. Destination: '+(handoffProvider||'unspecified')+'\\n\\n'+response;
-  try{{await copyText(packet);handoffStatus.textContent='Analysis packet copied. Return to Codex and paste it into the sudofx chat.';}}
-  catch{{handoffResponse.focus();handoffResponse.select();handoffStatus.textContent='Clipboard access was blocked. The response is selected for manual copying.';}}
+handoffSubmit?.addEventListener('click',async()=>{{
+  // Clipboard reads require this trusted tap on iOS. The Shortcut therefore
+  // carries only transient text and a page URL; the browser session remains the
+  // sole authority that can ask the Worker to spend GitHub Actions permission.
+  let response=handoffResponse.value.trim();
+  if(!response){{
+    try{{response=(await navigator.clipboard.readText()).trim();handoffResponse.value=response;}}
+    catch{{handoffStatus.textContent='Clipboard access was blocked. Paste the returned JSON above, then tap submit again.';handoffResponse.focus();return;}}
+  }}
+  if(!response){{handoffStatus.textContent='The clipboard does not contain a handoff response.';return;}}
+  handoffSubmit.disabled=true;
+  handoffStatus.textContent='Submitting through the authenticated operator…';
+  try{{
+    const result=await ownerRequest('/api/operate','POST',{{action:'handoff-evaluate',response}});
+    handoffResponse.value='';
+    handoffStatus.textContent=result.message||'Handoff evaluation accepted for governed recording.';
+  }}catch(error){{
+    handoffStatus.textContent='Submission failed: '+error.message;
+  }}finally{{handoffSubmit.disabled=false;}}
 }});
 document.querySelector('[data-handoff-close]')?.addEventListener('click',()=>handoffDialog?.close());
 if(ownerMenuToggle)ownerMenuToggle.addEventListener('click',(event)=>{{event.stopPropagation();setOwnerMenu(ownerControls.hidden);}});

@@ -36,6 +36,29 @@ checks the seven grounding dimensions, then asks the normal sudofx governance
 path to record the evaluation. The score measures literal packet grounding,
 not semantic truth.
 
+The iOS Shortcut is transport only. After Claude returns the JSON, the Shortcut
+copies that result and opens:
+
+```text
+https://sudofx.github.io/sudofx/#handoff-evaluate
+```
+
+The fragment contains no result or credential. The page restores or requests the
+existing operator login, opens the handoff panel, and requires one user tap on
+**Paste & submit result**. That tap reads the transient clipboard and submits the
+response through `remote_operator`; the Shortcut must not store a GitHub token,
+call `api.github.com`, or dispatch `sudofx.yml` itself.
+
+Replace the Shortcut's direct GitHub submission tail with exactly these actions:
+
+1. **Copy to Clipboard** — input: Claude's complete returned JSON.
+2. **URL** — `https://sudofx.github.io/sudofx/#handoff-evaluate`
+3. **Open URLs** — input: the URL above.
+
+Delete the old **Get Contents of URL** action that targeted GitHub, its
+`Authorization` header, and any stored GitHub token variable. Keep the earlier
+packet fetch, prompt construction, and Claude invocation unchanged.
+
 ## Boundary
 
 This directory is the first concrete use of the plugin boundary described in

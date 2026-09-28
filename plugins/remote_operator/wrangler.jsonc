@@ -12,6 +12,6 @@
 
     // Comma-separated subset of the plugin's compiled capability ceiling.
     // Unknown names are ignored; configuration can remove authority, not add it.
-    "ENABLED_CAPABILITIES": "start,stop,backup,verify,prove-work,prove-model,export-handoff,storage-diagnostics"
+    "ENABLED_CAPABILITIES": "start,stop,backup,verify,prove-work,prove-model,export-handoff,handoff-evaluate,storage-diagnostics"
   }
 }

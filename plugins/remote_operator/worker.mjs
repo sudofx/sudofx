@@ -24,15 +24,17 @@ const WORKFLOW = "prove-model.yml";
 const OPERATIONS_WORKFLOW = "sudofx.yml";
 const SESSION_SECONDS = 60 * 60 * 7;
 const OAUTH_SECONDS = 60 * 10;
+const MAX_HANDOFF_RESPONSE_BYTES = 48 * 1024;
 
 // This is the plugin's maximum authority. Human-editable configuration may
 // disable entries, but adding text to configuration cannot create new powers.
 const SUPPORTED_ONE_SHOT_ACTIONS = Object.freeze({
-  verify: { requiresKey: false, permitsModel: false },
-  backup: { requiresKey: false, permitsModel: false },
-  "prove-work": { requiresKey: true, permitsModel: false },
-  "prove-model": { requiresKey: true, permitsModel: true },
-  "export-handoff": { requiresKey: true, permitsModel: false },
+  verify: { requiresKey: false, permitsModel: false, permitsResponse: false },
+  backup: { requiresKey: false, permitsModel: false, permitsResponse: false },
+  "prove-work": { requiresKey: true, permitsModel: false, permitsResponse: false },
+  "prove-model": { requiresKey: true, permitsModel: true, permitsResponse: false },
+  "export-handoff": { requiresKey: true, permitsModel: false, permitsResponse: false },
+  "handoff-evaluate": { requiresKey: false, permitsModel: false, permitsResponse: true },
 });
 
 const DEFAULT_CAPABILITIES = Object.freeze([
@@ -43,8 +45,50 @@ const DEFAULT_CAPABILITIES = Object.freeze([
   "prove-work",
   "prove-model",
   "export-handoff",
+  "handoff-evaluate",
   "storage-diagnostics",
 ]);
+
+function handoffResponseShape(rawResponse) {
+  /**
+   * Establish only the bounded transport shape before spending GitHub authority.
+   *
+   * The Worker does not score evidence or decide whether the response is true.
+   * That remains the workflow scorer's job against a packet reconstructed from
+   * authoritative SQLite history. Here we reject malformed or oversized input
+   * so the admin bridge cannot become an arbitrary workflow payload tunnel.
+   */
+  const bytes = new TextEncoder().encode(rawResponse).byteLength;
+  if (!rawResponse.trim() || bytes > MAX_HANDOFF_RESPONSE_BYTES) {
+    throw new Error("handoff response must be between 1 byte and 48 KB");
+  }
+  let candidate = rawResponse.trim();
+  if (candidate.startsWith("```") && candidate.endsWith("```")) {
+    candidate = candidate.split("\n").slice(1, -1).join("\n").trim();
+  }
+  candidate = candidate.replaceAll("\u201c", '"').replaceAll("\u201d", '"');
+  let parsed;
+  try {
+    parsed = JSON.parse(candidate);
+  } catch {
+    throw new Error("handoff response must contain one JSON object");
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error("handoff response must contain one JSON object");
+  }
+  const required = ["test_id", "nonce", "vendor", "work_id", "packet_digest", "answers"];
+  if (required.some((name) => !(name in parsed))) {
+    throw new Error("handoff response is missing transport metadata");
+  }
+  const strings = ["test_id", "nonce", "vendor", "work_id", "packet_digest"];
+  if (
+    strings.some((name) => typeof parsed[name] !== "string" || !parsed[name].trim())
+    || !parsed.answers || typeof parsed.answers !== "object" || Array.isArray(parsed.answers)
+  ) {
+    throw new Error("handoff response has invalid transport metadata");
+  }
+  return parsed;
+}
 
 function configuredCapabilities(env) {
   /**
@@ -364,16 +408,28 @@ async function operate(request, env, session, githubFetch) {
 
   const key = typeof body.key === "string" ? body.key.trim() : "";
   const model = typeof body.model === "string" ? body.model.trim() : "";
+  const response = typeof body.response === "string" ? body.response : "";
   if (policy.requiresKey && !key) {
     return json(env, { error: `${action} requires a non-empty key` }, 400);
   }
   if (!policy.permitsModel && model) {
     return json(env, { error: `${action} does not accept a model` }, 400);
   }
+  if (!policy.permitsResponse && response) {
+    return json(env, { error: `${action} does not accept a handoff response` }, 400);
+  }
+  if (policy.permitsResponse) {
+    try {
+      handoffResponseShape(response);
+    } catch (error) {
+      return json(env, { error: error.message }, 400);
+    }
+  }
 
   const inputs = { action };
   if (key) inputs.key = key;
   if (policy.permitsModel && model) inputs.model = model;
+  if (policy.permitsResponse) inputs.response = response;
 
   await github(
     `/repos/${env.REPOSITORY}/actions/workflows/${OPERATIONS_WORKFLOW}/dispatches`,
@@ -385,7 +441,10 @@ async function operate(request, env, session, githubFetch) {
     },
     githubFetch,
   );
-  return json(env, { accepted: true, action, key: key || null });
+  const message = action === "handoff-evaluate"
+    ? "Handoff evaluation accepted for governed recording."
+    : "Operator request accepted.";
+  return json(env, { accepted: true, action, key: key || null, message });
 }
 
 async function backup(env, session, githubFetch) {

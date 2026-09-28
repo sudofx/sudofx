@@ -90,8 +90,10 @@ jobs:
         if: github.event_name == 'workflow_dispatch' && inputs.action == 'operator-stop'
         run: PYTHONPATH=src python scripts/github_sudofx.py --operator-transition stop
       - name: Record manual handoff evaluation
-        # The Shortcut transports untrusted vendor text. The returned work_id
-        # binds the response to its governed packet; an optional key must match.
+        # The Shortcut transports untrusted vendor text to the browser only. The
+        # existing Cloudflare operator session authorizes this dispatch; the
+        # returned work_id binds the response to its governed packet and an
+        # optional key must match.
         if: github.event_name == 'workflow_dispatch' && inputs.action == 'handoff-evaluate'
         env:
           HANDOFF_RESPONSE: ${{ inputs.response }}

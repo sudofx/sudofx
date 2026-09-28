@@ -36,5 +36,6 @@ supported = [
   "prove-work",
   "prove-model",
   "export-handoff",
+  "handoff-evaluate",
   "storage-diagnostics",
 ]

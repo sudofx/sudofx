@@ -60,9 +60,16 @@ Authenticated callers may POST to `/api/operate`:
 ```
 
 Supported one-shot actions are `verify`, `backup`, `prove-work`,
-`prove-model`, and `export-handoff`. Start and Stop keep dedicated endpoints
+`prove-model`, `export-handoff`, and `handoff-evaluate`. Start and Stop keep dedicated endpoints
 because their ordering and cancellation semantics are stronger than a generic
 one-shot dispatch.
+
+`handoff-evaluate` accepts one bounded returned JSON object from the authenticated
+Pages UI and dispatches it unchanged to `sudofx.yml`. The Worker validates only
+transport shape and size. The workflow reconstructs the frozen packet, scores
+the untrusted response, and asks normal governance to append the SQLite record.
+The page's encrypted operator session—not an iOS Shortcut token—is the authority
+that permits the dispatch.
 
 ## Removal test
 
