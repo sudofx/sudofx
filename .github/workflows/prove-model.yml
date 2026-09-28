@@ -93,7 +93,7 @@ jobs:
           # GitHub concurrency keeps one running and one pending member, but a
           # newly dispatched successor replaces that pending member even when
           # cancel-in-progress is false. Yielding here prevents the continuous
-          # chain from starving an operator/Gauntlet mutation queued behind the
+          # chain from starving an operator/manual handoff mutation queued behind the
           # current cycle. A later explicit Start can resume the chain.
           waiting_operator_runs="$(gh api \
             "repos/$GITHUB_REPOSITORY/actions/workflows/sudofx.yml/runs?per_page=20" \
