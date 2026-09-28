@@ -1179,6 +1179,8 @@ json.dump({
         saved = self.kernel.context().state["work:handoff-v1"]["handoff_evaluations"][0]
         self.assertEqual(saved["test_id"], response["test_id"])
         self.assertEqual(saved["work_id"], response["work_id"])
+        self.assertEqual(saved["scorer_version"], 2)
+        self.assertIn("visible COMPLETE JSON PACKET", saved["score_kind"])
         self.assertEqual(saved["raw_response"], json.dumps(response))
 
         wrong_work = dict(response)

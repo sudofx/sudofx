@@ -128,6 +128,7 @@ def evaluate_handoff_response(raw_response: str, packet: dict[str, Any]) -> dict
         "answers": normalized_answers,
         "criteria": criteria,
         "score": sum(result == "pass" for result in criteria.values()),
-        "score_kind": "deterministic packet-grounding; semantic review remains separate",
+        "scorer_version": 2,
+        "score_kind": "deterministic packet-grounding against visible COMPLETE JSON PACKET; semantic review remains separate",
         "submitted_at": datetime.now(timezone.utc).isoformat(),
     }
