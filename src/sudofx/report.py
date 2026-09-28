@@ -346,12 +346,14 @@ def render(
     # both related tools keep the same location and interaction vocabulary.
     owner_access_html = (
         f'''<div class="owner-access" data-owner-access>
-      <a class="owner-login" data-owner-login href="{_escape(control_url)}/auth/login">Operator sign in</a>
-      <button class="owner-menu-toggle" data-owner-menu-toggle type="button" aria-expanded="false" aria-haspopup="true" hidden>
-        <i aria-hidden="true"></i><span data-owner-menu-label>Operator</span>
+      <a class="owner-login" data-owner-login href="{_escape(control_url)}/auth/login" aria-label="Open Settings" title="Settings">
+        <span class="settings-glyph" aria-hidden="true">⚙︎</span><span class="sr-only">Settings</span>
+      </a>
+      <button class="owner-menu-toggle" data-owner-menu-toggle type="button" aria-label="Open Settings" title="Settings" aria-expanded="false" aria-haspopup="true" hidden>
+        <span class="settings-glyph" aria-hidden="true">⚙︎</span><span class="sr-only" data-owner-menu-label>Settings</span>
       </button>
       <div class="owner-controls" data-owner-controls hidden aria-live="polite">
-        <div class="owner-control-heading"><strong>Operator controls</strong><span data-owner-identity></span><span data-owner-control-status>Checking controls…</span></div>
+        <div class="owner-control-heading"><strong>Settings</strong><span data-owner-identity></span><span data-owner-control-status>Checking controls…</span></div>
         <div class="owner-control-actions"><button type="button" data-owner-start>Start</button><button type="button" data-owner-stop>Stop</button><button type="button" data-owner-backup hidden>Backup</button></div>
         <button class="owner-handoff" type="button" data-owner-handoff {'disabled' if not manual_prompt else ''}>Manual AI handoff</button>
         <button class="owner-signout" type="button" data-owner-signout>Sign out</button>
@@ -400,9 +402,10 @@ def render(
     main {{ width:min(980px,100%); max-width:100%; min-width:0; margin:auto; padding:clamp(14px,4vw,40px) }}
     /* Identity stays compact because live status—not project explanation—is the
        first reason an operator opens this page on a phone. */
-    header {{ position:relative; display:grid; grid-template-columns:minmax(0,1fr) auto; grid-template-areas:"brand theme" "tagline tagline";
-      column-gap:20px; row-gap:8px; align-items:start; padding:36px 0 16px }}
-    .brand-block {{ grid-area:brand; display:inline-flex; align-items:baseline; gap:12px; min-width:0 }}
+    header {{ position:relative; display:grid; grid-template-columns:minmax(0,1fr) auto; grid-template-areas:"brand actions" "tagline tagline";
+      column-gap:18px; row-gap:14px; align-items:center; padding:30px 0 20px }}
+    .brand-block {{ grid-area:brand; display:flex; align-items:baseline; gap:12px; min-width:0; white-space:nowrap }}
+    .masthead-actions {{ grid-area:actions; display:flex; align-items:center; justify-content:flex-end; gap:12px; min-width:max-content }}
     .brand {{ color:var(--ink); text-decoration:none; font:900 clamp(30px,8vw,48px)/.85 var(--mono); letter-spacing:-.08em }}
     .brand i {{ color:var(--green); font-style:normal }}
     .inspired {{ color:var(--muted); text-decoration:none; font:700 9px/1 var(--mono); letter-spacing:.12em; text-transform:uppercase }}
@@ -439,13 +442,12 @@ def render(
     /* Operator access is a masthead popover, not durable report content. Its
        elevated layer and mobile fixed panel mirror WAKE while keeping every
        authenticated action hidden until the control service accepts a session. */
-    .owner-access {{ position:absolute; top:0; right:0; z-index:2000; font:10px var(--mono) }}
-    .owner-login,.owner-menu-toggle {{ display:inline-flex; align-items:center; color:var(--muted); white-space:nowrap; padding:5px 0 }}
-    .owner-login {{ text-decoration:none }}
-    .owner-menu-toggle {{ gap:7px; border:0; background:transparent; font:700 10px var(--mono); letter-spacing:.2px; cursor:pointer }}
-    .owner-menu-toggle i {{ width:7px; height:7px; border-radius:50%; background:var(--muted); box-shadow:0 0 0 1px color-mix(in srgb,var(--muted) 45%,transparent) }}
-    .owner-menu-toggle.is-active i {{ background:var(--green); box-shadow:0 0 8px color-mix(in srgb,var(--green) 65%,transparent) }}
-    .owner-menu-toggle:hover,.owner-menu-toggle:focus-visible,.owner-login:hover,.owner-login:focus-visible {{ color:var(--ink) }}
+    .sr-only {{ position:absolute!important; width:1px!important; height:1px!important; padding:0!important; margin:-1px!important; overflow:hidden!important; clip:rect(0,0,0,0)!important; white-space:nowrap!important; border:0!important }}
+    .owner-access {{ position:relative; z-index:2000; font:10px var(--mono) }}
+    .owner-login,.owner-menu-toggle {{ width:34px; height:34px; display:inline-grid; place-items:center; position:relative; color:var(--muted); padding:0; border:0; border-radius:50%; background:transparent; text-decoration:none; cursor:pointer }}
+    .settings-glyph {{ font:24px/1 system-ui,-apple-system,sans-serif; transform:translateY(-1px) }}
+    .owner-menu-toggle.is-active::after {{ content:""; position:absolute; width:7px; height:7px; right:1px; top:2px; border-radius:50%; background:var(--green); box-shadow:0 0 8px color-mix(in srgb,var(--green) 65%,transparent) }}
+    .owner-menu-toggle:hover,.owner-menu-toggle:focus-visible,.owner-login:hover,.owner-login:focus-visible {{ color:var(--ink); background:color-mix(in srgb,var(--surface) 70%,transparent) }}
     .owner-controls {{ position:absolute; top:calc(100% + 8px); right:0; width:250px; padding:14px; background:var(--surface); border:1px solid var(--line); box-shadow:0 14px 36px #0003; display:grid; gap:12px }}
     .owner-controls[hidden],.owner-menu-toggle[hidden] {{ display:none!important }}
     .owner-control-heading {{ display:grid; gap:3px; padding-bottom:10px; border-bottom:1px solid var(--line) }}
@@ -577,15 +579,21 @@ def render(
     footer {{ margin-top:64px; padding-top:22px; border-top:1px solid var(--line); color:var(--muted); font:12px var(--mono) }}
     /* Keeping the switch in normal grid flow anchors it to the upper-right while
        retaining its full touch target and respecting the phone's content inset. */
-    .theme-switch {{ grid-area:theme; justify-self:end; display:flex; align-items:center; gap:8px; cursor:pointer; user-select:none }}
+    .theme-switch {{ display:flex; align-items:center; cursor:pointer; user-select:none }}
     .theme-switch input {{ position:absolute; width:1px; height:1px; margin:0; opacity:0; pointer-events:none }}
     /* The track is the complete visual control. A second theme glyph repeated
        the same meaning and introduced an unnecessary alignment relationship. */
-    .data-switch-track {{ width:42px; height:24px; padding:2px; border:1px solid var(--line); background:var(--surface); border-radius:20px }}
-    .data-switch-track i {{ display:block; width:18px; height:18px; border-radius:50%; background:var(--muted); transition:transform .2s ease,background .2s ease }}
-    .theme-switch input:checked + .data-switch-track i {{ transform:translateX(17px); background:var(--green) }}
+    .data-switch-track {{ width:44px; height:26px; padding:2px; border:1px solid var(--line); background:var(--surface); border-radius:20px }}
+    .data-switch-track i {{ display:grid; place-items:center; width:20px; height:20px; border-radius:50%; background:var(--muted); color:var(--surface); transition:transform .2s ease,background .2s ease }}
+    .data-switch-track i::before {{ content:"☀"; font:13px/1 system-ui,-apple-system,sans-serif }}
+    .theme-switch input:checked + .data-switch-track i {{ transform:translateX(17px); background:var(--green); color:#172018 }}
     .theme-switch input:focus-visible + .data-switch-track {{ outline:3px solid var(--green); outline-offset:3px }}
-    @media(max-width:600px) {{ header {{ column-gap:16px }}
+    @media(max-width:600px) {{ header {{ column-gap:12px; row-gap:16px; padding:26px 0 20px }}
+      .brand-block {{ gap:9px }}
+      .brand {{ font-size:clamp(30px,11vw,42px) }}
+      .inspired {{ font-size:8px; letter-spacing:.1em }}
+      .masthead-actions {{ gap:8px }}
+      .tagline {{ font-size:12px; line-height:1.45 }}
       .owner-controls {{ position:fixed; top:52px; right:16px; left:auto; width:min(320px,calc(100vw - 32px)); padding:16px; gap:10px; box-shadow:0 18px 46px #0005 }}
       .owner-control-actions {{ grid-template-columns:1fr 1fr; gap:8px }}
       .owner-control-actions [data-owner-backup] {{ grid-column:1/-1 }}
@@ -604,9 +612,11 @@ def render(
 <body><main data-published-run-id="{_escape(continuity_proof.get('artifact_run_id', ''))}">
   <header><div class="brand-block"><a class="brand" href="./" aria-label="sudofx home">sudo<i>fx</i></a>
     <a class="inspired" href="https://sudofx.github.io/wake/" target="_blank" rel="noopener noreferrer">Inspired by WAKE<b>✳︎</b></a></div>
-    <label class="theme-switch" title="Follow system theme"><input id="theme-toggle" type="checkbox" role="switch" aria-label="Use dark theme"><span class="data-switch-track" aria-hidden="true"><i></i></span></label>
-    <div class="tagline">Can a fresh AI pick up where the last one left off?</div>
-    {owner_access_html}</header>
+    <div class="masthead-actions">
+      <label class="theme-switch" title="Follow system theme"><input id="theme-toggle" type="checkbox" role="switch" aria-label="Use dark theme"><span class="data-switch-track" aria-hidden="true"><i></i></span></label>
+      {owner_access_html}
+    </div>
+    <div class="tagline">Can a fresh AI pick up where the last one left off?</div></header>
   <dialog class="handoff-dialog" data-handoff-dialog>
     <div class="handoff-shell">
       <div class="handoff-head"><div><span class="eyebrow">Owner-only transport</span><h2>Manual AI handoff</h2></div><button type="button" data-handoff-close aria-label="Close manual handoff">Close</button></div>
@@ -755,7 +765,7 @@ const refreshOwnerControls=async()=>{{
     const storageRisk=maintenance.repositoryVisibility==='public'?'public state':maintenance.repositoryVisibility||'unknown visibility';
     const protection=maintenance.stateBranchProtected?'protected':'unprotected';
     const workflowLabel=state.enabled?(state.activeRuns.length?'Running now':'Enabled · next cycle starting'):'Stopped';
-    ownerMenuLabel.textContent='Operator · '+workflowLabel;
+    ownerMenuLabel.textContent='Settings';
     ownerMenuToggle.classList.toggle('is-active',state.enabled);
     ownerControlStatus.textContent=workflowLabel+' · DB '+databaseSize+' bytes · '+storageRisk+' · '+protection;
     ownerStart.disabled=state.enabled;
