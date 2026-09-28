@@ -38,7 +38,7 @@ from __future__ import annotations
 
 from .models import GovernanceDecision, JsonValue, Proposal
 
-WORK_ACTIONS = {"create_work", "advance_work", "record_assessment", "record_gauntlet", "complete_work"}
+WORK_ACTIONS = {"create_work", "advance_work", "record_assessment", "record_handoff_evaluation", "complete_work"}
 
 # Work state occupies an explicit namespace inside the generic JSON state map.
 # The prefix prevents a work identifier from colliding with an operator's plain
@@ -126,7 +126,7 @@ class Governance:
             # semantics unsurprising.
             if operation.action == "create_work":
                 self._validate_create(operation.key, operation.value, current_state, reasons)
-            elif operation.action in {"advance_work", "record_assessment", "record_gauntlet", "complete_work"}:
+            elif operation.action in {"advance_work", "record_assessment", "record_handoff_evaluation", "complete_work"}:
                 self._validate_transition(operation.action, operation.key, operation.value, current_state, reasons)
 
         return GovernanceDecision(accepted=not reasons, reasons=tuple(reasons))
@@ -201,8 +201,8 @@ class Governance:
                 reasons.append("open obligations must be non-empty strings")
         elif action == "record_assessment":
             Governance._validate_assessment(value, reasons)
-        elif action == "record_gauntlet":
-            Governance._validate_gauntlet(value, reasons)
+        elif action == "record_handoff_evaluation":
+            Governance._validate_handoff_evaluation(value, reasons)
         # Completion requires an explicit final result. Merely toggling a status
         # would leave future readers unable to tell what outcome was accepted.
         elif (
@@ -290,7 +290,7 @@ class Governance:
             reasons.append("assessment note must be a non-empty string when supplied")
 
     @staticmethod
-    def _validate_gauntlet(value: JsonValue, reasons: list[str]) -> None:
+    def _validate_handoff_evaluation(value: JsonValue, reasons: list[str]) -> None:
         """Validate one immutable, human-transported continuity result.
 
         The workflow, not the tested intelligence, calculates ``score`` and
@@ -298,11 +298,11 @@ class Governance:
         answer cannot promote its own claims into a trusted grade.
         """
         if not isinstance(value, dict):
-            reasons.append("record_gauntlet requires an object")
+            reasons.append("record_handoff_evaluation requires an object")
             return
         required_text = {"test_id", "nonce", "vendor", "packet_digest", "raw_response", "submitted_at"}
         if any(not isinstance(value.get(key), str) or not value[key].strip() for key in required_text):
-            reasons.append("gauntlet identity, provenance, response, and timestamp are required")
+            reasons.append("handoff evaluation identity, provenance, response, and timestamp are required")
         criteria = value.get("criteria")
         if (
             not isinstance(criteria, dict)
@@ -313,9 +313,9 @@ class Governance:
             }
             or any(result not in {"pass", "fail"} for result in criteria.values())
         ):
-            reasons.append("gauntlet criteria must contain all seven pass/fail dimensions")
+            reasons.append("handoff evaluation criteria must contain all seven pass/fail dimensions")
         score = value.get("score")
         if isinstance(score, bool) or not isinstance(score, int) or not 0 <= score <= 7:
-            reasons.append("gauntlet score must be an integer from zero through seven")
+            reasons.append("handoff evaluation score must be an integer from zero through seven")
         if not isinstance(value.get("answers"), dict):
-            reasons.append("gauntlet parsed answers are required")
+            reasons.append("handoff evaluation parsed answers are required")
