@@ -969,8 +969,9 @@ json.dump({
 
     def test_semantic_review_resolves_historical_authoritative_target(self) -> None:
         """Human review must survive runner advancement without accepting invented targets."""
-        source = (ROOT / "scripts" / "github_sudofx.py").read_text(encoding="utf-8")
-        workflow = (ROOT / ".github" / "workflows" / "sudofx.yml").read_text(encoding="utf-8")
+        repository_root = Path(__file__).resolve().parents[1]
+        source = (repository_root / "scripts" / "github_sudofx.py").read_text(encoding="utf-8")
+        workflow = (repository_root / ".github" / "workflows" / "sudofx.yml").read_text(encoding="utf-8")
         self.assertIn("def frozen_overnight_proof(", source)
         self.assertIn('git("rev-list", f"origin/{STATE_BRANCH}"', source)
         self.assertIn('raise ValueError("semantic review names no overnight observation in durable state history")', source)
