@@ -673,6 +673,11 @@ def main() -> int:
         # session key remain exclusively in the control service environment.
         control_url=os.environ.get("SUDOFX_CONTROL_URL", ""),
     )
+    # Explicit one-shot probes are diagnostic evidence. Emit their bounded
+    # proof to the Actions log so the result survives the disposable runner
+    # without creating another durable state artifact or requiring Pages.
+    if prove_work_id or prove_model_id or prove_model_uncompressed_id or prove_model_compressed_id or prove_anthropic_id:
+        print(json.dumps({"continuity_proof": continuity_proof}, sort_keys=True))
     export_id = handoff_id or auto_handoff_id
     if export_id:
         json_path, prompt_path = export_handoff_packet(kernel, ROOT / "site", export_id)
