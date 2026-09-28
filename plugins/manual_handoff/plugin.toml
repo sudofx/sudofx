@@ -1,0 +1,23 @@
+# sudofx plugin manifest
+
+[plugin]
+id = "manual_handoff"
+name = "Manual Handoff"
+version = "0.1.0"
+kind = "development"
+entrypoint = "scoring.py"
+description = "Development-only scoring and validation for human-transported continuity handoffs."
+
+[compatibility]
+sudofx = ">=0.1.0"
+
+[authority]
+owns_durable_state = false
+writes_database_directly = false
+may_bypass_governance = false
+
+[permissions]
+network = []
+
+[capabilities]
+supported = ["handoff-score", "handoff-validate"]
