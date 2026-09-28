@@ -89,12 +89,15 @@ jobs:
         run: PYTHONPATH=src python scripts/github_sudofx.py --operator-transition stop
       - name: Record manual handoff evaluation
         # The Shortcut transports untrusted vendor text. The adapter binds it to
-        # the current packet, calculates the score, and submits one governed
-        # operation; the response never becomes shell syntax or direct state.
+        # the named governed work item, calculates the score, and submits one
+        # governed operation; blank key preserves the original handoff-v1 default.
         if: github.event_name == 'workflow_dispatch' && inputs.action == 'handoff-evaluate'
         env:
           HANDOFF_RESPONSE: ${{ inputs.response }}
-        run: PYTHONPATH=src python scripts/github_sudofx.py --record-handoff-evaluation
+          KEY: ${{ inputs.key }}
+        run: |
+          HANDOFF_WORK_ID="${KEY:-handoff-v1}"
+          PYTHONPATH=src python scripts/github_sudofx.py --record-handoff-evaluation --handoff-work-id "$HANDOFF_WORK_ID"
       - name: Probe real work continuity
         # This path restores authoritative state but submits only against a
         # temporary snapshot. It publishes derived proof and must leave the
