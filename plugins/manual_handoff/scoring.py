@@ -13,9 +13,6 @@ import re
 from datetime import datetime, timezone
 from typing import Any
 
-from sudofx.storage import canonical_json
-
-
 DIMENSIONS = (
     "objective_fidelity",
     "authority_fidelity",
@@ -97,7 +94,12 @@ def evaluate_handoff_response(raw_response: str, packet: dict[str, Any]) -> dict
     answers = response["answers"]
     if not isinstance(answers, dict):
         raise ValueError("handoff answers must be an object")
-    packet_text = canonical_json(packet)
+    # Evidence is promised against the exact COMPLETE JSON PACKET shown to the
+    # receiving model. Score against that human-visible serialization rather
+    # than the compact hash serialization used internally by SQLite/event
+    # identity. This keeps "exact quote" literal without making incidental JSON
+    # whitespace part of the semantic authority contract.
+    packet_text = json.dumps(packet, indent=2, sort_keys=True, ensure_ascii=False)
     criteria: dict[str, str] = {}
     normalized_answers: dict[str, dict[str, str]] = {}
     for dimension in DIMENSIONS:

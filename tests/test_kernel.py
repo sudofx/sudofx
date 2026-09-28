@@ -1217,6 +1217,35 @@ json.dump({
         self.assertEqual(handoff_work_id(decorated), packet["work_id"])
         self.assertEqual(evaluate_handoff_response(decorated, packet)["score"], 7)
 
+    def test_handoff_evidence_matches_the_visible_packet_serialization(self) -> None:
+        """Exact quote means the JSON packet shown to the model, including its readable formatting."""
+        self.kernel.submit(
+            Proposal(
+                "create-visible-handoff-evaluation",
+                0,
+                (Operation("create_work", "handoff-v1", {"objective": "Portable continuity", "constraints": []}),),
+            )
+        )
+        packet = build_handoff_packet(self.kernel, "handoff-v1")
+        visible_evidence = f'"record_revision": {packet["record_revision"]}'
+        response = {
+            "test_id": "UUID-222222",
+            "nonce": "HANDOFF-UUID-222222",
+            "vendor": "Claude",
+            "work_id": packet["work_id"],
+            "packet_digest": packet["packet_digest"],
+            "answers": {
+                dimension: {"answer": dimension, "evidence": visible_evidence}
+                for dimension in DIMENSIONS
+            },
+        }
+        self.assertEqual(evaluate_handoff_response(json.dumps(response), packet)["score"], 7)
+
+        response["answers"]["objective_fidelity"]["evidence"] = visible_evidence.upper()
+        result = evaluate_handoff_response(json.dumps(response), packet)
+        self.assertEqual(result["criteria"]["objective_fidelity"], "fail")
+        self.assertEqual(result["score"], 6)
+
 
 if __name__ == "__main__":
     unittest.main()
