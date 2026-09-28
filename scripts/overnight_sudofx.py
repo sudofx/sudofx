@@ -470,7 +470,10 @@ def main() -> int:
     live_projection["projection_kind"] = "disposable-live-view"
     live_projection["source_run_id"] = run_id
     try:
-        cloud.publish_live_projection(live_projection)
+        cloud.publish_live_projection(
+            live_projection,
+            handoff_packet=cloud.build_handoff_packet(kernel, cloud.AUTO_HANDOFF_ID),
+        )
     except Exception as error:
         print(
             json.dumps(
