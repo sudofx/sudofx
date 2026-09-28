@@ -261,8 +261,11 @@ def frozen_handoff_packet(packet_digest: str, current_kernel: Kernel) -> dict[st
     raise ValueError("handoff response names no packet in durable state history")
 
 
-def publish_live_projection(payload: dict[str, object]) -> None:
-    """Replace the disposable live-data branch with one current JSON projection.
+def publish_live_projection(
+    payload: dict[str, object],
+    handoff_packet: dict[str, object] | None = None,
+) -> None:
+    """Replace the disposable live-data branch with current public projections.
 
     sudofx-live is explicitly not authority and carries no history. Each refresh
     is a new orphan commit force-updated onto the same branch ref, so a fast-
@@ -279,7 +282,14 @@ def publish_live_projection(payload: dict[str, object]) -> None:
                 json.dumps(payload, indent=2, sort_keys=True) + "\n",
                 encoding="utf-8",
             )
+            if handoff_packet is not None:
+                (checkout / "handoff-v1.json").write_text(
+                    json.dumps(handoff_packet, indent=2, sort_keys=True) + "\n",
+                    encoding="utf-8",
+                )
             git("-C", str(checkout), "add", "live.json")
+            if handoff_packet is not None:
+                git("-C", str(checkout), "add", "handoff-v1.json")
             git(
                 "-C", str(checkout),
                 "-c", "user.name=sudofx-bot",
