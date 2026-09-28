@@ -95,8 +95,9 @@ jobs:
         run: PYTHONPATH=src python scripts/github_sudofx.py --operator-transition stop
       - name: Record human semantic review
         # Website judgments are only transport until this step restores SQLite.
-        # The adapter binds the supplied run+digest to the latest authoritative
-        # overnight observation and fails closed before proposing any append.
+        # The adapter binds the supplied run+digest to the exact authoritative
+        # SQLite checkpoint the human reviewed. Runner advancement is allowed;
+        # an unknown or mismatched historical target still fails closed.
         if: github.event_name == 'workflow_dispatch' && inputs.action == 'semantic-review'
         env:
           SEMANTIC_REVIEW: ${{ inputs.review }}

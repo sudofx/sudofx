@@ -967,6 +967,18 @@ json.dump({
         self.assertNotIn("cron:", workflow)
         self.assertNotIn("\n  push:", workflow)
 
+    def test_semantic_review_resolves_historical_authoritative_target(self) -> None:
+        """Human review must survive runner advancement without accepting invented targets."""
+        source = (ROOT / "scripts" / "github_sudofx.py").read_text(encoding="utf-8")
+        workflow = (ROOT / ".github" / "workflows" / "sudofx.yml").read_text(encoding="utf-8")
+        self.assertIn("def frozen_overnight_proof(", source)
+        self.assertIn('git("rev-list", f"origin/{STATE_BRANCH}"', source)
+        self.assertIn('raise ValueError("semantic review names no overnight observation in durable state history")', source)
+        self.assertIn("semantic review for this exact run and context is already recorded", source)
+        self.assertNotIn("semantic review target is stale or mismatched", source)
+        self.assertIn("exact authoritative", workflow)
+        self.assertIn("Runner advancement is allowed", workflow)
+
     def test_ci_pages_and_authority_workflows_are_separated(self) -> None:
         """Push CI, replaceable publication, and state mutation must use distinct lanes."""
         root = Path(__file__).parents[1] / ".github/workflows"

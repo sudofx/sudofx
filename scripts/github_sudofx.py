@@ -274,6 +274,54 @@ def checkpoint() -> None:
             git("worktree", "remove", "--force", str(checkout), check=False)
 
 
+def frozen_overnight_proof(
+    artifact_run_id: str,
+    context_digest: str,
+    current_kernel: Kernel,
+) -> dict[str, object]:
+    """Resolve the exact durable overnight observation a human actually reviewed.
+
+    The continuity runner can advance several times while a person reads one
+    answer. "Not latest anymore" is therefore not the same as "stale evidence."
+    State-branch history contains verified SQLite checkpoints for prior cycles,
+    so review binding searches that authoritative history rather than weakening
+    provenance to whatever happens to be newest at workflow execution time.
+
+    Disposable live.json is never read here. A run/digest pair that cannot be
+    reconstructed from durable SQLite history still fails closed.
+    """
+    current = latest_overnight_proof(current_kernel)
+    if (
+        current is not None
+        and str(current.get("artifact_run_id", "")) == artifact_run_id
+        and str(current.get("context_digest", "")) == context_digest
+    ):
+        return current
+
+    revisions = git("rev-list", f"origin/{STATE_BRANCH}", capture=True).stdout.splitlines()
+    with tempfile.TemporaryDirectory() as temporary:
+        snapshot = Path(temporary) / "historical-review.sqlite"
+        for revision in revisions:
+            with snapshot.open("wb") as destination:
+                shown = subprocess.run(
+                    ["git", "show", f"{revision}:sudofx.sqlite"],
+                    cwd=ROOT, stdout=destination, stderr=subprocess.DEVNULL,
+                )
+            if shown.returncode != 0:
+                continue
+            try:
+                candidate = latest_overnight_proof(Kernel(Record(snapshot)))
+            except (ValueError, sqlite3.DatabaseError):
+                continue
+            if (
+                candidate is not None
+                and str(candidate.get("artifact_run_id", "")) == artifact_run_id
+                and str(candidate.get("context_digest", "")) == context_digest
+            ):
+                return candidate
+    raise ValueError("semantic review names no overnight observation in durable state history")
+
+
 def frozen_handoff_packet(
     packet_digest: str,
     current_kernel: Kernel,
@@ -518,15 +566,19 @@ def main() -> int:
             raise ValueError("SEMANTIC_REVIEW must be one JSON object") from error
         if not isinstance(submitted, dict):
             raise ValueError("SEMANTIC_REVIEW must be one JSON object")
-        proof = latest_overnight_proof(kernel)
-        if proof is None:
-            raise RuntimeError("no authoritative overnight observation is available for review")
-        expected_run_id = str(proof.get("artifact_run_id", ""))
-        expected_digest = str(proof.get("context_digest", ""))
         submitted_run_id = submitted.get("artifact_run_id")
         submitted_digest = submitted.get("context_digest")
-        if submitted_run_id != expected_run_id or submitted_digest != expected_digest:
-            raise RuntimeError("semantic review target is stale or mismatched")
+        if not isinstance(submitted_run_id, str) or not submitted_run_id.strip():
+            raise ValueError("semantic review requires artifact_run_id")
+        if not isinstance(submitted_digest, str) or not submitted_digest.strip():
+            raise ValueError("semantic review requires context_digest")
+        proof = frozen_overnight_proof(
+            submitted_run_id.strip(),
+            submitted_digest.strip(),
+            kernel,
+        )
+        expected_run_id = str(proof.get("artifact_run_id", ""))
+        expected_digest = str(proof.get("context_digest", ""))
         criteria = submitted.get("criteria")
         allowed_criteria = {
             "objective_fidelity",
@@ -547,6 +599,21 @@ def main() -> int:
             else "uncertain" if "uncertain" in criteria.values()
             else "pass"
         )
+        existing_work = kernel.context(work_id=AUTO_HANDOFF_ID).state.get(f"work:{AUTO_HANDOFF_ID}", {})
+        existing_assessments = (
+            existing_work.get("semantic_assessments", [])
+            if isinstance(existing_work, dict)
+            else []
+        )
+        for prior in existing_assessments if isinstance(existing_assessments, list) else []:
+            provenance = prior.get("provenance", {}) if isinstance(prior, dict) else {}
+            if (
+                isinstance(provenance, dict)
+                and provenance.get("artifact_run_id") == expected_run_id
+                and provenance.get("context_digest") == expected_digest
+            ):
+                raise RuntimeError("semantic review for this exact run and context is already recorded")
+
         assessment = {
             "kind": "human_semantic_review_v1",
             "verdict": verdict,
