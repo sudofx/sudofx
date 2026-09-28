@@ -203,7 +203,7 @@ control-worker/         confidential owner-authenticated control boundary
 tests/                  invariant and failure-boundary proofs
 site/                   generated public projection
 data/                   local runtime database path; live cloud authority is checkpointed separately
-docs/                   architecture, current status, and curated project history
+docs/                   architecture, current status, and design notes
 AGENTS.md               implementation and commentary discipline
 ```
 
