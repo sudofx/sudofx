@@ -701,15 +701,14 @@ json.dump({
         self.assertIn("background:var(--green)", page)
         self.assertNotIn("theme-icon", page)
         self.assertIn("width:1px; height:1px", page)
-        # The theme control owns the header's upper-right grid area. This guards
-        # against regrouping it with the tagline, which made it drop on phones.
+        # Brand and masthead actions share the top row; the tagline stays below.
+        # This protects the compact phone layout from wrapping operator controls.
         self.assertIn('grid-template-areas:"brand actions" "tagline tagline"', page)
         self.assertIn('class="masthead-actions"', page)
         self.assertIn('aria-label="Open Settings"', page)
         self.assertNotIn('>Operator sign in<', page)
         self.assertIn('.owner-login[hidden]', page)
         self.assertNotIn('i::before { content:"☀"', page)
-        self.assertIn("grid-area:theme; justify-self:end", page)
         self.assertIn('class="brand" href="./"', page)
         self.assertIn('href="https://sudofx.github.io/wake/" target="_blank"', page)
         # Operator access uses the same masthead popover contract as WAKE. The
@@ -718,7 +717,7 @@ json.dump({
         self.assertIn('href="https://control.example/auth/login"', page)
         self.assertLess(page.index('data-owner-access'), page.index('</header>'))
         self.assertIn('class="owner-menu-toggle"', page)
-        self.assertIn('data-owner-menu-label>Operator</span>', page)
+        self.assertIn('data-owner-menu-label>Settings</span>', page)
         self.assertIn('data-owner-controls hidden', page)
         self.assertIn('class="owner-control-actions"', page)
         self.assertIn('data-owner-start>Start</button>', page)
