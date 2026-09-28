@@ -294,21 +294,39 @@ class Governance:
                 reasons.append("assessment metrics contain invalid values")
 
         provenance = value.get("provenance")
-        required_provenance = {
-            "artifact_run_id",
-            "artifact_commit",
-            "context_digest",
-            "provider",
-            "model",
-        }
-        if (
-            not isinstance(provenance, dict)
-            or any(
-                not isinstance(provenance.get(key), str) or not provenance[key].strip()
-                for key in required_provenance
-            )
-        ):
-            reasons.append("assessment provenance is incomplete")
+        if assessment_kind == "human_semantic_review_v1":
+            required_provenance = {"artifact_run_id", "context_digest", "reviewer"}
+            optional_provenance = {"artifact_commit", "provider", "model"}
+            if (
+                not isinstance(provenance, dict)
+                or any(
+                    not isinstance(provenance.get(key), str) or not provenance[key].strip()
+                    for key in required_provenance
+                )
+                or provenance.get("reviewer") not in {"operator", "chatgpt"}
+                or any(
+                    key in provenance
+                    and (not isinstance(provenance[key], str) or not provenance[key].strip())
+                    for key in optional_provenance
+                )
+            ):
+                reasons.append("human semantic review provenance is incomplete or reviewer is invalid")
+        else:
+            required_provenance = {
+                "artifact_run_id",
+                "artifact_commit",
+                "context_digest",
+                "provider",
+                "model",
+            }
+            if (
+                not isinstance(provenance, dict)
+                or any(
+                    not isinstance(provenance.get(key), str) or not provenance[key].strip()
+                    for key in required_provenance
+                )
+            ):
+                reasons.append("assessment provenance is incomplete")
 
         note = value.get("note")
         if note is not None and (not isinstance(note, str) or not note.strip()):
