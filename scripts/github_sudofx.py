@@ -159,10 +159,13 @@ def restore() -> tuple[bool, bool]:
     # and sudofx event replay verify successfully.
     with tempfile.NamedTemporaryFile(dir=DATA.parent, prefix="restore-", suffix=".sqlite", delete=False) as candidate:
         candidate_path = Path(candidate.name)
-        subprocess.run(
+        shown = subprocess.run(
             ["git", "show", f"origin/{STATE_BRANCH}:sudofx.sqlite"],
-            cwd=ROOT, check=True, stdout=candidate,
+            cwd=ROOT, check=False, stdout=candidate, stderr=subprocess.DEVNULL,
         )
+    if shown.returncode != 0:
+        candidate_path.unlink(missing_ok=True)
+        return False, False
     try:
         with closing(sqlite3.connect(candidate_path)) as connection:
             result = connection.execute("PRAGMA quick_check").fetchone()[0]
