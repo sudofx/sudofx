@@ -314,9 +314,83 @@ def _replace_live_projection_files(files: dict[str, str]) -> None:
             git("worktree", "remove", "--force", str(checkout), check=False)
 
 
+def build_manual_evaluation_projection(
+    kernel: Kernel,
+    work_id: str = AUTO_HANDOFF_ID,
+) -> dict[str, object]:
+    """Project compact manual-test evidence from authoritative SQLite state."""
+    context = kernel.context()
+    work = context.state.get(f"work:{work_id}", {})
+    evaluations = work.get("handoff_evaluations", []) if isinstance(work, dict) else []
+    if not isinstance(evaluations, list):
+        evaluations = []
+    clean = [item for item in evaluations if isinstance(item, dict)]
+    latest = clean[-1] if clean else None
+    comparable: list[dict[str, object]] = []
+    if latest is not None:
+        digest = latest.get("packet_digest")
+        scorer = latest.get("scorer_version")
+        comparable = [
+            item for item in clean
+            if item.get("packet_digest") == digest
+            and item.get("scorer_version") == scorer
+        ]
+    vendors = sorted({
+        str(item.get("vendor", "")).strip()
+        for item in comparable
+        if str(item.get("vendor", "")).strip()
+    })
+    score = sum(
+        int(item.get("score", 0))
+        for item in comparable
+        if isinstance(item.get("score"), int)
+    )
+    recent = [
+        {
+            "vendor": item.get("vendor", ""),
+            "test_id": item.get("test_id", ""),
+            "score": item.get("score", 0),
+            "scorer_version": item.get("scorer_version"),
+            "packet_digest": item.get("packet_digest", ""),
+        }
+        for item in clean[-8:]
+    ]
+    return {
+        "projection_schema": 1,
+        "projection_kind": "disposable-manual-evaluation-view",
+        "record_revision": context.revision,
+        "work_id": work_id,
+        "total_tests": len(clean),
+        "latest": {
+            "vendor": latest.get("vendor", ""),
+            "test_id": latest.get("test_id", ""),
+            "score": latest.get("score", 0),
+            "scorer_version": latest.get("scorer_version"),
+            "packet_digest": latest.get("packet_digest", ""),
+        } if latest is not None else None,
+        "comparable_batch": {
+            "tests": len(comparable),
+            "vendors": vendors,
+            "score": score,
+            "max_score": len(comparable) * 7,
+            "packet_digest": latest.get("packet_digest", "") if latest is not None else "",
+            "scorer_version": latest.get("scorer_version") if latest is not None else None,
+        },
+        "recent": recent,
+    }
+
+
+def publish_manual_evaluation_projection(payload: dict[str, object]) -> None:
+    """Replace only the manual-test observer view without touching authority."""
+    files = _read_live_projection_files()
+    files["manual-evaluations.json"] = json.dumps(payload, indent=2, sort_keys=True) + "\n"
+    _replace_live_projection_files(files)
+
+
 def publish_live_projection(
     payload: dict[str, object],
     handoff_packet: dict[str, object] | None = None,
+    manual_evaluations: dict[str, object] | None = None,
 ) -> None:
     """Replace current observer projections while preserving the manual handoff view."""
     files = _read_live_projection_files()
@@ -324,6 +398,10 @@ def publish_live_projection(
     if handoff_packet is not None:
         files["handoff-v1.json"] = json.dumps(
             handoff_packet, indent=2, sort_keys=True
+        ) + "\n"
+    if manual_evaluations is not None:
+        files["manual-evaluations.json"] = json.dumps(
+            manual_evaluations, indent=2, sort_keys=True
         ) + "\n"
     _replace_live_projection_files(files)
 
@@ -511,6 +589,9 @@ def main() -> int:
             raise RuntimeError(f"handoff evaluation was {receipt.status}: {receipt.reasons}")
         checkpoint()
         kernel = Kernel(Record(DATA))
+        publish_manual_evaluation_projection(
+            build_manual_evaluation_projection(kernel, selected_work_id)
+        )
     if not args.publish_only and not args.prove_work and not args.prove_model and not args.prove_model_uncompressed and not args.prove_model_compressed and not args.prove_anthropic and not args.export_handoff and not args.prove_vacuum_recovery and not args.auto and not args.operator_transition and not args.record_handoff_evaluation:
         if not args.action or not args.key:
             parser.error("--action and --key are required for a mutation")

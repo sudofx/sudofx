@@ -762,6 +762,15 @@ def render(
       <div><span>Replay</span><strong>{health['replay_ms']} ms</strong></div>
       <div><span>Receipts</span><strong>{total_receipts}</strong></div>
     </div>
+    <div class="quality-block" data-manual-live>
+      <div class="quality-head"><b>Live manual portability evidence</b><span class="quality-verdict" data-manual-latest>—</span></div>
+      <div class="quality-metrics">
+        <span>Tests <b data-manual-total>—</b></span>
+        <span>Comparable batch <b data-manual-batch>—</b></span>
+        <span>Vendors <b data-manual-vendors>—</b></span>
+      </div>
+      <div class="quality-provenance" data-manual-recent>Waiting for live DB-derived evidence…</div>
+    </div>
     <section>
       <div class="toolbar"><div><span class="eyebrow">{open_work} open</span><h2>Current work</h2></div></div>
       <div class="work-grid">{_work_cards(context.state)}</div>
@@ -1148,6 +1157,35 @@ const publicAnswer=(proof)=>{{
 }};
 const liveExchangeUrl='https://raw.githubusercontent.com/'+(observer?.dataset.repository||'sudofx/sudofx')+'/sudofx-live/live.json';
 const liveHandoffUrl='https://raw.githubusercontent.com/'+(observer?.dataset.repository||'sudofx/sudofx')+'/sudofx-live/handoff-v1.json';
+const liveManualUrl='https://raw.githubusercontent.com/'+(observer?.dataset.repository||'sudofx/sudofx')+'/sudofx-live/manual-evaluations.json';
+const refreshManualEvidence=async()=>{{
+  try{{
+    const response=await fetch(liveManualUrl+'?ts='+Date.now(),{{cache:'no-store'}});
+    if(!response.ok)throw new Error('manual evidence unavailable');
+    const view=await response.json();
+    const total=document.querySelector('[data-manual-total]');
+    const batch=document.querySelector('[data-manual-batch]');
+    const vendors=document.querySelector('[data-manual-vendors]');
+    const latest=document.querySelector('[data-manual-latest]');
+    const recent=document.querySelector('[data-manual-recent]');
+    const comparable=view.comparable_batch||{{}};
+    if(total)total.textContent=String(view.total_tests??0);
+    if(batch)batch.textContent=String(comparable.tests??0)+' tests · '+String(comparable.score??0)+'/'+String(comparable.max_score??0);
+    if(vendors)vendors.textContent=Array.isArray(comparable.vendors)&&comparable.vendors.length?comparable.vendors.join(', '):'—';
+    if(latest){{
+      const item=view.latest||{{}};
+      latest.textContent=item.test_id?String(item.score??0)+'/7':'—';
+      latest.className='quality-verdict '+((item.score===7)?'quality-pass':'quality-uncertain');
+    }}
+    if(recent){{
+      const items=Array.isArray(view.recent)?view.recent.slice().reverse():[];
+      recent.textContent=items.length
+        ?items.map(item=>String(item.vendor||'')+' '+String(item.score??0)+'/7 · '+String(item.test_id||'')).join(' | ')
+        :'No manual evaluations recorded yet.';
+    }}
+    if(recordRevision&&Number.isInteger(view.record_revision))recordRevision.textContent=String(view.record_revision);
+  }}catch(error){{/* Static DB-derived evidence remains visible if the live view is briefly unavailable. */}}
+}};
 const refreshExchange=async()=>{{
   if(!exchange)return;
   try{{
@@ -1196,8 +1234,10 @@ const refreshExchange=async()=>{{
 }};
 refreshObserver();
 refreshExchange();
+refreshManualEvidence();
 setInterval(refreshObserver,15000);
 setInterval(refreshExchange,15000);
+setInterval(refreshManualEvidence,15000);
 const search=document.querySelector('#search');
 if(search)search.addEventListener('input',()=>{{const q=search.value.toLowerCase();document.querySelectorAll('.receipt').forEach(r=>r.hidden=!r.dataset.search.toLowerCase().includes(q))}});
 document.querySelectorAll('.receipt').forEach(r=>r.addEventListener('click',()=>r.setAttribute('aria-expanded',r.classList.contains('open'))));

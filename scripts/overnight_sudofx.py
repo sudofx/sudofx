@@ -494,6 +494,9 @@ def main() -> int:
         cloud.publish_live_projection(
             live_projection,
             handoff_packet=cloud.build_handoff_packet(kernel, cloud.AUTO_HANDOFF_ID),
+            manual_evaluations=cloud.build_manual_evaluation_projection(
+                kernel, cloud.AUTO_HANDOFF_ID
+            ),
         )
     except Exception as error:
         print(

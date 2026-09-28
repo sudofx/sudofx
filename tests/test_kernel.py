@@ -694,6 +694,9 @@ json.dump({
         self.assertIn("sudofx-live/live.json", page)
         self.assertNotIn("fetch('./continuity-proof.json?ts='", page)
         self.assertIn("setInterval(refreshExchange,15000)", page)
+        self.assertIn("manual-evaluations.json", page)
+        self.assertIn("refreshManualEvidence", page)
+        self.assertIn("Live manual portability evidence", page)
         # A signed-in owner has stronger evidence than the anonymous observer.
         # Stop must therefore replace a stale continuous fallback everywhere,
         # not merely beside the buttons at the bottom of the status panel.
@@ -858,6 +861,7 @@ json.dump({
         report = (root / "src/sudofx/report.py").read_text(encoding="utf-8")
 
         self.assertIn("publish_live_projection", overnight)
+        self.assertIn("build_manual_evaluation_projection", overnight)
         self.assertNotIn("cloud.export_site(", overnight)
         self.assertIn('["git", "rev-parse", "HEAD"]', overnight)
         self.assertIn('proof["artifact_commit"] = _checked_out_commit()', overnight)
