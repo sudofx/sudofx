@@ -705,7 +705,8 @@ json.dump({
         self.assertIn("setInterval(refreshExchange,15000)", page)
         self.assertIn("manual-evaluations.json", page)
         self.assertIn("refreshManualEvidence", page)
-        self.assertIn("Live manual portability evidence", page)
+        self.assertIn("Live manual grounding evidence", page)
+        self.assertIn("Exact packet grounding only · semantic fidelity is reviewed separately.", page)
         # A signed-in owner has stronger evidence than the anonymous observer.
         # Stop must therefore replace a stale continuous fallback everywhere,
         # not merely beside the buttons at the bottom of the status panel.
@@ -1285,6 +1286,8 @@ json.dump({
 
         page = render(self.kernel)
         self.assertIn("scorer v2", page)
+        self.assertIn("Manual handoff grounding", page)
+        self.assertIn("Objective grounding", page)
         self.assertIn("Manual tests recorded <b>2</b>", page)
         self.assertIn("Comparable batch <b>2 tests · 2 vendors · 14/14</b>", page)
         self.assertIn("Recent manual test history", page)

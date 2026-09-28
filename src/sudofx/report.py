@@ -164,8 +164,17 @@ def _work_cards(state: dict[str, object]) -> str:
             if isinstance(latest_handoff_evaluation, dict):
                 criteria = latest_handoff_evaluation.get("criteria", {})
                 passed = int(latest_handoff_evaluation.get("score", 0))
+                grounding_labels = {
+                    "objective_fidelity": "Objective grounding",
+                    "authority_fidelity": "Authority grounding",
+                    "history_fidelity": "History grounding",
+                    "constraint_fidelity": "Constraint grounding",
+                    "frontier_fidelity": "Frontier grounding",
+                    "epistemic_discipline": "Epistemic grounding",
+                    "transfer_usability": "Transfer grounding",
+                }
                 criteria_html = "".join(
-                    f'<div><span>{_escape(key.replace("_", " "))}</span>'
+                    f'<div><span>{_escape(grounding_labels.get(key, key.replace("_", " ")))}</span>'
                     f'<strong class="quality-{_escape(result)}">{_escape(str(result).upper())}</strong></div>'
                     for key, result in criteria.items()
                 ) if isinstance(criteria, dict) else ""
@@ -213,13 +222,14 @@ def _work_cards(state: dict[str, object]) -> str:
                 )
                 handoff_evaluation_html = f"""
                   <div class="quality-block">
-                    <div class="quality-head"><b>Manual handoff evaluation</b><span class="quality-verdict quality-{'pass' if passed == 7 else 'uncertain'}">{passed}/7</span></div>
+                    <div class="quality-head"><b>Manual handoff grounding</b><span class="quality-verdict quality-{'pass' if passed == 7 else 'uncertain'}">{passed}/7</span></div>
                     <div class="quality-grid">{criteria_html}</div>
                     <div class="quality-provenance">{_escape(latest_handoff_evaluation.get('vendor', ''))} · test {_escape(latest_handoff_evaluation.get('test_id', ''))}{scorer_label}</div>
                     <div class="quality-metrics">
                       <span>Manual tests recorded <b>{len(handoff_evaluations)}</b></span>
-                      <span>Comparable batch <b>{len(comparable)} tests · {len(comparable_vendors)} vendors · {batch_score}</b></span>
+                      <span>Comparable grounding batch <b>{len(comparable)} tests · {len(comparable_vendors)} vendors · {batch_score}</b></span>
                     </div>
+                    <div class="quality-provenance">Exact packet grounding only · semantic fidelity is reviewed separately.</div>
                     <div class="work-section"><b>Recent manual test history</b>{''.join(recent_handoff_rows)}</div>
                   </div>
                 """
@@ -776,12 +786,13 @@ def render(
       <div><span>Receipts</span><strong>{total_receipts}</strong></div>
     </div>
     <div class="quality-block" data-manual-live>
-      <div class="quality-head"><b>Live manual portability evidence</b><span class="quality-verdict" data-manual-latest>—</span></div>
+      <div class="quality-head"><b>Live manual grounding evidence</b><span class="quality-verdict" data-manual-latest>—</span></div>
       <div class="quality-metrics">
         <span>Tests <b data-manual-total>—</b></span>
-        <span>Comparable batch <b data-manual-batch>—</b></span>
+        <span>Comparable grounding batch <b data-manual-batch>—</b></span>
         <span>Vendors <b data-manual-vendors>—</b></span>
       </div>
+      <div class="quality-provenance">Exact packet grounding only · semantic fidelity is reviewed separately.</div>
       <div class="quality-provenance" data-manual-recent>Waiting for live DB-derived evidence…</div>
     </div>
     <section>
