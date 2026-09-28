@@ -230,14 +230,18 @@ def checkpoint() -> None:
             git("worktree", "remove", "--force", str(checkout), check=False)
 
 
-def frozen_handoff_packet(packet_digest: str, current_kernel: Kernel) -> dict[str, object]:
+def frozen_handoff_packet(
+    packet_digest: str,
+    current_kernel: Kernel,
+    work_id: str = AUTO_HANDOFF_ID,
+) -> dict[str, object]:
     """Resolve the exact governed packet snapshot named by a returned answer.
 
     A manual handoff evaluation may be in flight while other governed work advances. The state
     branch is append-only Git history, so it can reproduce the packet that was
     actually tested without turning disposable Pages output into authority.
     """
-    current = build_handoff_packet(current_kernel, AUTO_HANDOFF_ID)
+    current = build_handoff_packet(current_kernel, work_id)
     if current.get("packet_digest") == packet_digest:
         return current
 
@@ -253,7 +257,7 @@ def frozen_handoff_packet(packet_digest: str, current_kernel: Kernel) -> dict[st
             if shown.returncode != 0:
                 continue
             try:
-                candidate = build_handoff_packet(Kernel(Record(snapshot)), AUTO_HANDOFF_ID)
+                candidate = build_handoff_packet(Kernel(Record(snapshot)), work_id)
             except (ValueError, sqlite3.DatabaseError):
                 continue
             if candidate.get("packet_digest") == packet_digest:
@@ -338,6 +342,7 @@ def main() -> int:
     parser.add_argument("--auto", action="store_true")
     parser.add_argument("--operator-transition", choices=("start", "stop"))
     parser.add_argument("--record-handoff-evaluation", action="store_true")
+    parser.add_argument("--handoff-work-id", default=AUTO_HANDOFF_ID)
     parser.add_argument(
         "--action", choices=("set", "delete", "work-create", "work-advance", "record-assessment", "work-complete")
     )
@@ -457,12 +462,19 @@ def main() -> int:
         kernel = Kernel(Record(DATA))
     if args.record_handoff_evaluation:
         raw_response = os.environ.get("HANDOFF_RESPONSE", "")
-        packet = frozen_handoff_packet(handoff_packet_digest(raw_response), kernel)
+        handoff_work_id = args.handoff_work_id.strip()
+        if not handoff_work_id:
+            parser.error("--handoff-work-id requires a non-empty work ID")
+        packet = frozen_handoff_packet(
+            handoff_packet_digest(raw_response),
+            kernel,
+            handoff_work_id,
+        )
         result = evaluate_handoff_response(raw_response, packet)
         context = kernel.context()
         receipt = kernel.submit(Proposal(
             str(uuid.uuid4()), context.revision,
-            (Operation("record_handoff_evaluation", AUTO_HANDOFF_ID, result),),
+            (Operation("record_handoff_evaluation", handoff_work_id, result),),
             "Authenticated Shortcut submitted one human-transported handoff evaluation",
         ))
         if receipt.status != "accepted":
