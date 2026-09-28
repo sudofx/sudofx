@@ -371,6 +371,7 @@ json.dump({
                 "context_digest": "d" * 64,
                 "provider": "test-provider",
                 "model": "test-model",
+                "reviewer": "operator",
             },
             "note": "structured semantic evidence",
         }
@@ -518,6 +519,37 @@ json.dump({
         self.assertEqual(proof["compression"]["accepted_results_exposed"], 1)
         self.assertEqual(proof["compression"]["receipt_count_exposed"], 0)
         self.assertFalse(proof["checks"]["production_state_mutated"])
+
+    def test_human_semantic_review_allows_unknown_optional_runtime_provenance(self) -> None:
+        """Exact historical review keeps unknown runtime metadata unknown."""
+        self.kernel.submit(
+            Proposal(
+                "review-create-partial",
+                0,
+                (Operation("create_work", "reviewed", {"objective": "Review one observation", "constraints": []}),),
+            )
+        )
+        assessment = {
+            "kind": "human_semantic_review_v1",
+            "verdict": "pass",
+            "criteria": {
+                "objective_fidelity": "pass",
+                "history_fidelity": "pass",
+                "frontier_fidelity": "pass",
+                "compression_awareness": "pass",
+                "unsupported_claims": "pass",
+                "actionability": "pass",
+            },
+            "provenance": {
+                "artifact_run_id": "run-old",
+                "context_digest": "d" * 64,
+                "reviewer": "chatgpt",
+            },
+        }
+        receipt = self.kernel.submit(
+            Proposal("review-partial", 1, (Operation("record_assessment", "reviewed", assessment),))
+        )
+        self.assertEqual(receipt.status, "accepted")
 
     def test_human_semantic_review_needs_no_invented_metrics(self) -> None:
         """
@@ -987,8 +1019,11 @@ json.dump({
         )
         self.assertEqual(page.count('<option value="pass" selected>PASS</option>'), 6)
         self.assertNotIn('<option value="uncertain" selected>UNCERTAIN</option>', page)
-        self.assertIn("Submitted ✓", page)
-        self.assertIn("Checking the live record", page)
+        self.assertIn("Recording…", page)
+        self.assertIn("Recorded ✓", page)
+        self.assertIn("Waiting for SQLite confirmation", page)
+        self.assertIn("data-semantic-review-operator", page)
+        self.assertIn("data-semantic-review-chatgpt", page)
         self.assertIn("await refreshExchange()", page)
 
     def test_semantic_review_resolves_historical_authoritative_target(self) -> None:
@@ -999,7 +1034,7 @@ json.dump({
         self.assertIn("def frozen_overnight_proof(", source)
         self.assertIn('git("rev-list", f"origin/{STATE_BRANCH}"', source)
         self.assertIn('raise ValueError("semantic review names no overnight observation in durable state history")', source)
-        self.assertIn("semantic review for this exact run and context is already recorded", source)
+        self.assertIn("semantic review for this exact run, context, and reviewer is already recorded", source)
         self.assertNotIn("semantic review target is stale or mismatched", source)
         self.assertIn("exact authoritative", workflow)
         self.assertIn("Runner advancement is allowed", workflow)
