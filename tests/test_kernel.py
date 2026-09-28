@@ -783,6 +783,8 @@ json.dump({
         self.assertIn("continue-again:", workflow)
         self.assertIn("needs: continue", workflow)
         self.assertIn("gh workflow run prove-model.yml", workflow)
+        self.assertIn("actions/workflows/sudofx.yml/runs?status=queued", workflow)
+        self.assertIn("yielding the authority lane", workflow)
         self.assertNotIn("gh workflow run pages.yml", workflow)
         self.assertNotIn("request-publication:", workflow)
         self.assertNotIn("actions/deploy-pages", workflow)
