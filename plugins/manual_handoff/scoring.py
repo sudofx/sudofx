@@ -57,6 +57,15 @@ def handoff_packet_digest(raw_response: str) -> str:
     return digest
 
 
+def handoff_work_id(raw_response: str) -> str:
+    """Read the governed work identity carried back by the manual transport."""
+    response = parse_handoff_response(raw_response)
+    work_id = response.get("work_id")
+    if not isinstance(work_id, str) or not work_id.strip():
+        raise ValueError("handoff response is missing work_id")
+    return work_id.strip()
+
+
 def evaluate_handoff_response(raw_response: str, packet: dict[str, Any]) -> dict[str, Any]:
     """Return a governance-ready result or reject stale/unparseable transport.
 
@@ -67,11 +76,13 @@ def evaluate_handoff_response(raw_response: str, packet: dict[str, Any]) -> dict
     """
     response = parse_handoff_response(raw_response)
 
-    required = ("test_id", "nonce", "vendor", "packet_digest", "answers")
+    required = ("test_id", "nonce", "vendor", "work_id", "packet_digest", "answers")
     if any(key not in response for key in required):
         raise ValueError("handoff response is missing transport metadata")
     if response["packet_digest"] != packet.get("packet_digest"):
         raise ValueError("handoff response belongs to a different packet")
+    if response["work_id"] != packet.get("work_id"):
+        raise ValueError("handoff response belongs to a different work item")
     # Apple's cross-platform Shortcuts action set can generate a random number
     # everywhere, while a UUID action is not consistently offered on both OSes.
     # A six-digit per-launch ID is sufficient to catch accidental answer reuse;
@@ -109,6 +120,7 @@ def evaluate_handoff_response(raw_response: str, packet: dict[str, Any]) -> dict
         "test_id": response["test_id"],
         "nonce": response["nonce"],
         "vendor": response["vendor"].strip(),
+        "work_id": response["work_id"],
         "packet_digest": response["packet_digest"],
         "raw_response": raw_response,
         "answers": normalized_answers,
