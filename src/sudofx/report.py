@@ -762,7 +762,9 @@ const refreshOwnerControls=async()=>{{
     const databaseSize=Number(maintenance.databaseBytes||0);
     const storageRisk=maintenance.repositoryVisibility==='public'?'public state':maintenance.repositoryVisibility||'unknown visibility';
     const protection=maintenance.stateBranchProtected?'protected':'unprotected';
-    const workflowLabel=state.enabled?(state.activeRuns.length?'Running now':'Enabled · next cycle starting'):'Stopped';
+    const latest=state.latestRun||null;
+    const failed=Boolean(state.enabled&&!state.activeRuns.length&&latest&&latest.status==='completed'&&latest.conclusion==='failure');
+    const workflowLabel=state.enabled?(state.activeRuns.length?'Running now':(failed?'Paused · last cycle failed':'Enabled · next cycle starting')):'Stopped';
     ownerMenuLabel.textContent='Settings';
     ownerMenuToggle.classList.toggle('is-active',state.enabled);
     ownerControlStatus.textContent=workflowLabel+' · DB '+databaseSize+' bytes · '+storageRisk+' · '+protection;
@@ -840,18 +842,24 @@ const refreshObserver=async()=>{{
   if(ownerSession()&&await refreshOwnerControls())return;
   const repo=observer.dataset.repository, workflow=observer.dataset.workflow;
   try{{
-    const response=await fetch('https://api.github.com/repos/'+repo+'/actions/workflows/'+workflow+'/runs?per_page=1',{{cache:'no-store'}});
-    if(!response.ok)throw new Error('HTTP '+response.status);
+    const [workflowResponse,response]=await Promise.all([
+      fetch('https://api.github.com/repos/'+repo+'/actions/workflows/'+workflow,{{cache:'no-store'}}),
+      fetch('https://api.github.com/repos/'+repo+'/actions/workflows/'+workflow+'/runs?per_page=1',{{cache:'no-store'}})
+    ]);
+    if(!workflowResponse.ok||!response.ok)throw new Error('GitHub workflow status unavailable');
+    const workflowMeta=await workflowResponse.json();
     const data=await response.json(), run=Array.isArray(data.workflow_runs)?data.workflow_runs[0]:null;
     if(!run)throw new Error('No workflow run');
     latestRun.textContent='#'+String(run.run_number||run.id);
+    const enabled=workflowMeta.state==='active';
     const running=run.status!=='completed';
-    const visualState=running?'working':(run.conclusion==='failure'?'failed':({json.dumps(observer_static_state)}==='CONTINUOUS'?'continuous':'idle'));
+    const failed=enabled&&!running&&run.conclusion==='failure';
+    const visualState=running?'working':(failed?'failed':(enabled?'continuous':'idle'));
     observer.className='observer-console '+visualState;
     observerState.className='observer-state '+visualState;
-    observerState.textContent=running?'Live':(run.conclusion==='failure'?'Paused':({json.dumps(observer_static_state)}==='CONTINUOUS'?'Running':'Stopped'));
+    observerState.textContent=running?'Live':(failed?'Paused':(enabled?'Running':'Stopped'));
     if(statusLed)statusLed.className='status-led '+visualState;
-    currentActivity.textContent=running?'Gemini is answering now':(run.conclusion==='failure'?'The last test stopped unexpectedly':{json.dumps(observer_static_activity)});
+    currentActivity.textContent=running?'Gemini is answering now':(failed?'The last test stopped unexpectedly':(enabled?'Continuous runner enabled; next cycle is starting':'Continuous tests stopped by owner'));
     updateNextCheck(visualState);
     if(exchangeStatus){{exchangeStatus.textContent=running?'Updating':'Latest';exchangeStatus.className='exchange-status '+(running?'working':'');}}
     const jobsResponse=await fetch(run.jobs_url,{{cache:'no-store'}});
