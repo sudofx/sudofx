@@ -18,7 +18,15 @@ governance semantics rather than an implicit dependency on this string.
 
 from .kernel import Kernel, RunResult
 from .models import Context, Operation, Proposal, Receipt
-from .providers import CommandIntelligence, FakeIntelligence, FakeWorkIntelligence, Intelligence, ProviderError
+from .providers import (
+    CommandIntelligence,
+    FakeIntelligence,
+    FakeWorkIntelligence,
+    Intelligence,
+    ProviderError,
+    ProviderQuotaError,
+    ProviderTemporaryError,
+)
 
 __all__ = [
     "Context",
@@ -30,6 +38,8 @@ __all__ = [
     "Operation",
     "Proposal",
     "ProviderError",
+    "ProviderQuotaError",
+    "ProviderTemporaryError",
     "Receipt",
     "RunResult",
 ]
