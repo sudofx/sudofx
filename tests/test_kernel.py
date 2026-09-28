@@ -967,6 +967,30 @@ json.dump({
         self.assertNotIn("cron:", workflow)
         self.assertNotIn("\n  push:", workflow)
 
+    def test_semantic_review_ui_defaults_to_pass_and_confirms_submission(self) -> None:
+        """Phone review should be one-tap by default and visibly acknowledge dispatch."""
+        self.kernel.submit(
+            Proposal(
+                "create-review-ui",
+                0,
+                (Operation("create_work", "handoff-v1", {"objective": "Portable continuity", "constraints": []}),),
+            )
+        )
+        page = render(
+            self.kernel,
+            continuity_proof={
+                "semantic_review_status": "pending",
+                "assessment_status": "semantic_review_pending",
+                "artifact_run_id": "123",
+                "context_digest": "a" * 64,
+            },
+        )
+        self.assertEqual(page.count('<option value="pass" selected>PASS</option>'), 6)
+        self.assertNotIn('<option value="uncertain" selected>UNCERTAIN</option>', page)
+        self.assertIn("Submitted ✓", page)
+        self.assertIn("Checking the live record", page)
+        self.assertIn("await refreshExchange()", page)
+
     def test_semantic_review_resolves_historical_authoritative_target(self) -> None:
         """Human review must survive runner advancement without accepting invented targets."""
         repository_root = Path(__file__).resolve().parents[1]

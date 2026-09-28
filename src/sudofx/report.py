@@ -823,12 +823,12 @@ def render(
       <div class="quality-provenance">Human judgment is recorded separately from protocol success and is bound to this exact run + digest.</div>
       <div data-semantic-review-form data-run-id="{_escape(semantic_run)}" data-context-digest="{_escape(semantic_digest)}">
         <div class="quality-grid">
-          <label><span>Objective fidelity</span><select data-review-criterion="objective_fidelity"><option value="pass">PASS</option><option value="uncertain" selected>UNCERTAIN</option><option value="fail">FAIL</option></select></label>
-          <label><span>History fidelity</span><select data-review-criterion="history_fidelity"><option value="pass">PASS</option><option value="uncertain" selected>UNCERTAIN</option><option value="fail">FAIL</option></select></label>
-          <label><span>Frontier fidelity</span><select data-review-criterion="frontier_fidelity"><option value="pass">PASS</option><option value="uncertain" selected>UNCERTAIN</option><option value="fail">FAIL</option></select></label>
-          <label><span>Compression awareness</span><select data-review-criterion="compression_awareness"><option value="pass">PASS</option><option value="uncertain" selected>UNCERTAIN</option><option value="fail">FAIL</option></select></label>
-          <label><span>Unsupported claims</span><select data-review-criterion="unsupported_claims"><option value="pass">PASS</option><option value="uncertain" selected>UNCERTAIN</option><option value="fail">FAIL</option></select></label>
-          <label><span>Actionability</span><select data-review-criterion="actionability"><option value="pass">PASS</option><option value="uncertain" selected>UNCERTAIN</option><option value="fail">FAIL</option></select></label>
+          <label><span>Objective fidelity</span><select data-review-criterion="objective_fidelity"><option value="pass" selected>PASS</option><option value="uncertain">UNCERTAIN</option><option value="fail">FAIL</option></select></label>
+          <label><span>History fidelity</span><select data-review-criterion="history_fidelity"><option value="pass" selected>PASS</option><option value="uncertain">UNCERTAIN</option><option value="fail">FAIL</option></select></label>
+          <label><span>Frontier fidelity</span><select data-review-criterion="frontier_fidelity"><option value="pass" selected>PASS</option><option value="uncertain">UNCERTAIN</option><option value="fail">FAIL</option></select></label>
+          <label><span>Compression awareness</span><select data-review-criterion="compression_awareness"><option value="pass" selected>PASS</option><option value="uncertain">UNCERTAIN</option><option value="fail">FAIL</option></select></label>
+          <label><span>Unsupported claims</span><select data-review-criterion="unsupported_claims"><option value="pass" selected>PASS</option><option value="uncertain">UNCERTAIN</option><option value="fail">FAIL</option></select></label>
+          <label><span>Actionability</span><select data-review-criterion="actionability"><option value="pass" selected>PASS</option><option value="uncertain">UNCERTAIN</option><option value="fail">FAIL</option></select></label>
         </div>
         <div class="handoff-actions"><button type="button" data-semantic-review-submit>Record review</button></div>
         <div class="quality-provenance" data-semantic-review-message>Review writes only one bounded assessment event.</div>
@@ -1140,12 +1140,21 @@ if(semanticReviewSubmit)semanticReviewSubmit.addEventListener('click',async(even
   }};
   semanticReviewSubmit.disabled=true;
   if(semanticReviewMessage)semanticReviewMessage.textContent='Binding review to authoritative SQLite evidence…';
+  const originalLabel=semanticReviewSubmit.textContent;
   try{{
     const result=await ownerRequest('/api/operate','POST',{{action:'semantic-review',review}});
-    if(semanticReviewMessage)semanticReviewMessage.textContent=result.message||'Semantic review accepted.';
+    semanticReviewSubmit.textContent='Submitted ✓';
+    if(semanticReviewMessage)semanticReviewMessage.textContent=(result.message||'Semantic review accepted.')+' Checking the live record…';
+    setTimeout(async()=>{{
+      await refreshExchange();
+      semanticReviewSubmit.textContent=originalLabel;
+      semanticReviewSubmit.disabled=false;
+    }},1500);
   }}catch(error){{
     if(semanticReviewMessage)semanticReviewMessage.textContent='Review failed: '+error.message;
-  }}finally{{semanticReviewSubmit.disabled=false;}}
+    semanticReviewSubmit.textContent=originalLabel;
+    semanticReviewSubmit.disabled=false;
+  }}
 }});
 document.querySelector('[data-handoff-close]')?.addEventListener('click',()=>handoffDialog?.close());
 if(ownerMenuToggle)ownerMenuToggle.addEventListener('click',(event)=>{{event.stopPropagation();setOwnerMenu(ownerControls.hidden);}});
