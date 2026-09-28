@@ -30,7 +30,12 @@ from sudofx.continuity import (
 )
 from sudofx.report import export_site, render
 from sudofx.handoff import build_handoff_packet, export_handoff_packet
-from plugins.manual_handoff.scoring import DIMENSIONS, handoff_packet_digest, evaluate_handoff_response
+from plugins.manual_handoff.scoring import (
+    DIMENSIONS,
+    evaluate_handoff_response,
+    handoff_packet_digest,
+    handoff_work_id,
+)
 from scripts.github_sudofx import main as github_main
 
 # These tests protect durable guarantees rather than implementation shape.
@@ -1121,6 +1126,7 @@ json.dump({
             "test_id": "UUID-123456",
             "nonce": "HANDOFF-UUID-123456",
             "vendor": "ChatGPT",
+            "work_id": packet["work_id"],
             "packet_digest": packet["packet_digest"],
             "answers": {
                 dimension: {"answer": f"Grounded answer for {dimension}", "evidence": evidence}
@@ -1135,7 +1141,13 @@ json.dump({
         self.assertEqual(receipt.status, "accepted")
         saved = self.kernel.context().state["work:handoff-v1"]["handoff_evaluations"][0]
         self.assertEqual(saved["test_id"], response["test_id"])
+        self.assertEqual(saved["work_id"], response["work_id"])
         self.assertEqual(saved["raw_response"], json.dumps(response))
+
+        wrong_work = dict(response)
+        wrong_work["work_id"] = "different-work"
+        with self.assertRaisesRegex(ValueError, "different work item"):
+            evaluate_handoff_response(json.dumps(wrong_work), packet)
 
         response["packet_digest"] = "stale"
         with self.assertRaisesRegex(ValueError, "different packet"):
@@ -1164,6 +1176,7 @@ json.dump({
         }
         decorated = "```json\n" + json.dumps(response).replace('"', "\u201c") + "\n```"
         self.assertEqual(handoff_packet_digest(decorated), packet["packet_digest"])
+        self.assertEqual(handoff_work_id(decorated), packet["work_id"])
         self.assertEqual(evaluate_handoff_response(decorated, packet)["score"], 7)
 
 
