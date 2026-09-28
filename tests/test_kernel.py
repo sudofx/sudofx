@@ -709,6 +709,11 @@ json.dump({
         self.assertIn("refreshManualEvidence", page)
         self.assertIn("Live manual grounding evidence", page)
         self.assertIn("Exact packet grounding only · semantic fidelity is reviewed separately.", page)
+        self.assertIn("Semantic review queue", page)
+        self.assertIn("Read-only review evidence. No semantic verdict is inferred from protocol success.", page)
+        self.assertIn("data-semantic-review-criteria", page)
+        self.assertIn("data-semantic-review-run", page)
+        self.assertIn("data-semantic-review-digest", page)
         # A signed-in owner has stronger evidence than the anonymous observer.
         # Stop must therefore replace a stale continuous fallback everywhere,
         # not merely beside the buttons at the bottom of the status panel.

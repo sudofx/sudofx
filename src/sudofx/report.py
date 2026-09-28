@@ -430,6 +430,20 @@ def render(
     # absent URL removes the authentication affordance entirely so local exports
     # and partially configured deployments never imply controls are available.
     control_url = control_url.rstrip("/")
+    semantic_review = continuity_proof.get("semantic_review", {})
+    if not isinstance(semantic_review, dict):
+        semantic_review = {}
+    semantic_criteria = semantic_review.get("criteria", [])
+    if not isinstance(semantic_criteria, list):
+        semantic_criteria = []
+    semantic_rows = "".join(
+        f'<div><span>{_escape(str(item.get("id", "")).replace("_", " "))}</span>'
+        f'<strong class="quality-uncertain">{_escape(str(item.get("status", "pending")).upper())}</strong></div>'
+        for item in semantic_criteria
+        if isinstance(item, dict)
+    )
+    semantic_run = str(continuity_proof.get("artifact_run_id", ""))
+    semantic_digest = str(continuity_proof.get("context_digest", ""))
     # The public page embeds only public-safe technical projection data. The
     # operator session controls visibility, not confidentiality: hidden HTML is
     # not a security boundary. Sensitive state must remain behind the authenticated
@@ -798,6 +812,15 @@ def render(
       </div>
       <div class="quality-provenance">Exact packet grounding only · semantic fidelity is reviewed separately.</div>
       <div class="quality-provenance" data-manual-recent>Waiting for live DB-derived evidence…</div>
+    </div>
+    <div class="quality-block" data-semantic-review-live>
+      <div class="quality-head"><b>Semantic review queue</b><span class="quality-verdict quality-uncertain" data-semantic-review-status>{_escape(str(continuity_proof.get("semantic_review_status", "pending")).upper())}</span></div>
+      <div class="quality-grid" data-semantic-review-criteria>{semantic_rows or '<div><span>No review criteria published yet</span><strong class="quality-uncertain">PENDING</strong></div>'}</div>
+      <div class="quality-metrics">
+        <span>Run <b data-semantic-review-run>{_escape(semantic_run or "—")}</b></span>
+        <span>Context digest <b data-semantic-review-digest>{_escape((semantic_digest[:12] + "…") if semantic_digest else "—")}</b></span>
+      </div>
+      <div class="quality-provenance">Read-only review evidence. No semantic verdict is inferred from protocol success.</div>
     </div>
     <section>
       <div class="toolbar"><div><span class="eyebrow">{open_work} open</span><h2>Current work</h2></div></div>
@@ -1273,6 +1296,33 @@ const refreshExchange=async()=>{{
       ||(proof.assessment_status==='semantic_review_pending'?'pending':proof.assessment_status)
       ||'unknown'
     ).toUpperCase();
+    const semanticReviewStatus=document.querySelector('[data-semantic-review-status]');
+    if(semanticReviewStatus){{
+      const value=String(proof.semantic_review_status||(proof.assessment_status==='semantic_review_pending'?'pending':proof.assessment_status)||'unknown').toUpperCase();
+      semanticReviewStatus.textContent=value;
+      semanticReviewStatus.className='quality-verdict '+(value==='PASS'?'quality-pass':value==='FAIL'?'quality-fail':'quality-uncertain');
+    }}
+    const semanticReviewRun=document.querySelector('[data-semantic-review-run]');
+    if(semanticReviewRun)semanticReviewRun.textContent=String(proof.artifact_run_id||'—');
+    const semanticReviewDigest=document.querySelector('[data-semantic-review-digest]');
+    if(semanticReviewDigest){{const digest=String(proof.context_digest||'');semanticReviewDigest.textContent=digest?digest.slice(0,12)+'…':'—';}}
+    const semanticReviewCriteria=document.querySelector('[data-semantic-review-criteria]');
+    if(semanticReviewCriteria){{
+      const review=proof.semantic_review||{{}};
+      const criteria=Array.isArray(review.criteria)?review.criteria:[];
+      const rows=criteria.length?criteria:[{{id:'No review criteria published yet',status:'pending'}}];
+      semanticReviewCriteria.replaceChildren(...rows.map(item=>{{
+        const row=document.createElement('div');
+        const label=document.createElement('span');
+        label.textContent=String(item.id||'').replaceAll('_',' ');
+        const value=document.createElement('strong');
+        const status=String(item.status||'pending').toUpperCase();
+        value.textContent=status;
+        value.className=status==='PASS'?'quality-pass':status==='FAIL'?'quality-fail':'quality-uncertain';
+        row.append(label,value);
+        return row;
+      }}));
+    }}
   }}catch(error){{/* Keep the last known exchange visible if the disposable live view is briefly unavailable. */}}
 }};
 refreshObserver();
