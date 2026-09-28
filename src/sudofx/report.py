@@ -346,6 +346,12 @@ def _exchange_panel(proof: dict[str, object]) -> str:
         for key in ("semantic_lens", "exposure", "pressure")
         if str(coordinate.get(key, "")).strip()
     )
+    protocol_status = "PASS" if proof.get("passed") is True else "NOT PASSED"
+    semantic_status = (
+        "PENDING"
+        if proof.get("assessment_status") == "semantic_review_pending"
+        else str(proof.get("assessment_status", "UNKNOWN")).upper()
+    )
 
     return f"""
       <section class="exchange" aria-label="Gemini exchange" data-artifact-run-id="{_escape(proof.get('artifact_run_id', ''))}">
@@ -356,6 +362,8 @@ def _exchange_panel(proof: dict[str, object]) -> str:
         <div class="quality-metrics">
           <span>Stress matrix <b data-exchange-matrix>{_escape(matrix_progress or '—')}</b></span>
           <span>Coordinate <b data-exchange-coordinate>{_escape(coordinate_text or '—')}</b></span>
+          <span>Protocol gate <b data-exchange-protocol>{_escape(protocol_status)}</b></span>
+          <span>Semantic review <b data-exchange-semantic>{_escape(semantic_status)}</b></span>
         </div>
 
         <div class="exchange-window exchange-question">
@@ -1237,6 +1245,12 @@ const refreshExchange=async()=>{{
       const point=trial.coordinate||{{}};
       coordinate.textContent=[point.semantic_lens,point.exposure,point.pressure].filter(Boolean).join(' · ')||'—';
     }}
+    const protocol=document.querySelector('[data-exchange-protocol]');
+    if(protocol)protocol.textContent=proof.passed===true?'PASS':'NOT PASSED';
+    const semantic=document.querySelector('[data-exchange-semantic]');
+    if(semantic)semantic.textContent=proof.assessment_status==='semantic_review_pending'
+      ?'PENDING'
+      :String(proof.assessment_status||'UNKNOWN').toUpperCase();
   }}catch(error){{/* Keep the last known exchange visible if the disposable live view is briefly unavailable. */}}
 }};
 refreshObserver();
