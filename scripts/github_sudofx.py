@@ -265,41 +265,40 @@ def frozen_handoff_packet(
     raise ValueError("handoff response names no packet in durable state history")
 
 
-def publish_live_projection(
-    payload: dict[str, object],
-    handoff_packet: dict[str, object] | None = None,
-) -> None:
-    """Replace the disposable live-data branch with current public projections.
+def _read_live_projection_files() -> dict[str, str]:
+    """Read the bounded disposable projection set without making it authority."""
+    remote = git(
+        "ls-remote", "--exit-code", "--heads", "origin", LIVE_BRANCH,
+        check=False, capture=True,
+    )
+    if remote.returncode == 2:
+        return {}
+    if remote.returncode != 0:
+        raise RuntimeError(f"could not inspect live projection branch: {remote.stderr.strip()}")
+    git("fetch", "origin", f"refs/heads/{LIVE_BRANCH}:refs/remotes/origin/{LIVE_BRANCH}")
 
-    sudofx-live is explicitly not authority and carries no history. Each refresh
-    is a new orphan commit force-updated onto the same branch ref, so a fast-
-    changing observer never creates an append-only shadow database or a Pages
-    deployment backlog. SQLite on sudofx-state remains the only durable record.
-    """
+    files: dict[str, str] = {}
+    for name in ("live.json", "handoff-v1.json", "handoff-current.json"):
+        shown = git(
+            "show", f"origin/{LIVE_BRANCH}:{name}",
+            check=False, capture=True,
+        )
+        if shown.returncode == 0:
+            files[name] = shown.stdout
+    return files
+
+
+def _replace_live_projection_files(files: dict[str, str]) -> None:
+    """Force-replace the historyless live branch with one bounded projection set."""
     with tempfile.TemporaryDirectory() as temporary:
         checkout = Path(temporary) / "live"
         git("worktree", "add", "--detach", str(checkout), "HEAD")
         try:
             git("-C", str(checkout), "checkout", "--orphan", LIVE_BRANCH)
             git("-C", str(checkout), "rm", "-rf", "--ignore-unmatch", ".")
-            (checkout / "live.json").write_text(
-                json.dumps(payload, indent=2, sort_keys=True) + "\n",
-                encoding="utf-8",
-            )
-            if handoff_packet is not None:
-                (checkout / "handoff-v1.json").write_text(
-                    json.dumps(handoff_packet, indent=2, sort_keys=True) + "\n",
-                    encoding="utf-8",
-                )
-            git("-C", str(checkout), "add", "live.json")
-            if handoff_packet is not None:
-                (checkout / "handoff-v1.json").write_text(
-                    json.dumps(handoff_packet, indent=2, sort_keys=True) + "\n",
-                    encoding="utf-8",
-                )
-                git("-C", str(checkout), "add", "handoff-v1.json")
-            if handoff_packet is not None:
-                git("-C", str(checkout), "add", "handoff-v1.json")
+            for name, content in files.items():
+                (checkout / name).write_text(content, encoding="utf-8")
+            git("-C", str(checkout), "add", ".")
             git(
                 "-C", str(checkout),
                 "-c", "user.name=sudofx-bot",
@@ -310,6 +309,28 @@ def publish_live_projection(
         finally:
             git("worktree", "remove", "--force", str(checkout), check=False)
 
+
+def publish_live_projection(
+    payload: dict[str, object],
+    handoff_packet: dict[str, object] | None = None,
+) -> None:
+    """Replace current observer projections while preserving the manual handoff view."""
+    files = _read_live_projection_files()
+    files["live.json"] = json.dumps(payload, indent=2, sort_keys=True) + "\n"
+    if handoff_packet is not None:
+        files["handoff-v1.json"] = json.dumps(
+            handoff_packet, indent=2, sort_keys=True
+        ) + "\n"
+    _replace_live_projection_files(files)
+
+
+def publish_current_handoff(packet: dict[str, object]) -> None:
+    """Publish the explicitly selected manual handoff as a disposable stable view."""
+    files = _read_live_projection_files()
+    files["handoff-current.json"] = json.dumps(
+        packet, indent=2, sort_keys=True
+    ) + "\n"
+    _replace_live_projection_files(files)
 
 def value_from(raw: str) -> object:
     """Share the CLI convention: structured JSON when valid, plain text otherwise."""
@@ -681,6 +702,8 @@ def main() -> int:
     export_id = handoff_id or auto_handoff_id
     if export_id:
         json_path, prompt_path = export_handoff_packet(kernel, ROOT / "site", export_id)
+        if handoff_id:
+            publish_current_handoff(build_handoff_packet(kernel, handoff_id))
         print(json.dumps({"handoff_json": str(json_path), "handoff_prompt": str(prompt_path)}))
     return 0
 
