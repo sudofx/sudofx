@@ -707,6 +707,8 @@ json.dump({
         self.assertIn('class="masthead-actions"', page)
         self.assertIn('aria-label="Open Settings"', page)
         self.assertNotIn('>Operator sign in<', page)
+        self.assertIn('.owner-login[hidden]', page)
+        self.assertNotIn('i::before { content:"☀"', page)
         self.assertIn("grid-area:theme; justify-self:end", page)
         self.assertIn('class="brand" href="./"', page)
         self.assertIn('href="https://sudofx.github.io/wake/" target="_blank"', page)
