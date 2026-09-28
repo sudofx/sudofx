@@ -919,6 +919,10 @@ json.dump({
         self.assertIn("Manual AI handoff", page)
         for provider in ("ChatGPT", "Claude", "Gemini", "DeepSeek"):
             self.assertIn(f'data-handoff-provider="{provider}"', page)
+        self.assertIn('href="com.openai.chat://"', page)
+        self.assertIn('href="claude://"', page)
+        self.assertIn('href="googleapp://robin"', page)
+        self.assertIn('href="deepseek://"', page)
         self.assertIn("accepted_results_recent", page)
         self.assertIn("omitted_accepted_results_digest", page)
         self.assertNotIn('"accepted_results":', page)
@@ -928,6 +932,7 @@ json.dump({
         self.assertNotIn("Keep it here", page)
         self.assertIn("CURRENT OPERATOR AUTHORIZATION", page)
         self.assertIn("exactly one manual response", page)
+        self.assertIn("prompt copied and app opening", page)
         # The report is a Python-generated JavaScript program. Newlines inside
         # this quoted packet must remain escaped in the emitted source or one
         # optional handoff control will break the entire authentication UI.

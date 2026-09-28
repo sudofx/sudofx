@@ -485,9 +485,10 @@ def render(
     .handoff-shell {{ display:grid; gap:14px; padding:18px }}
     .handoff-head {{ display:flex; justify-content:space-between; align-items:start; gap:16px }}
     .handoff-head h2 {{ margin:4px 0 0 }}
-    .handoff-head button,.handoff-actions button,.provider-buttons button {{ border:1px solid var(--line); border-radius:4px; background:var(--surface); color:var(--ink); padding:9px 11px; font:800 11px var(--mono); cursor:pointer }}
+    .handoff-head button,.handoff-actions button,.provider-buttons a {{ border:1px solid var(--line); border-radius:4px; background:var(--surface); color:var(--ink); padding:9px 11px; font:800 11px var(--mono); cursor:pointer }}
     .provider-buttons {{ display:grid; grid-template-columns:repeat(4,1fr); gap:7px }}
-    .provider-buttons button[aria-pressed=true] {{ color:var(--green); border-color:var(--green) }}
+    .provider-buttons a {{ text-align:center; text-decoration:none }}
+    .provider-buttons a[aria-pressed=true] {{ color:var(--green); border-color:var(--green) }}
     .handoff-field {{ display:grid; gap:6px; color:var(--muted); font:700 10px var(--mono); letter-spacing:.05em; text-transform:uppercase }}
     .handoff-field textarea {{ width:100%; min-height:170px; resize:vertical; border:1px solid var(--line); background:var(--paper); color:var(--ink); padding:12px; font:12px/1.45 var(--mono); text-transform:none; letter-spacing:normal }}
     .handoff-actions {{ display:flex; flex-wrap:wrap; gap:8px }}
@@ -639,7 +640,7 @@ def render(
     <div class="handoff-shell">
       <div class="handoff-head"><div><span class="eyebrow">Owner-only transport</span><h2>Manual AI handoff</h2></div><button type="button" data-handoff-close aria-label="Close manual handoff">Close</button></div>
       <div class="provider-buttons" aria-label="Choose destination">
-        <button type="button" data-handoff-provider="ChatGPT">ChatGPT</button><button type="button" data-handoff-provider="Claude">Claude</button><button type="button" data-handoff-provider="Gemini">Gemini</button><button type="button" data-handoff-provider="DeepSeek">DeepSeek</button>
+        <a href="com.openai.chat://" data-handoff-provider="ChatGPT">ChatGPT</a><a href="claude://" data-handoff-provider="Claude">Claude</a><a href="googleapp://robin" data-handoff-provider="Gemini">Gemini</a><a href="deepseek://" data-handoff-provider="DeepSeek">DeepSeek</a>
       </div>
       <label class="handoff-field">Prompt to paste<textarea data-handoff-prompt readonly>{_escape(manual_prompt)}</textarea></label>
       <div class="handoff-actions"><button type="button" data-handoff-copy>Copy prompt</button></div>
@@ -824,22 +825,25 @@ if(ownerBackup)ownerBackup.addEventListener('click',()=>operateOwnerControl('/ap
 const copyText=async(value)=>{{
   await navigator.clipboard.writeText(value);
 }};
-const selectHandoffProvider=async(button)=>{{
-  handoffProvider=button.dataset.handoffProvider||'';
+const selectHandoffProvider=(link)=>{{
+  handoffProvider=link.dataset.handoffProvider||'';
   // Selecting a destination is a fresh authenticated operator action. Carry
   // that narrow authority with the human-transported packet so a prior durable
   // Stop still blocks automation but does not make this one requested response
   // look unauthorized to the receiving intelligence.
   handoffPrompt.value='CURRENT OPERATOR AUTHORIZATION\\nThe authenticated operator explicitly selected '+handoffProvider+' for exactly one manual response to this packet. This authorizes the response only; it does not authorize durable mutation, continuous execution, or another model invocation. A prior Stop in the durable packet remains authoritative for those other actions.\\n\\n'+handoffBasePrompt;
-  document.querySelectorAll('[data-handoff-provider]').forEach(candidate=>candidate.setAttribute('aria-pressed',String(candidate===button)));
-  try{{await copyText(handoffPrompt.value);handoffStatus.textContent=handoffProvider+' selected · prompt copied. Open it, paste, then return with the complete response.';}}
-  catch{{handoffPrompt.focus();handoffPrompt.select();handoffStatus.textContent='Automatic clipboard access was blocked. The prompt is selected for manual copying.';}}
+  document.querySelectorAll('[data-handoff-provider]').forEach(candidate=>candidate.setAttribute('aria-pressed',String(candidate===link)));
+  // Start the clipboard write during the trusted tap that follows the app URI.
+  // Awaiting it first can consume Safari's user activation and prevent iOS from
+  // opening the destination. The visible prompt remains the manual fallback.
+  copyText(handoffPrompt.value).catch(()=>{{handoffPrompt.focus();handoffPrompt.select();}});
+  handoffStatus.textContent=handoffProvider+' selected · prompt copied and app opening. Paste it into a new chat, then return with the complete response.';
 }};
 if(ownerHandoff)ownerHandoff.addEventListener('click',()=>{{
   setOwnerMenu(false);
   if(handoffDialog&&!ownerHandoff.disabled)handoffDialog.showModal();
 }});
-document.querySelectorAll('[data-handoff-provider]').forEach(button=>button.addEventListener('click',()=>selectHandoffProvider(button)));
+document.querySelectorAll('[data-handoff-provider]').forEach(link=>link.addEventListener('click',()=>selectHandoffProvider(link)));
 document.querySelector('[data-handoff-copy]')?.addEventListener('click',async()=>{{
   try{{await copyText(handoffPrompt.value);handoffStatus.textContent='Prompt copied.';}}
   catch{{handoffPrompt.focus();handoffPrompt.select();handoffStatus.textContent='Clipboard access was blocked; the prompt is selected.';}}
