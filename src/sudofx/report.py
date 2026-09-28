@@ -815,14 +815,40 @@ const refreshOwnerControls=async()=>{{
     return null;
   }}
 }};
-const operateOwnerControl=async(path)=>{{
-  ownerStart.disabled=true;ownerStop.disabled=true;if(ownerBackup)ownerBackup.disabled=true;ownerControlStatus.textContent='Updating…';
-  try{{const result=await ownerRequest(path,'POST');ownerControlStatus.textContent=result.message;await refreshOwnerControls();}}
-  catch(error){{ownerControlStatus.textContent=error.message;ownerStart.disabled=false;ownerStop.disabled=false;if(ownerBackup)ownerBackup.disabled=false;}}
+const operateOwnerControl=async(path,event,refresh=true)=>{{
+  // iOS may deliver the same tap through the document-level dismissal handler.
+  // Keep the operator panel open until this request has a visible outcome; a
+  // control action must never look like an unexplained navigation or dismissal.
+  event?.stopPropagation();
+  setOwnerMenu(true);
+  const label=path==='/api/backup'?'backup':(path==='/api/start'?'start':'stop');
+  const disabledBefore={{start:ownerStart.disabled,stop:ownerStop.disabled,backup:ownerBackup?.disabled||false}};
+  ownerStart.disabled=true;ownerStop.disabled=true;if(ownerBackup)ownerBackup.disabled=true;
+  ownerControlStatus.textContent='Requesting '+label+'…';
+  try{{
+    const result=await ownerRequest(path,'POST');
+    // Backup does not change workflow state, so refreshing would only replace
+    // its acceptance message with generic status. Start and Stop do refresh,
+    // but their action result is restored afterward as the visible outcome.
+    if(refresh)await refreshOwnerControls();
+    setOwnerMenu(true);
+    ownerControlStatus.textContent=result.message||'Request accepted.';
+    if(!refresh){{
+      ownerStart.disabled=disabledBefore.start;
+      ownerStop.disabled=disabledBefore.stop;
+      if(ownerBackup)ownerBackup.disabled=disabledBefore.backup;
+    }}
+  }}catch(error){{
+    setOwnerMenu(true);
+    ownerControlStatus.textContent='Request failed: '+error.message;
+    ownerStart.disabled=disabledBefore.start;
+    ownerStop.disabled=disabledBefore.stop;
+    if(ownerBackup)ownerBackup.disabled=disabledBefore.backup;
+  }}
 }};
-if(ownerStart)ownerStart.addEventListener('click',()=>operateOwnerControl('/api/start'));
-if(ownerStop)ownerStop.addEventListener('click',()=>operateOwnerControl('/api/stop'));
-if(ownerBackup)ownerBackup.addEventListener('click',()=>operateOwnerControl('/api/backup'));
+if(ownerStart)ownerStart.addEventListener('click',(event)=>operateOwnerControl('/api/start',event));
+if(ownerStop)ownerStop.addEventListener('click',(event)=>operateOwnerControl('/api/stop',event));
+if(ownerBackup)ownerBackup.addEventListener('click',(event)=>operateOwnerControl('/api/backup',event,false));
 const copyText=async(value)=>{{
   await navigator.clipboard.writeText(value);
 }};

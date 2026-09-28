@@ -746,6 +746,13 @@ json.dump({
         self.assertIn('position:fixed; top:52px; right:16px', page)
         self.assertIn("setOwnerMenu(ownerControls.hidden)", page)
         self.assertIn("'/api/backup'", page)
+        # Every phone action keeps its panel open and leaves a success or error
+        # result visible. This prevents an accepted or rejected request from
+        # looking like an unexplained dismissal on iOS.
+        self.assertIn("event?.stopPropagation()", page)
+        self.assertIn("ownerControlStatus.textContent='Requesting '+label+'…'", page)
+        self.assertIn("ownerControlStatus.textContent='Request failed: '+error.message", page)
+        self.assertIn("operateOwnerControl('/api/backup',event,false)", page)
         self.assertIn("public state", page)
         self.assertIn("localStorage.setItem(ownerSessionKey", page)
         self.assertIn("localStorage.getItem(ownerSessionKey", page)
