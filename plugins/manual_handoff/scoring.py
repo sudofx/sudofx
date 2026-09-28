@@ -13,7 +13,7 @@ import re
 from datetime import datetime, timezone
 from typing import Any
 
-from .storage import canonical_json
+from sudofx.storage import canonical_json
 
 
 DIMENSIONS = (
