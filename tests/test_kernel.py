@@ -806,7 +806,7 @@ json.dump({
             Proposal(
                 "overnight-projection",
                 0,
-                (Operation("set", "__overnight_continuity_experiment__", experiment),),
+                (Operation("set", "experiment:overnight-continuity-v1", experiment),),
             )
         )
         proof = latest_overnight_proof(self.kernel)
