@@ -243,30 +243,55 @@ class Governance:
         ):
             reasons.append("assessment criteria must contain recognized pass/fail/uncertain judgments")
 
-        metrics = value.get("metrics")
-        required_metrics = {
-            "context_bytes",
-            "full_context_bytes",
-            "compression_ratio",
-            "accepted_results_exposed",
-            "receipt_count_exposed",
-        }
-        if not isinstance(metrics, dict) or not required_metrics.issubset(metrics):
-            reasons.append("assessment metrics are incomplete")
-        elif (
-            any(isinstance(metrics[key], bool) for key in required_metrics)
-            or not isinstance(metrics["context_bytes"], int)
-            or not isinstance(metrics["full_context_bytes"], int)
-            or not isinstance(metrics["compression_ratio"], (int, float))
-            or not isinstance(metrics["accepted_results_exposed"], int)
-            or not isinstance(metrics["receipt_count_exposed"], int)
-            or metrics["context_bytes"] < 0
-            or metrics["full_context_bytes"] < 0
-            or not 0 <= float(metrics["compression_ratio"]) <= 1
-            or metrics["accepted_results_exposed"] < 0
-            or metrics["receipt_count_exposed"] < 0
-        ):
-            reasons.append("assessment metrics contain invalid values")
+        assessment_kind = value.get("kind")
+        if assessment_kind == "human_semantic_review_v1":
+            # The pinned overnight runner durably records run identity, digest,
+            # provider, model, and candidate semantics, but not its transient
+            # byte-count diagnostics. A human review must never invent those
+            # missing metrics merely to fit the older assessment envelope.
+            expected_criteria = {
+                "objective_fidelity",
+                "history_fidelity",
+                "frontier_fidelity",
+                "compression_awareness",
+                "unsupported_claims",
+                "actionability",
+            }
+            if not isinstance(criteria, dict) or set(criteria) != expected_criteria:
+                reasons.append("human semantic review requires exactly the six review criteria")
+            elif verdict != (
+                "fail" if "fail" in criteria.values()
+                else "uncertain" if "uncertain" in criteria.values()
+                else "pass"
+            ):
+                reasons.append("human semantic review verdict must be derived from its criteria")
+        else:
+            # Legacy/manual continuity assessments carry compression metrics when
+            # those measurements were actually captured at the reviewed boundary.
+            metrics = value.get("metrics")
+            required_metrics = {
+                "context_bytes",
+                "full_context_bytes",
+                "compression_ratio",
+                "accepted_results_exposed",
+                "receipt_count_exposed",
+            }
+            if not isinstance(metrics, dict) or not required_metrics.issubset(metrics):
+                reasons.append("assessment metrics are incomplete")
+            elif (
+                any(isinstance(metrics[key], bool) for key in required_metrics)
+                or not isinstance(metrics["context_bytes"], int)
+                or not isinstance(metrics["full_context_bytes"], int)
+                or not isinstance(metrics["compression_ratio"], (int, float))
+                or not isinstance(metrics["accepted_results_exposed"], int)
+                or not isinstance(metrics["receipt_count_exposed"], int)
+                or metrics["context_bytes"] < 0
+                or metrics["full_context_bytes"] < 0
+                or not 0 <= float(metrics["compression_ratio"]) <= 1
+                or metrics["accepted_results_exposed"] < 0
+                or metrics["receipt_count_exposed"] < 0
+            ):
+                reasons.append("assessment metrics contain invalid values")
 
         provenance = value.get("provenance")
         required_provenance = {

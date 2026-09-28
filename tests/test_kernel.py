@@ -390,6 +390,8 @@ json.dump({
         self.assertIn("88.0%", page)
         self.assertIn("test-provider", page)
         self.assertIn("run 123", page)
+        self.assertIn("data-semantic-review-submit", page)
+        self.assertIn('data-review-criterion="objective_fidelity"', page)
 
         helper = """
 import json, sys
@@ -516,6 +518,63 @@ json.dump({
         self.assertEqual(proof["compression"]["accepted_results_exposed"], 1)
         self.assertEqual(proof["compression"]["receipt_count_exposed"], 0)
         self.assertFalse(proof["checks"]["production_state_mutated"])
+
+    def test_human_semantic_review_needs_no_invented_metrics(self) -> None:
+        """
+        Human review may append judgments only for the six durable criteria.
+
+        The overnight runtime did not persist byte-count diagnostics into SQLite,
+        so this schema must preserve truthful provenance without manufacturing
+        measurements merely to satisfy the older assessment envelope.
+        """
+        self.kernel.submit(
+            Proposal(
+                "review-create",
+                0,
+                (
+                    Operation(
+                        "create_work",
+                        "reviewed",
+                        {"objective": "Review one model observation", "constraints": []},
+                    ),
+                ),
+            )
+        )
+        review = {
+            "kind": "human_semantic_review_v1",
+            "verdict": "uncertain",
+            "criteria": {
+                "objective_fidelity": "pass",
+                "history_fidelity": "pass",
+                "frontier_fidelity": "uncertain",
+                "compression_awareness": "pass",
+                "unsupported_claims": "pass",
+                "actionability": "pass",
+            },
+            "provenance": {
+                "artifact_run_id": "123",
+                "artifact_commit": "abc123",
+                "context_digest": "d" * 64,
+                "provider": "test-provider",
+                "model": "test-model",
+            },
+        }
+        receipt = self.kernel.submit(
+            Proposal("review-assessment", 1, (Operation("record_assessment", "reviewed", review),))
+        )
+        self.assertEqual(receipt.status, "accepted")
+        stored = self.kernel.context(work_id="reviewed").state["work:reviewed"]
+        self.assertEqual(stored["semantic_assessments"], [review])
+        self.assertEqual(stored["accepted_results"], [])
+        self.assertEqual(stored["open_obligations"], [])
+
+        forged = dict(review)
+        forged["verdict"] = "pass"
+        rejected = self.kernel.submit(
+            Proposal("review-forged", 2, (Operation("record_assessment", "reviewed", forged),))
+        )
+        self.assertEqual(rejected.status, "rejected")
+        self.assertIn("human semantic review verdict must be derived from its criteria", rejected.reasons)
 
     def test_kernel_depends_on_storage_contract_not_sqlite_connection(self) -> None:
         """

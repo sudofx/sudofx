@@ -35,6 +35,7 @@ const SUPPORTED_ONE_SHOT_ACTIONS = Object.freeze({
   "prove-model": { requiresKey: true, permitsModel: true, permitsResponse: false },
   "export-handoff": { requiresKey: true, permitsModel: false, permitsResponse: false },
   "handoff-evaluate": { requiresKey: false, permitsModel: false, permitsResponse: true },
+  "semantic-review": { requiresKey: false, permitsModel: false, permitsResponse: false, permitsReview: true },
 });
 
 const DEFAULT_CAPABILITIES = Object.freeze([
@@ -46,6 +47,7 @@ const DEFAULT_CAPABILITIES = Object.freeze([
   "prove-model",
   "export-handoff",
   "handoff-evaluate",
+  "semantic-review",
   "storage-diagnostics",
 ]);
 
@@ -88,6 +90,46 @@ function handoffResponseShape(rawResponse) {
     throw new Error("handoff response has invalid transport metadata");
   }
   return parsed;
+}
+
+function semanticReviewShape(review) {
+  /**
+   * Admit only the exact human-review transport contract.
+   *
+   * The Worker deliberately does not decide whether the run exists or whether
+   * the digest is current. SQLite-backed workflow code owns those checks. This
+   * layer only prevents authenticated browser input from becoming a generic JSON
+   * tunnel into a stateful workflow.
+   */
+  if (!review || typeof review !== "object" || Array.isArray(review)) {
+    throw new Error("semantic review must be an object");
+  }
+  const required = ["artifact_run_id", "context_digest", "criteria"];
+  if (Object.keys(review).length !== required.length || required.some((name) => !(name in review))) {
+    throw new Error("semantic review has unexpected or missing fields");
+  }
+  if (typeof review.artifact_run_id !== "string" || !/^\d+$/.test(review.artifact_run_id)) {
+    throw new Error("semantic review requires a numeric artifact run ID");
+  }
+  if (typeof review.context_digest !== "string" || !/^[0-9a-f]{64}$/.test(review.context_digest)) {
+    throw new Error("semantic review requires a 64-character context digest");
+  }
+  const allowed = [
+    "objective_fidelity",
+    "history_fidelity",
+    "frontier_fidelity",
+    "compression_awareness",
+    "unsupported_claims",
+    "actionability",
+  ];
+  if (
+    !review.criteria || typeof review.criteria !== "object" || Array.isArray(review.criteria)
+    || Object.keys(review.criteria).length !== allowed.length
+    || allowed.some((name) => !["pass", "fail", "uncertain"].includes(review.criteria[name]))
+  ) {
+    throw new Error("semantic review requires all six pass/fail/uncertain criteria");
+  }
+  return review;
 }
 
 function configuredCapabilities(env) {
@@ -468,6 +510,7 @@ async function operate(request, env, session, githubFetch) {
   const key = typeof body.key === "string" ? body.key.trim() : "";
   const model = typeof body.model === "string" ? body.model.trim() : "";
   const response = typeof body.response === "string" ? body.response : "";
+  const review = body.review;
   if (policy.requiresKey && !key) {
     return json(env, { error: `${action} requires a non-empty key` }, 400);
   }
@@ -477,9 +520,19 @@ async function operate(request, env, session, githubFetch) {
   if (!policy.permitsResponse && response) {
     return json(env, { error: `${action} does not accept a handoff response` }, 400);
   }
+  if (!policy.permitsReview && review !== undefined) {
+    return json(env, { error: `${action} does not accept semantic review data` }, 400);
+  }
   if (policy.permitsResponse) {
     try {
       handoffResponseShape(response);
+    } catch (error) {
+      return json(env, { error: error.message }, 400);
+    }
+  }
+  if (policy.permitsReview) {
+    try {
+      semanticReviewShape(review);
     } catch (error) {
       return json(env, { error: error.message }, 400);
     }
@@ -489,6 +542,7 @@ async function operate(request, env, session, githubFetch) {
   if (key) inputs.key = key;
   if (policy.permitsModel && model) inputs.model = model;
   if (policy.permitsResponse) inputs.response = response;
+  if (policy.permitsReview) inputs.review = JSON.stringify(review);
 
   await github(
     `/repos/${env.REPOSITORY}/actions/workflows/${OPERATIONS_WORKFLOW}/dispatches`,
@@ -502,7 +556,9 @@ async function operate(request, env, session, githubFetch) {
   );
   const message = action === "handoff-evaluate"
     ? "Handoff evaluation accepted for governed recording."
-    : "Operator request accepted.";
+    : action === "semantic-review"
+      ? "Semantic review accepted for authoritative binding and governed recording."
+      : "Operator request accepted.";
   return json(env, { accepted: true, action, key: key || null, message });
 }
 

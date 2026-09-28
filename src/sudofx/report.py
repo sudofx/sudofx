@@ -820,7 +820,19 @@ def render(
         <span>Run <b data-semantic-review-run>{_escape(semantic_run or "—")}</b></span>
         <span>Context digest <b data-semantic-review-digest>{_escape((semantic_digest[:12] + "…") if semantic_digest else "—")}</b></span>
       </div>
-      <div class="quality-provenance">Read-only review evidence. No semantic verdict is inferred from protocol success.</div>
+      <div class="quality-provenance">Human judgment is recorded separately from protocol success and is bound to this exact run + digest.</div>
+      <div data-semantic-review-form data-run-id="{_escape(semantic_run)}" data-context-digest="{_escape(semantic_digest)}">
+        <div class="quality-grid">
+          <label><span>Objective fidelity</span><select data-review-criterion="objective_fidelity"><option value="pass">PASS</option><option value="uncertain" selected>UNCERTAIN</option><option value="fail">FAIL</option></select></label>
+          <label><span>History fidelity</span><select data-review-criterion="history_fidelity"><option value="pass">PASS</option><option value="uncertain" selected>UNCERTAIN</option><option value="fail">FAIL</option></select></label>
+          <label><span>Frontier fidelity</span><select data-review-criterion="frontier_fidelity"><option value="pass">PASS</option><option value="uncertain" selected>UNCERTAIN</option><option value="fail">FAIL</option></select></label>
+          <label><span>Compression awareness</span><select data-review-criterion="compression_awareness"><option value="pass">PASS</option><option value="uncertain" selected>UNCERTAIN</option><option value="fail">FAIL</option></select></label>
+          <label><span>Unsupported claims</span><select data-review-criterion="unsupported_claims"><option value="pass">PASS</option><option value="uncertain" selected>UNCERTAIN</option><option value="fail">FAIL</option></select></label>
+          <label><span>Actionability</span><select data-review-criterion="actionability"><option value="pass">PASS</option><option value="uncertain" selected>UNCERTAIN</option><option value="fail">FAIL</option></select></label>
+        </div>
+        <div class="handoff-actions"><button type="button" data-semantic-review-submit>Record review</button></div>
+        <div class="quality-provenance" data-semantic-review-message>Review writes only one bounded assessment event.</div>
+      </div>
     </div>
     <section>
       <div class="toolbar"><div><span class="eyebrow">{open_work} open</span><h2>Current work</h2></div></div>
@@ -870,6 +882,9 @@ const handoffPrompt=document.querySelector('[data-handoff-prompt]');
 const handoffResponse=document.querySelector('[data-handoff-response]');
 const handoffStatus=document.querySelector('[data-handoff-status]');
 const handoffSubmit=document.querySelector('[data-handoff-submit]');
+const semanticReviewForm=document.querySelector('[data-semantic-review-form]');
+const semanticReviewSubmit=document.querySelector('[data-semantic-review-submit]');
+const semanticReviewMessage=document.querySelector('[data-semantic-review-message]');
 const handoffBasePrompt=handoffPrompt?.value||'';
 let handoffProvider='';
 const ownerSessionKey='sudofx-owner-session';
@@ -994,6 +1009,8 @@ const refreshOwnerControls=async()=>{{
     if(ownerBackup){{ownerBackup.hidden=!Array.isArray(state.capabilities)||!state.capabilities.includes('backup');ownerBackup.disabled=false;}}
     const handoffEvaluateEnabled=Array.isArray(state.capabilities)&&state.capabilities.includes('handoff-evaluate');
     if(handoffSubmit)handoffSubmit.disabled=!handoffEvaluateEnabled;
+    const semanticReviewEnabled=Array.isArray(state.capabilities)&&state.capabilities.includes('semantic-review');
+    if(semanticReviewSubmit)semanticReviewSubmit.disabled=!semanticReviewEnabled;
     if(pendingHandoffReturn()&&handoffEvaluateEnabled&&handoffDialog){{
       try{{sessionStorage.removeItem(handoffReturnKey)}}catch{{}}
       if(!handoffDialog.open)handoffDialog.showModal();
@@ -1110,6 +1127,25 @@ handoffSubmit?.addEventListener('click',async()=>{{
   }}catch(error){{
     handoffStatus.textContent='Submission failed: '+error.message;
   }}finally{{handoffSubmit.disabled=false;}}
+}});
+if(semanticReviewSubmit)semanticReviewSubmit.addEventListener('click',async(event)=>{{
+  event.stopPropagation();
+  if(!semanticReviewForm)return;
+  const criteria={{}};
+  semanticReviewForm.querySelectorAll('[data-review-criterion]').forEach(select=>{{criteria[select.dataset.reviewCriterion]=select.value;}});
+  const review={{
+    artifact_run_id:String(semanticReviewForm.dataset.runId||''),
+    context_digest:String(semanticReviewForm.dataset.contextDigest||''),
+    criteria,
+  }};
+  semanticReviewSubmit.disabled=true;
+  if(semanticReviewMessage)semanticReviewMessage.textContent='Binding review to authoritative SQLite evidence…';
+  try{{
+    const result=await ownerRequest('/api/operate','POST',{{action:'semantic-review',review}});
+    if(semanticReviewMessage)semanticReviewMessage.textContent=result.message||'Semantic review accepted.';
+  }}catch(error){{
+    if(semanticReviewMessage)semanticReviewMessage.textContent='Review failed: '+error.message;
+  }}finally{{semanticReviewSubmit.disabled=false;}}
 }});
 document.querySelector('[data-handoff-close]')?.addEventListener('click',()=>handoffDialog?.close());
 if(ownerMenuToggle)ownerMenuToggle.addEventListener('click',(event)=>{{event.stopPropagation();setOwnerMenu(ownerControls.hidden);}});
@@ -1303,9 +1339,17 @@ const refreshExchange=async()=>{{
       semanticReviewStatus.className='quality-verdict '+(value==='PASS'?'quality-pass':value==='FAIL'?'quality-fail':'quality-uncertain');
     }}
     const semanticReviewRun=document.querySelector('[data-semantic-review-run]');
-    if(semanticReviewRun)semanticReviewRun.textContent=String(proof.artifact_run_id||'—');
+    const reviewRunId=String(proof.artifact_run_id||'');
+    if(semanticReviewRun)semanticReviewRun.textContent=reviewRunId||'—';
     const semanticReviewDigest=document.querySelector('[data-semantic-review-digest]');
-    if(semanticReviewDigest){{const digest=String(proof.context_digest||'');semanticReviewDigest.textContent=digest?digest.slice(0,12)+'…':'—';}}
+    const reviewDigest=String(proof.context_digest||'');
+    if(semanticReviewDigest)semanticReviewDigest.textContent=reviewDigest?reviewDigest.slice(0,12)+'…':'—';
+    if(semanticReviewForm){{
+      const targetChanged=semanticReviewForm.dataset.runId!==reviewRunId||semanticReviewForm.dataset.contextDigest!==reviewDigest;
+      semanticReviewForm.dataset.runId=reviewRunId;
+      semanticReviewForm.dataset.contextDigest=reviewDigest;
+      if(targetChanged&&semanticReviewMessage)semanticReviewMessage.textContent='Review target updated. Submission is bound to this exact run + digest.';
+    }}
     const semanticReviewCriteria=document.querySelector('[data-semantic-review-criteria]');
     if(semanticReviewCriteria){{
       const review=proof.semantic_review||{{}};

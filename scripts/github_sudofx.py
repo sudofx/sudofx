@@ -98,12 +98,30 @@ def latest_overnight_proof(kernel: Kernel) -> dict[str, object] | None:
     cycle = observation.get("cycle", experiment.get("cycle"))
     phase = observation.get("phase", experiment.get("phase"))
     task = observation.get("task", "")
+    work = kernel.context(work_id=AUTO_HANDOFF_ID).state.get(f"work:{AUTO_HANDOFF_ID}", {})
+    assessments = work.get("semantic_assessments", []) if isinstance(work, dict) else []
+    matching_assessment = None
+    for assessment in reversed(assessments if isinstance(assessments, list) else []):
+        if not isinstance(assessment, dict) or assessment.get("kind") != "human_semantic_review_v1":
+            continue
+        provenance = assessment.get("provenance", {})
+        if (
+            isinstance(provenance, dict)
+            and provenance.get("artifact_run_id") == observation.get("artifact_run_id")
+            and provenance.get("context_digest") == observation.get("context_digest")
+        ):
+            matching_assessment = assessment
+            break
+    review_status = matching_assessment.get("verdict", "pending") if matching_assessment else "pending"
+    review_criteria = matching_assessment.get("criteria", {}) if matching_assessment else {}
     return {
         # Preserve the legacy generic flag for consumers that predate the
         # explicit proof contract; never let it stand in for semantic fidelity.
         "passed": True,
         "protocol_gate_passed": True,
-        "semantic_review_status": "pending",
+        "semantic_review_status": review_status,
+        # Keep runner continuation independent from human review. Recording a
+        # verdict does not grant Stop/Start authority or terminate the experiment.
         "assessment_status": "semantic_review_pending",
         "kind": "evolving overnight Gemini continuity observation",
         "provider": observation.get("provider", "Google Gemini"),
@@ -129,7 +147,18 @@ def latest_overnight_proof(kernel: Kernel) -> dict[str, object] | None:
         },
         "semantic_review": {
             "version": 1,
-            "status": "pending",
+            "status": review_status,
+            "criteria": [
+                {"id": criterion, "status": review_criteria.get(criterion, "pending")}
+                for criterion in (
+                    "objective_fidelity",
+                    "history_fidelity",
+                    "frontier_fidelity",
+                    "compression_awareness",
+                    "unsupported_claims",
+                    "actionability",
+                )
+            ],
             "evidence": {
                 "candidate_result": candidate_result,
                 "trial_cycle": cycle,
@@ -456,6 +485,7 @@ def main() -> int:
     parser.add_argument("--auto", action="store_true")
     parser.add_argument("--operator-transition", choices=("start", "stop"))
     parser.add_argument("--record-handoff-evaluation", action="store_true")
+    parser.add_argument("--record-semantic-review", action="store_true")
     parser.add_argument("--handoff-work-id", default="")
     parser.add_argument(
         "--action", choices=("set", "delete", "work-create", "work-advance", "record-assessment", "work-complete")
@@ -476,6 +506,74 @@ def main() -> int:
         checkpoint()
         record = Record(DATA)
         kernel = Kernel(record)
+    if args.record_semantic_review:
+        # Human review is intentionally stricter than generic record-assessment.
+        # The browser supplies only judgments plus the run/digest it saw. This
+        # process reconstructs the current target from authoritative SQLite and
+        # refuses any stale or mismatched submission before creating a proposal.
+        raw_review = os.environ.get("SEMANTIC_REVIEW", "")
+        try:
+            submitted = json.loads(raw_review)
+        except json.JSONDecodeError as error:
+            raise ValueError("SEMANTIC_REVIEW must be one JSON object") from error
+        if not isinstance(submitted, dict):
+            raise ValueError("SEMANTIC_REVIEW must be one JSON object")
+        proof = latest_overnight_proof(kernel)
+        if proof is None:
+            raise RuntimeError("no authoritative overnight observation is available for review")
+        expected_run_id = str(proof.get("artifact_run_id", ""))
+        expected_digest = str(proof.get("context_digest", ""))
+        submitted_run_id = submitted.get("artifact_run_id")
+        submitted_digest = submitted.get("context_digest")
+        if submitted_run_id != expected_run_id or submitted_digest != expected_digest:
+            raise RuntimeError("semantic review target is stale or mismatched")
+        criteria = submitted.get("criteria")
+        allowed_criteria = {
+            "objective_fidelity",
+            "history_fidelity",
+            "frontier_fidelity",
+            "compression_awareness",
+            "unsupported_claims",
+            "actionability",
+        }
+        if (
+            not isinstance(criteria, dict)
+            or set(criteria) != allowed_criteria
+            or any(value not in {"pass", "fail", "uncertain"} for value in criteria.values())
+        ):
+            raise ValueError("semantic review requires exactly six pass/fail/uncertain criteria")
+        verdict = (
+            "fail" if "fail" in criteria.values()
+            else "uncertain" if "uncertain" in criteria.values()
+            else "pass"
+        )
+        assessment = {
+            "kind": "human_semantic_review_v1",
+            "verdict": verdict,
+            "criteria": criteria,
+            "provenance": {
+                "artifact_run_id": expected_run_id,
+                "artifact_commit": str(proof.get("artifact_commit", "")),
+                "context_digest": expected_digest,
+                "provider": str(proof.get("provider", "")),
+                "model": str(proof.get("model", "")),
+            },
+        }
+        context = kernel.context(work_id=AUTO_HANDOFF_ID)
+        receipt = kernel.submit(
+            Proposal(
+                str(uuid.uuid4()),
+                context.revision,
+                (Operation("record_assessment", AUTO_HANDOFF_ID, assessment),),
+                "Authenticated human semantic review bound to exact overnight evidence",
+            )
+        )
+        if receipt.status != "accepted":
+            raise RuntimeError(f"semantic review recording was {receipt.status}: {receipt.reasons}")
+        print(json.dumps({"semantic_review": assessment, "receipt": receipt.__dict__}, default=list))
+        checkpoint()
+        kernel = Kernel(Record(DATA))
+
     if args.backup:
         if not restored:
             raise RuntimeError("a recovery backup requires an existing authoritative record")

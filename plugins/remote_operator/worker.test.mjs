@@ -225,7 +225,7 @@ test("authenticated session reports storage maintenance metadata without databas
   );
   assert.equal(response.status, 200);
   const body = await response.json();
-  assert.deepEqual(body.capabilities, ["start", "stop", "backup", "verify", "prove-work", "prove-model", "export-handoff", "handoff-evaluate", "storage-diagnostics"]);
+  assert.deepEqual(body.capabilities, ["start", "stop", "backup", "verify", "prove-work", "prove-model", "export-handoff", "handoff-evaluate", "semantic-review", "storage-diagnostics"]);
   assert.deepEqual(body.maintenance, {
     repositoryVisibility: "public",
     stateBranchProtected: false,
@@ -390,6 +390,78 @@ test("Authenticated handoff evaluation preserves untrusted JSON for the governed
     { ref: "master", inputs: { action: "handoff-evaluate", response: handoffResponse } },
   ]]);
   assert.equal((await response.json()).message, "Handoff evaluation accepted for governed recording.");
+});
+
+test("Authenticated semantic review dispatches only the bounded review payload", async () => {
+  /**
+   * Browser review authority is one compiled action, not generic record mutation.
+   *
+   * The run/digest pair and all six judgments cross unchanged. The workflow must
+   * still prove that pair against authoritative SQLite before any append occurs.
+   */
+  const session = await ownerSession();
+  const operations = [];
+  const review = {
+    artifact_run_id: "36497454929",
+    context_digest: "a".repeat(64),
+    criteria: {
+      objective_fidelity: "pass",
+      history_fidelity: "pass",
+      frontier_fidelity: "uncertain",
+      compression_awareness: "pass",
+      unsupported_claims: "pass",
+      actionability: "pass",
+    },
+  };
+  const response = await handleRequest(
+    new Request("https://control.example/api/operate", {
+      method: "POST",
+      headers: {
+        Origin: "https://sudofx.github.io",
+        Authorization: `Bearer ${session}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ action: "semantic-review", review }),
+    }),
+    env,
+    async (url, init) => {
+      operations.push([new URL(url).pathname, init.method, JSON.parse(init.body)]);
+      return new Response(null, { status: 204 });
+    },
+  );
+  assert.equal(response.status, 200);
+  assert.deepEqual(operations, [[
+    "/repos/sudofx/sudofx/actions/workflows/sudofx.yml/dispatches",
+    "POST",
+    { ref: "master", inputs: { action: "semantic-review", review: JSON.stringify(review) } },
+  ]]);
+});
+
+test("Semantic review rejects incomplete criteria before GitHub is contacted", async () => {
+  const session = await ownerSession();
+  let contacted = false;
+  const response = await handleRequest(
+    new Request("https://control.example/api/operate", {
+      method: "POST",
+      headers: {
+        Origin: "https://sudofx.github.io",
+        Authorization: `Bearer ${session}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        action: "semantic-review",
+        review: {
+          artifact_run_id: "36497454929",
+          context_digest: "a".repeat(64),
+          criteria: { objective_fidelity: "pass" },
+        },
+      }),
+    }),
+    env,
+    async () => { contacted = true; return new Response(null, { status: 204 }); },
+  );
+  assert.equal(response.status, 400);
+  assert.equal(contacted, false);
 });
 
 test("Handoff evaluation rejects malformed transport before GitHub is contacted", async () => {
