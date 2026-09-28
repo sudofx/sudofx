@@ -724,7 +724,7 @@ json.dump({
         self.assertIn('data-owner-stop>Stop</button>', page)
         self.assertIn('data-owner-backup hidden>Backup</button>', page)
         self.assertIn('data-owner-signout>Sign out</button>', page)
-        self.assertIn('position:absolute; top:0; right:0; z-index:2000', page)
+        self.assertIn('.owner-access { position:relative; z-index:2000', page)
         self.assertIn('position:fixed; top:52px; right:16px', page)
         self.assertIn("setOwnerMenu(ownerControls.hidden)", page)
         self.assertIn("'/api/backup'", page)
