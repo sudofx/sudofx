@@ -41,3 +41,23 @@ not semantic truth.
 This directory is the first concrete use of the plugin boundary described in
 `docs/PLUGIN_ARCHITECTURE.md`. It does **not** establish a general runtime
 plugin loader yet. The boundary is being exercised before that API is frozen.
+
+## Shortcut prompt
+
+The current iOS Shortcut should build this prompt:
+
+```text
+Strict manual handoff evaluation prompt.
+Selected Vendor: vendor
+test_id: Text
+nonce: HANDOFF-Text
+packet_digest: Dictionary Value
+Complete JSON Packet:
+Contents of URL
+
+Return only one JSON object with test_id, nonce, vendor, packet_digest, and answers.
+Answers must contain exactly objective_fidelity, authority_fidelity, history_fidelity, constraint_fidelity, frontier_fidelity, epistemic_discipline, and transfer_usability.
+Each answer has non-empty answer and evidence fields, and evidence must be an exact quote from the packet.
+```
+
+The nonce prefix is part of the transport contract. Do not use the retired development nickname in Shortcut names, prompts, variables, or nonce values.
