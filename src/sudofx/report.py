@@ -675,7 +675,7 @@ def render(
     <div class="handoff-shell">
       <div class="handoff-head"><div><span class="eyebrow">Owner-only transport</span><h2>Manual AI handoff</h2></div><button type="button" data-handoff-close aria-label="Close manual handoff">Close</button></div>
       <div class="provider-buttons" aria-label="Choose destination">
-        <a href="com.openai.chat://" data-handoff-provider="ChatGPT">ChatGPT</a><a href="claude://" data-handoff-provider="Claude">Claude</a><a href="https://gemini.google.com/app" data-handoff-provider="Gemini">Gemini</a><a href="deepseek://" data-handoff-provider="DeepSeek">DeepSeek</a>
+        <a href="com.openai.chat://" data-handoff-provider="ChatGPT">ChatGPT</a><a href="claude://" data-handoff-provider="Claude">Claude</a><a href="https://gemini.google.com/app" target="_blank" rel="noopener noreferrer" data-handoff-provider="Gemini">Gemini</a><a href="deepseek://" data-handoff-provider="DeepSeek">DeepSeek</a>
       </div>
       <label class="handoff-field">Prompt to paste<textarea data-handoff-prompt readonly>{_escape(manual_prompt)}</textarea></label>
       <div class="handoff-actions"><button type="button" data-handoff-copy>Copy prompt</button></div>

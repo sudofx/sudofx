@@ -942,7 +942,7 @@ json.dump({
             self.assertIn(f'data-handoff-provider="{provider}"', page)
         self.assertIn('href="com.openai.chat://"', page)
         self.assertIn('href="claude://"', page)
-        self.assertIn('href="https://gemini.google.com/app"', page)
+        self.assertIn('href="https://gemini.google.com/app" target="_blank" rel="noopener noreferrer"', page)
         self.assertIn('href="deepseek://"', page)
         self.assertIn("temporary-chat=true&prompt=", page)
         self.assertIn("encodeURIComponent(handoffPrompt.value)", page)
