@@ -923,6 +923,9 @@ json.dump({
         self.assertIn('href="claude://"', page)
         self.assertIn('href="googleapp://robin"', page)
         self.assertIn('href="deepseek://"', page)
+        self.assertIn("temporary-chat=true&prompt=", page)
+        self.assertIn("encodeURIComponent(handoffPrompt.value)", page)
+        self.assertIn("Tap Send; if the draft is empty", page)
         self.assertIn("accepted_results_recent", page)
         self.assertIn("omitted_accepted_results_digest", page)
         self.assertNotIn('"accepted_results":', page)
@@ -932,7 +935,7 @@ json.dump({
         self.assertNotIn("Keep it here", page)
         self.assertIn("CURRENT OPERATOR AUTHORIZATION", page)
         self.assertIn("exactly one manual response", page)
-        self.assertIn("prompt copied and app opening", page)
+        self.assertIn("opening. Paste the copied prompt", page)
         # The report is a Python-generated JavaScript program. Newlines inside
         # this quoted packet must remain escaped in the emitted source or one
         # optional handoff control will break the entire authentication UI.

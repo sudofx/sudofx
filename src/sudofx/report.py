@@ -832,12 +832,21 @@ const selectHandoffProvider=(link)=>{{
   // Stop still blocks automation but does not make this one requested response
   // look unauthorized to the receiving intelligence.
   handoffPrompt.value='CURRENT OPERATOR AUTHORIZATION\\nThe authenticated operator explicitly selected '+handoffProvider+' for exactly one manual response to this packet. This authorizes the response only; it does not authorize durable mutation, continuous execution, or another model invocation. A prior Stop in the durable packet remains authoritative for those other actions.\\n\\n'+handoffBasePrompt;
+  // ChatGPT currently accepts an undocumented prompt parameter that can fill
+  // the composer, but it does not submit the message. Keep clipboard transport
+  // as the durable fallback and never infer equivalent parameters for vendors
+  // that publish only bare app handlers.
+  if(handoffProvider==='ChatGPT'){{
+    link.href='com.openai.chat://chatgpt.com/?temporary-chat=true&prompt='+encodeURIComponent(handoffPrompt.value);
+  }}
   document.querySelectorAll('[data-handoff-provider]').forEach(candidate=>candidate.setAttribute('aria-pressed',String(candidate===link)));
   // Start the clipboard write during the trusted tap that follows the app URI.
   // Awaiting it first can consume Safari's user activation and prevent iOS from
   // opening the destination. The visible prompt remains the manual fallback.
   copyText(handoffPrompt.value).catch(()=>{{handoffPrompt.focus();handoffPrompt.select();}});
-  handoffStatus.textContent=handoffProvider+' selected · prompt copied and app opening. Paste it into a new chat, then return with the complete response.';
+  handoffStatus.textContent=handoffProvider==='ChatGPT'
+    ?'ChatGPT opening with a draft when supported. Tap Send; if the draft is empty, paste the copied prompt.'
+    :handoffProvider+' opening. Paste the copied prompt into a new chat and send it.';
 }};
 if(ownerHandoff)ownerHandoff.addEventListener('click',()=>{{
   setOwnerMenu(false);

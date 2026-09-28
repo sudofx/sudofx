@@ -10,8 +10,13 @@ one paste, and one share.
 1. Run **Start sudofx Gauntlet** and choose ChatGPT, Claude, Gemini, or DeepSeek.
 2. The Shortcut downloads the current bounded packet, creates a fresh test ID
    and nonce, copies the sealed prompt, and opens a new vendor chat.
-3. Paste once and send. The vendor is instructed to return only the response
-   JSON, including exact packet evidence for all seven dimensions.
+3. Send the prompt. ChatGPT may open with the composer prefilled, but still
+   requires a Send tap; if its undocumented draft parameter stops working, paste
+   the copied prompt instead. Claude, Gemini, and DeepSeek currently receive the
+   prompt through the clipboard because their known iOS URI handlers do not
+   expose a verified text-bearing compose contract. The vendor is instructed to
+   return only the response JSON, including exact packet evidence for all seven
+   dimensions.
 4. Share the complete response text to **Send to sudofx**.
 5. The Shortcut dispatches the response through the serialized sudofx workflow.
    The workflow verifies the current packet digest and nonce, computes the
