@@ -442,6 +442,19 @@ def render(
         for item in semantic_criteria
         if isinstance(item, dict)
     )
+    semantic_reviewers = semantic_review.get("reviewers", {})
+    if not isinstance(semantic_reviewers, dict):
+        semantic_reviewers = {}
+    operator_review = semantic_reviewers.get("operator", {})
+    chatgpt_review = semantic_reviewers.get("chatgpt", {})
+    operator_review_status = (
+        str(operator_review.get("status", "pending")).upper()
+        if isinstance(operator_review, dict) else "PENDING"
+    )
+    chatgpt_review_status = (
+        str(chatgpt_review.get("status", "pending")).upper()
+        if isinstance(chatgpt_review, dict) else "PENDING"
+    )
     semantic_run = str(continuity_proof.get("artifact_run_id", ""))
     semantic_digest = str(continuity_proof.get("context_digest", ""))
     # The public page embeds only public-safe technical projection data. The
@@ -817,6 +830,8 @@ def render(
       <div class="quality-head"><b>Semantic review queue</b><span class="quality-verdict quality-uncertain" data-semantic-review-status>{_escape(str(continuity_proof.get("semantic_review_status", "pending")).upper())}</span></div>
       <div class="quality-grid" data-semantic-review-criteria>{semantic_rows or '<div><span>No review criteria published yet</span><strong class="quality-uncertain">PENDING</strong></div>'}</div>
       <div class="quality-metrics">
+        <span>You <b data-semantic-review-operator>{_escape(operator_review_status)}</b></span>
+        <span>ChatGPT <b data-semantic-review-chatgpt>{_escape(chatgpt_review_status)}</b></span>
         <span>Run <b data-semantic-review-run>{_escape(semantic_run or "—")}</b></span>
         <span>Context digest <b data-semantic-review-digest>{_escape((semantic_digest[:12] + "…") if semantic_digest else "—")}</b></span>
       </div>
@@ -1142,14 +1157,28 @@ if(semanticReviewSubmit)semanticReviewSubmit.addEventListener('click',async(even
   if(semanticReviewMessage)semanticReviewMessage.textContent='Binding review to authoritative SQLite evidence…';
   const originalLabel=semanticReviewSubmit.textContent;
   try{{
-    const result=await ownerRequest('/api/operate','POST',{{action:'semantic-review',review}});
-    semanticReviewSubmit.textContent='Submitted ✓';
-    if(semanticReviewMessage)semanticReviewMessage.textContent=(result.message||'Semantic review accepted.')+' Checking the live record…';
-    setTimeout(async()=>{{
-      await refreshExchange();
+    await ownerRequest('/api/operate','POST',{{action:'semantic-review',review}});
+    semanticReviewSubmit.textContent='Recording…';
+    if(semanticReviewMessage)semanticReviewMessage.textContent='Request accepted. Waiting for SQLite confirmation…';
+    let confirmed=false;
+    for(let attempt=0;attempt<15;attempt+=1){{
+      await new Promise(resolve=>setTimeout(resolve,2000));
+      const proof=await refreshExchange();
+      const operatorReview=proof&&proof.semantic_review&&proof.semantic_review.reviewers&&proof.semantic_review.reviewers.operator;
+      if(operatorReview&&String(operatorReview.status||'pending')!=='pending'){{
+        confirmed=true;
+        break;
+      }}
+    }}
+    if(confirmed){{
+      semanticReviewSubmit.textContent='Recorded ✓';
+      if(semanticReviewMessage)semanticReviewMessage.textContent='Recorded in authoritative SQLite.';
+      setTimeout(()=>{{semanticReviewSubmit.textContent=originalLabel;semanticReviewSubmit.disabled=false;}},1200);
+    }}else{{
       semanticReviewSubmit.textContent=originalLabel;
       semanticReviewSubmit.disabled=false;
-    }},1500);
+      if(semanticReviewMessage)semanticReviewMessage.textContent='Submitted, but SQLite confirmation is still pending. Live status will keep refreshing.';
+    }}
   }}catch(error){{
     if(semanticReviewMessage)semanticReviewMessage.textContent='Review failed: '+error.message;
     semanticReviewSubmit.textContent=originalLabel;
@@ -1298,7 +1327,7 @@ const refreshExchange=async()=>{{
       }}catch{{}}
     }}
     const runId=String(proof.artifact_run_id||'');
-    if(!runId||runId===exchange.dataset.artifactRunId)return;
+    if(!runId)return;
     exchange.dataset.artifactRunId=runId;
     const trial=proof.overnight_trial||{{}};
     const task=String(trial.task||'Read what was left from the earlier run, explain where the experiment stands, and suggest what should happen next without making up missing information.');
@@ -1347,6 +1376,13 @@ const refreshExchange=async()=>{{
       semanticReviewStatus.textContent=value;
       semanticReviewStatus.className='quality-verdict '+(value==='PASS'?'quality-pass':value==='FAIL'?'quality-fail':'quality-uncertain');
     }}
+    const reviewerStates=(proof.semantic_review&&proof.semantic_review.reviewers)||{{}};
+    const operatorState=String((reviewerStates.operator&&reviewerStates.operator.status)||'pending').toUpperCase();
+    const chatgptState=String((reviewerStates.chatgpt&&reviewerStates.chatgpt.status)||'pending').toUpperCase();
+    const operatorNode=document.querySelector('[data-semantic-review-operator]');
+    const chatgptNode=document.querySelector('[data-semantic-review-chatgpt]');
+    if(operatorNode)operatorNode.textContent=operatorState;
+    if(chatgptNode)chatgptNode.textContent=chatgptState;
     const semanticReviewRun=document.querySelector('[data-semantic-review-run]');
     const reviewRunId=String(proof.artifact_run_id||'');
     if(semanticReviewRun)semanticReviewRun.textContent=reviewRunId||'—';
@@ -1376,7 +1412,9 @@ const refreshExchange=async()=>{{
         return row;
       }}));
     }}
+    return proof;
   }}catch(error){{/* Keep the last known exchange visible if the disposable live view is briefly unavailable. */}}
+  return null;
 }};
 refreshObserver();
 refreshExchange();
