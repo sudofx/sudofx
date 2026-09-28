@@ -673,6 +673,9 @@ json.dump({
         # material. The technical view is present in the static artifact but must
         # remain hidden until the authenticated control service validates a session.
         self.assertLess(page.index("Latest exchange"), page.index("Technical view"))
+        self.assertIn("Stress matrix", page)
+        self.assertIn("data-exchange-matrix", page)
+        self.assertIn("data-exchange-coordinate", page)
         self.assertIn("CHECKING…", page)
         self.assertIn("Loading current status…", page)
         self.assertIn('data-fallback-state="CONTINUOUS"', page)

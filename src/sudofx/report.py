@@ -328,12 +328,29 @@ def _exchange_panel(proof: dict[str, object]) -> str:
     status = "LATEST"
     if cycle:
         status = f"TEST {cycle}"
+    matrix_cycle = trial.get("matrix_cycle")
+    matrix_size = trial.get("matrix_size")
+    coordinate = trial.get("coordinate", {})
+    if not isinstance(coordinate, dict):
+        coordinate = {}
+    matrix_progress = ""
+    if isinstance(matrix_cycle, int) and isinstance(matrix_size, int) and matrix_size > 0:
+        matrix_progress = f"{matrix_cycle}/{matrix_size} ({matrix_cycle / matrix_size * 100:.1f}%)"
+    coordinate_text = " · ".join(
+        str(coordinate.get(key, "")).strip()
+        for key in ("semantic_lens", "exposure", "pressure")
+        if str(coordinate.get(key, "")).strip()
+    )
 
     return f"""
       <section class="exchange" aria-label="Gemini exchange" data-artifact-run-id="{_escape(proof.get('artifact_run_id', ''))}">
         <div class="exchange-head">
           <div><span class="eyebrow">One AI to the next</span><h2>Latest exchange</h2></div>
           <span class="exchange-status" data-exchange-status>{_escape(status)}</span>
+        </div>
+        <div class="quality-metrics">
+          <span>Stress matrix <b data-exchange-matrix>{_escape(matrix_progress or '—')}</b></span>
+          <span>Coordinate <b data-exchange-coordinate>{_escape(coordinate_text or '—')}</b></span>
         </div>
 
         <div class="exchange-window exchange-question">
@@ -1162,6 +1179,18 @@ const refreshExchange=async()=>{{
     if(exchangeStatus){{
       exchangeStatus.textContent=trial.cycle?'TEST '+trial.cycle:'LATEST';
       exchangeStatus.className='exchange-status';
+    }}
+    const matrix=document.querySelector('[data-exchange-matrix]');
+    if(matrix){{
+      const current=Number(trial.matrix_cycle),size=Number(trial.matrix_size);
+      matrix.textContent=Number.isInteger(current)&&Number.isInteger(size)&&size>0
+        ?current+'/'+size+' ('+(current/size*100).toFixed(1)+'%)'
+        :'—';
+    }}
+    const coordinate=document.querySelector('[data-exchange-coordinate]');
+    if(coordinate){{
+      const point=trial.coordinate||{{}};
+      coordinate.textContent=[point.semantic_lens,point.exposure,point.pressure].filter(Boolean).join(' · ')||'—';
     }}
   }}catch(error){{/* Keep the last known exchange visible if the disposable live view is briefly unavailable. */}}
 }};
