@@ -36,7 +36,11 @@ from plugins.manual_handoff.scoring import (
     handoff_packet_digest,
     handoff_work_id,
 )
-from scripts.github_sudofx import latest_overnight_proof, main as github_main
+from scripts.github_sudofx import (
+    build_manual_evaluation_projection,
+    latest_overnight_proof,
+    main as github_main,
+)
 
 # These tests protect durable guarantees rather than implementation shape.
 # Temporary SQLite records prove replay across reopened processes without
@@ -910,6 +914,8 @@ json.dump({
         self.assertIn('["git", "rev-parse", "HEAD"]', overnight)
         self.assertIn('proof["artifact_commit"] = _checked_out_commit()', overnight)
         self.assertIn('LIVE_BRANCH = "sudofx-live"', adapter)
+        self.assertIn("manual_evaluation_projection_updated", adapter)
+        self.assertIn("A disposable observer-view", adapter)
         self.assertIn('"push", "--force"', adapter)
         self.assertIn("sudofx-live/live.json", report)
         self.assertNotIn("fetch('./continuity-proof.json?ts='", report)
@@ -1257,6 +1263,14 @@ json.dump({
         self.assertIn(response["test_id"], page)
         self.assertIn(second_response["test_id"], page)
         self.assertIn(packet["packet_digest"][:10], page)
+
+        projection = build_manual_evaluation_projection(self.kernel, "handoff-v1")
+        self.assertEqual(projection["total_tests"], 2)
+        self.assertEqual(projection["comparable_batch"]["tests"], 2)
+        self.assertEqual(projection["comparable_batch"]["vendors"], ["ChatGPT", "DeepSeek"])
+        self.assertEqual(projection["comparable_batch"]["score"], 14)
+        self.assertEqual(projection["comparable_batch"]["max_score"], 14)
+        self.assertNotIn("raw_response", json.dumps(projection))
 
         wrong_work = dict(response)
         wrong_work["work_id"] = "different-work"

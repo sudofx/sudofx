@@ -596,9 +596,24 @@ def main() -> int:
             raise RuntimeError(f"handoff evaluation was {receipt.status}: {receipt.reasons}")
         checkpoint()
         kernel = Kernel(Record(DATA))
-        publish_manual_evaluation_projection(
-            build_manual_evaluation_projection(kernel, selected_work_id)
-        )
+        try:
+            publish_manual_evaluation_projection(
+                build_manual_evaluation_projection(kernel, selected_work_id)
+            )
+        except Exception as error:
+            # The database commit is authoritative. A disposable observer-view
+            # failure must not make a successfully recorded evaluation look
+            # rejected or encourage the operator to replay the same response.
+            print(
+                json.dumps(
+                    {
+                        "manual_evaluation_projection_updated": False,
+                        "manual_evaluation_projection_error": str(error),
+                    },
+                    sort_keys=True,
+                ),
+                file=sys.stderr,
+            )
     if not args.publish_only and not args.prove_work and not args.prove_model and not args.prove_model_uncompressed and not args.prove_model_compressed and not args.prove_anthropic and not args.export_handoff and not args.prove_vacuum_recovery and not args.auto and not args.operator_transition and not args.record_handoff_evaluation:
         if not args.action or not args.key:
             parser.error("--action and --key are required for a mutation")
