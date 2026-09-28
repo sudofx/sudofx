@@ -21,6 +21,18 @@ does not create a new permission.
 Secrets never belong in either file; they remain in the provider's encrypted
 secret store.
 
+The Cloudflare Git build keeps the repository root as `/` and uses this deploy
+command:
+
+```sh
+npx wrangler deploy --config plugins/remote_operator/wrangler.jsonc
+```
+
+Keeping the path here beside the provider-specific configuration prevents the
+Git integration from depending on a retired plugin directory. A local deploy
+uses the same command, so Git builds and operator-initiated releases resolve the
+same manifest and preserve the existing `sudofx-control` Worker identity.
+
 ## Authority
 
 ```text

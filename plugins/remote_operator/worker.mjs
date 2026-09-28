@@ -262,7 +262,9 @@ async function callback(request, env, githubFetch) {
 
   // The browser receives only authenticated ciphertext in the URL fragment.
   // Fragments are not sent to Pages, referrers, proxies, or server logs. The
-  // public script keeps the encrypted envelope in origin-persistent localStorage so\n  // refreshes and new windows retain owner state; it still cannot recover the GitHub token.
+  // public script keeps the encrypted envelope in origin-persistent localStorage,
+  // so refreshes and new windows retain owner state. It still cannot recover the
+  // GitHub token sealed inside the envelope.
   const lifetime = Math.min(Number(token.expires_in || SESSION_SECONDS), SESSION_SECONDS);
   const envelope = await seal(
     {
