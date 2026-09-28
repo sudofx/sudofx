@@ -56,7 +56,11 @@ from sudofx.continuity import (
 )
 from sudofx.report import export_site
 from sudofx.handoff import build_handoff_packet, export_handoff_packet
-from plugins.manual_handoff.scoring import handoff_packet_digest, evaluate_handoff_response
+from plugins.manual_handoff.scoring import (
+    evaluate_handoff_response,
+    handoff_packet_digest,
+    handoff_work_id,
+)
 from sudofx.overnight import EXPERIMENT_STATE_KEY
 
 DATA = ROOT / "data" / "sudofx.sqlite"
@@ -363,7 +367,7 @@ def main() -> int:
     parser.add_argument("--auto", action="store_true")
     parser.add_argument("--operator-transition", choices=("start", "stop"))
     parser.add_argument("--record-handoff-evaluation", action="store_true")
-    parser.add_argument("--handoff-work-id", default=AUTO_HANDOFF_ID)
+    parser.add_argument("--handoff-work-id", default="")
     parser.add_argument(
         "--action", choices=("set", "delete", "work-create", "work-advance", "record-assessment", "work-complete")
     )
@@ -483,19 +487,21 @@ def main() -> int:
         kernel = Kernel(Record(DATA))
     if args.record_handoff_evaluation:
         raw_response = os.environ.get("HANDOFF_RESPONSE", "")
-        handoff_work_id = args.handoff_work_id.strip()
-        if not handoff_work_id:
-            parser.error("--handoff-work-id requires a non-empty work ID")
+        response_work_id = handoff_work_id(raw_response)
+        requested_work_id = args.handoff_work_id.strip()
+        if requested_work_id and requested_work_id != response_work_id:
+            raise ValueError("handoff workflow work ID does not match response work_id")
+        selected_work_id = requested_work_id or response_work_id
         packet = frozen_handoff_packet(
             handoff_packet_digest(raw_response),
             kernel,
-            handoff_work_id,
+            selected_work_id,
         )
         result = evaluate_handoff_response(raw_response, packet)
         context = kernel.context()
         receipt = kernel.submit(Proposal(
             str(uuid.uuid4()), context.revision,
-            (Operation("record_handoff_evaluation", handoff_work_id, result),),
+            (Operation("record_handoff_evaluation", selected_work_id, result),),
             "Authenticated Shortcut submitted one human-transported handoff evaluation",
         ))
         if receipt.status != "accepted":
