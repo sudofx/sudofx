@@ -589,6 +589,7 @@ json.dump({
                 "context_digest": "d" * 64,
                 "provider": "test-provider",
                 "model": "test-model",
+                "reviewer": "operator",
             },
         }
         receipt = self.kernel.submit(
