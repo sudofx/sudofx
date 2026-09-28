@@ -703,7 +703,10 @@ json.dump({
         self.assertIn("width:1px; height:1px", page)
         # The theme control owns the header's upper-right grid area. This guards
         # against regrouping it with the tagline, which made it drop on phones.
-        self.assertIn('grid-template-areas:"brand theme" "tagline tagline"', page)
+        self.assertIn('grid-template-areas:"brand actions" "tagline tagline"', page)
+        self.assertIn('class="masthead-actions"', page)
+        self.assertIn('aria-label="Open Settings"', page)
+        self.assertNotIn('>Operator sign in<', page)
         self.assertIn("grid-area:theme; justify-self:end", page)
         self.assertIn('class="brand" href="./"', page)
         self.assertIn('href="https://sudofx.github.io/wake/" target="_blank"', page)
