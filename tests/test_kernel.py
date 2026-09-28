@@ -1184,6 +1184,10 @@ json.dump({
         self.assertEqual(saved["raw_response"], json.dumps(response))
         page = render(self.kernel)
         self.assertIn("scorer v2", page)
+        self.assertIn("Manual tests recorded <b>1</b>", page)
+        self.assertIn("Recent manual test history", page)
+        self.assertIn(response["test_id"], page)
+        self.assertIn(packet["packet_digest"][:10], page)
 
         wrong_work = dict(response)
         wrong_work["work_id"] = "different-work"

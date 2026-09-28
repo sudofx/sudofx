@@ -171,11 +171,31 @@ def _work_cards(state: dict[str, object]) -> str:
                 ) if isinstance(criteria, dict) else ""
                 scorer_version = latest_handoff_evaluation.get("scorer_version")
                 scorer_label = f" · scorer v{_escape(scorer_version)}" if scorer_version is not None else " · legacy scorer"
+                recent_handoff_rows = []
+                for evaluation in reversed(handoff_evaluations[-8:]):
+                    if not isinstance(evaluation, dict):
+                        continue
+                    evaluation_scorer = evaluation.get("scorer_version")
+                    evaluation_scorer_label = (
+                        f"v{evaluation_scorer}" if evaluation_scorer is not None else "legacy"
+                    )
+                    digest = str(evaluation.get("packet_digest", ""))
+                    digest_label = digest[:10] + "…" if len(digest) > 10 else digest
+                    recent_handoff_rows.append(
+                        f'<div class="quality-provenance">'
+                        f'{_escape(evaluation.get("vendor", ""))} · '
+                        f'{int(evaluation.get("score", 0))}/7 · '
+                        f'{_escape(evaluation.get("test_id", ""))} · '
+                        f'scorer {_escape(evaluation_scorer_label)} · '
+                        f'packet {_escape(digest_label)}</div>'
+                    )
                 handoff_evaluation_html = f"""
                   <div class="quality-block">
                     <div class="quality-head"><b>Manual handoff evaluation</b><span class="quality-verdict quality-{'pass' if passed == 7 else 'uncertain'}">{passed}/7</span></div>
                     <div class="quality-grid">{criteria_html}</div>
                     <div class="quality-provenance">{_escape(latest_handoff_evaluation.get('vendor', ''))} · test {_escape(latest_handoff_evaluation.get('test_id', ''))}{scorer_label}</div>
+                    <div class="quality-metrics"><span>Manual tests recorded <b>{len(handoff_evaluations)}</b></span></div>
+                    <div class="work-section"><b>Recent manual test history</b>{''.join(recent_handoff_rows)}</div>
                   </div>
                 """
         constraints_html = "".join(f"<li>{_escape(item)}</li>" for item in constraints)
