@@ -189,12 +189,37 @@ def _work_cards(state: dict[str, object]) -> str:
                         f'scorer {_escape(evaluation_scorer_label)} · '
                         f'packet {_escape(digest_label)}</div>'
                     )
+                latest_digest = latest_handoff_evaluation.get("packet_digest")
+                latest_scorer = latest_handoff_evaluation.get("scorer_version")
+                comparable = [
+                    item for item in handoff_evaluations
+                    if isinstance(item, dict)
+                    and item.get("packet_digest") == latest_digest
+                    and item.get("scorer_version") == latest_scorer
+                ]
+                comparable_vendors = {
+                    str(item.get("vendor", "")).strip()
+                    for item in comparable
+                    if str(item.get("vendor", "")).strip()
+                }
+                comparable_scores = [
+                    int(item.get("score", 0))
+                    for item in comparable
+                    if isinstance(item.get("score"), int)
+                ]
+                batch_score = (
+                    f"{sum(comparable_scores)}/{len(comparable_scores) * 7}"
+                    if comparable_scores else "0/0"
+                )
                 handoff_evaluation_html = f"""
                   <div class="quality-block">
                     <div class="quality-head"><b>Manual handoff evaluation</b><span class="quality-verdict quality-{'pass' if passed == 7 else 'uncertain'}">{passed}/7</span></div>
                     <div class="quality-grid">{criteria_html}</div>
                     <div class="quality-provenance">{_escape(latest_handoff_evaluation.get('vendor', ''))} · test {_escape(latest_handoff_evaluation.get('test_id', ''))}{scorer_label}</div>
-                    <div class="quality-metrics"><span>Manual tests recorded <b>{len(handoff_evaluations)}</b></span></div>
+                    <div class="quality-metrics">
+                      <span>Manual tests recorded <b>{len(handoff_evaluations)}</b></span>
+                      <span>Comparable batch <b>{len(comparable)} tests · {len(comparable_vendors)} vendors · {batch_score}</b></span>
+                    </div>
                     <div class="work-section"><b>Recent manual test history</b>{''.join(recent_handoff_rows)}</div>
                   </div>
                 """

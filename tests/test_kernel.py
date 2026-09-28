@@ -1182,11 +1182,27 @@ json.dump({
         self.assertEqual(saved["scorer_version"], 2)
         self.assertIn("visible COMPLETE JSON PACKET", saved["score_kind"])
         self.assertEqual(saved["raw_response"], json.dumps(response))
+        second_response = dict(response)
+        second_response["test_id"] = "UUID-333333"
+        second_response["nonce"] = "HANDOFF-UUID-333333"
+        second_response["vendor"] = "DeepSeek"
+        second_result = evaluate_handoff_response(json.dumps(second_response), packet)
+        second_receipt = self.kernel.submit(
+            Proposal(
+                "record-second-handoff-evaluation",
+                2,
+                (Operation("record_handoff_evaluation", "handoff-v1", second_result),),
+            )
+        )
+        self.assertEqual(second_receipt.status, "accepted")
+
         page = render(self.kernel)
         self.assertIn("scorer v2", page)
-        self.assertIn("Manual tests recorded <b>1</b>", page)
+        self.assertIn("Manual tests recorded <b>2</b>", page)
+        self.assertIn("Comparable batch <b>2 tests · 2 vendors · 14/14</b>", page)
         self.assertIn("Recent manual test history", page)
         self.assertIn(response["test_id"], page)
+        self.assertIn(second_response["test_id"], page)
         self.assertIn(packet["packet_digest"][:10], page)
 
         wrong_work = dict(response)
