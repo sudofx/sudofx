@@ -7,6 +7,7 @@ on:
       - 'src/**'
       - 'tests/**'
       - 'scripts/**'
+      - 'plugins/**'
       - 'pyproject.toml'
       - '.github/workflows/ci.yml'
       - '.github/workflows/sudofx.yml'
@@ -17,6 +18,7 @@ on:
       - 'src/**'
       - 'tests/**'
       - 'scripts/**'
+      - 'plugins/**'
       - 'pyproject.toml'
       - '.github/workflows/**'
 
@@ -38,3 +40,5 @@ jobs:
           python-version: '3.13'
       - name: Run fast unit and sanity checks
         run: PYTHONPATH=src python -m unittest discover -s tests -v
+      - name: Verify remote operator plugin contracts
+        run: node --test plugins/remote_operator/worker.test.mjs

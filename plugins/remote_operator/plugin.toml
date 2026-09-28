@@ -1,0 +1,40 @@
+# sudofx plugin manifest
+# Human-readable and intentionally boring: portable metadata should survive
+# runtimes, vendors, and deployment adapters.
+
+[plugin]
+id = "remote_operator"
+name = "Remote Operator"
+version = "0.1.0"
+kind = "integration"
+entrypoint = "worker.mjs"
+description = "Authenticated, removable remote access to a bounded set of sudofx operator capabilities."
+
+[compatibility]
+sudofx = ">=0.1.0"
+
+[authority]
+owns_durable_state = false
+writes_database_directly = false
+may_bypass_governance = false
+
+[permissions]
+github_actions = "read-write"
+github_contents = "read"
+network = ["github.com", "api.github.com"]
+
+[configuration]
+deployment = "wrangler.jsonc"
+secrets = ["GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET", "SESSION_SECRET"]
+
+[capabilities]
+supported = [
+  "start",
+  "stop",
+  "backup",
+  "verify",
+  "prove-work",
+  "prove-model",
+  "export-handoff",
+  "storage-diagnostics",
+]

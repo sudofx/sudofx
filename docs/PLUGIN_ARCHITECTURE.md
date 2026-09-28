@@ -51,11 +51,12 @@ sudofx/
   core/
   plugins/
     manual_handoff/
+    remote_operator/
     wake/
     <future-plugin>/
 ```
 
-The top-level `plugins/` boundary is now real, beginning with the development-only `manual_handoff` extension. The runtime API remains intentionally undecided. Preserve the **boundary**, not premature implementation details.
+The top-level `plugins/` boundary is now real. `manual_handoff` contains development-only scoring/transport logic, while `remote_operator` contains the removable authenticated control surface used during development and operations. Each plugin begins with a human-readable `plugin.toml` manifest; deployment-specific configuration remains text alongside the plugin. Plugins may request capabilities, but configuration may only narrow authority granted by code/governance. Neither plugin owns durable truth. The general runtime API remains intentionally small and may evolve as more plugins prove the contract.
 
 ## North-star test
 

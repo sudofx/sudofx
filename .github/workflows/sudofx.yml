@@ -65,6 +65,8 @@ jobs:
         # Tests run before any stateful action. A broken implementation must not
         # be allowed to append history merely because the workflow was dispatched.
         run: PYTHONPATH=src python -m unittest discover -s tests -v
+      - name: Verify remote operator plugin contracts
+        run: node --test plugins/remote_operator/worker.test.mjs
       - name: Continue current milestone automatically
         # Observer mode: one stable command handles the next safe milestone step.
         # The operator should not have to carry work IDs or long context between devices.

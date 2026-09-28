@@ -43,7 +43,7 @@ Implemented and exercised:
 - sequential workflow concurrency
 - visible stop-on-failure behavior
 - local recovery runner
-- owner-authenticated Start/Stop controls through a separate Cloudflare Worker
+- owner-authenticated Start/Stop controls through a separate remote operator plugin
 - phone-first observer UI
 - handoff export artifacts for bounded continuity experiments
 
@@ -74,8 +74,8 @@ Gemini / other provider
 GitHub Pages
   └─ derived observer projection
 
-Cloudflare control worker
-  └─ narrow authenticated Start/Stop control
+remote operator plugin
+  └─ narrow authenticated remote operator capabilities
 ```
 
 Only the SQLite record is operational truth.
@@ -165,16 +165,16 @@ Signed-in owner status is sourced from the confidential control service and outr
 
 The public Pages artifact never receives GitHub credentials.
 
-A separate Cloudflare Worker:
+A separate remote operator plugin:
 
 - performs GitHub OAuth
 - verifies the configured owner identity
 - stores no authoritative sudofx work state
-- can only inspect, enable, disable, dispatch, or cancel `prove-model.yml`
+- can only invoke an explicit allowlist of operator/proof capabilities
 - disables the workflow before cancelling active runs so Stop closes the successor race
 - enables the workflow before dispatching one bootstrap so Start creates one chain
 
-See [control-worker/README.md](control-worker/README.md).
+See [plugins/remote_operator/README.md](plugins/remote_operator/README.md).
 
 ## Database-first storage
 
@@ -197,7 +197,7 @@ content must be treated as public data.
 src/sudofx/             kernel, record, governance, continuity, reporting
 scripts/                provider adapters, GitHub runtime, recovery runner
 .github/workflows/      governed cloud execution and continuation
-control-worker/         confidential owner-authenticated control boundary
+plugins/remote_operator/         confidential owner-authenticated control boundary
 tests/                  invariant and failure-boundary proofs
 plugins/                optional development and application extensions
 site/                   generated public projection
