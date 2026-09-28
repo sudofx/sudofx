@@ -859,6 +859,8 @@ json.dump({
 
         self.assertIn("publish_live_projection", overnight)
         self.assertNotIn("cloud.export_site(", overnight)
+        self.assertIn('["git", "rev-parse", "HEAD"]', overnight)
+        self.assertIn('proof["artifact_commit"] = _checked_out_commit()', overnight)
         self.assertIn('LIVE_BRANCH = "sudofx-live"', adapter)
         self.assertIn('"push", "--force"', adapter)
         self.assertIn("sudofx-live/live.json", report)

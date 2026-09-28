@@ -21,6 +21,7 @@ import argparse
 import hashlib
 import json
 import os
+import subprocess
 import sys
 import tempfile
 import uuid
@@ -38,6 +39,22 @@ from sudofx.overnight import (
 from sudofx.providers import CommandIntelligence, ProviderTemporaryError
 from sudofx.record import Record
 from sudofx.storage import GENESIS_HASH, canonical_json
+
+
+def _checked_out_commit() -> str:
+    """Identify the immutable source commit that actually executed this cycle."""
+    root = Path(__file__).resolve().parents[1]
+    result = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    commit = result.stdout.strip()
+    if not commit:
+        raise RuntimeError("could not identify checked-out runtime commit")
+    return commit
 
 
 def _digest_context(context: Context) -> str:
@@ -448,7 +465,11 @@ def main() -> int:
     repository = os.environ.get("GITHUB_REPOSITORY", "sudofx/sudofx")
     run_id = os.environ.get("GITHUB_RUN_ID", "")
     proof["artifact_run_id"] = run_id
-    proof["artifact_commit"] = os.environ.get("GITHUB_SHA", "")
+    # workflow_dispatch reports the current branch SHA even when actions/checkout
+    # intentionally runs an immutable runtime_ref. Provenance must name the code
+    # that actually executed, not the commit that happened to be at master when
+    # the successor was dispatched.
+    proof["artifact_commit"] = _checked_out_commit()
 
     # Persist only the observation after the model boundary has proved source
     # authority remained unchanged. This is the handoff residue the next fresh
