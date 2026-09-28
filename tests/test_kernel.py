@@ -1168,6 +1168,7 @@ json.dump({
             "test_id": "UUID-654321",
             "nonce": "HANDOFF-UUID-654321",
             "vendor": "ChatGPT",
+            "work_id": packet["work_id"],
             "packet_digest": packet["packet_digest"],
             "answers": {
                 dimension: {"answer": dimension, "evidence": evidence}
