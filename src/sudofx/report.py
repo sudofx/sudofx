@@ -356,8 +356,21 @@ def render(
             "SUDOFX MANUAL CONTINUITY TEST\n"
             "You are a fresh intelligence with no prior conversation, memory, files, tools, or hidden context.\n"
             "Use only the bounded durable packet below. Treat digests as unreadable commitments, not readable history.\n"
-            "Return exactly these labeled sections: objective, recovered_history, current_frontier, next_action, evidence_vs_inference.\n"
             "Do not claim you performed work or inspected anything outside the packet.\n\n"
+            "TRANSPORT METADATA\n"
+            "vendor: __SUDOFX_VENDOR__\n"
+            "test_id: __SUDOFX_TEST_ID__\n"
+            "nonce: __SUDOFX_NONCE__\n"
+            f"work_id: {manual_packet['work_id']}\n"
+            f"packet_digest: {manual_packet['packet_digest']}\n\n"
+            "Return only one JSON object. Do not use Markdown fences or add prose before or after it.\n"
+            "The object must contain exactly these top-level fields: test_id, nonce, vendor, work_id, packet_digest, answers.\n"
+            "Copy the transport metadata above exactly into those fields.\n"
+            "answers must contain exactly: objective_fidelity, authority_fidelity, history_fidelity, constraint_fidelity, frontier_fidelity, epistemic_discipline, transfer_usability.\n"
+            "Each answer must be an object with non-empty answer and evidence fields.\n"
+            "Every evidence value must be an exact quote of at least 8 characters from the packet below.\n"
+            "If the packet does not support a claim, say that in answer and quote packet text that establishes the limit.\n\n"
+            "COMPLETE JSON PACKET\n"
             + json.dumps(manual_packet, indent=2, sort_keys=True)
         )
     except ValueError:
@@ -910,13 +923,24 @@ if(ownerBackup)ownerBackup.addEventListener('click',(event)=>operateOwnerControl
 const copyText=async(value)=>{{
   await navigator.clipboard.writeText(value);
 }};
+const freshHandoffId=()=>{{
+  const words=new Uint32Array(1);
+  crypto.getRandomValues(words);
+  return 'UUID-'+String(words[0]%1000000).padStart(6,'0');
+}};
 const selectHandoffProvider=(link)=>{{
   handoffProvider=link.dataset.handoffProvider||'';
+  const testId=freshHandoffId();
+  const nonce='HANDOFF-'+testId;
+  const transportPrompt=handoffBasePrompt
+    .replaceAll('__SUDOFX_VENDOR__',handoffProvider)
+    .replaceAll('__SUDOFX_TEST_ID__',testId)
+    .replaceAll('__SUDOFX_NONCE__',nonce);
   // Selecting a destination is a fresh authenticated operator action. Carry
   // that narrow authority with the human-transported packet so a prior durable
   // Stop still blocks automation but does not make this one requested response
   // look unauthorized to the receiving intelligence.
-  handoffPrompt.value='CURRENT OPERATOR AUTHORIZATION\\nThe authenticated operator explicitly selected '+handoffProvider+' for exactly one manual response to this packet. This authorizes the response only; it does not authorize durable mutation, continuous execution, or another model invocation. A prior Stop in the durable packet remains authoritative for those other actions.\\n\\n'+handoffBasePrompt;
+  handoffPrompt.value='CURRENT OPERATOR AUTHORIZATION\\nThe authenticated operator explicitly selected '+handoffProvider+' for exactly one manual response to this packet. This authorizes the response only; it does not authorize durable mutation, continuous execution, or another model invocation. A prior Stop in the durable packet remains authoritative for those other actions.\\n\\n'+transportPrompt;
   // ChatGPT currently accepts an undocumented prompt parameter that can fill
   // the composer, but it does not submit the message. Keep clipboard transport
   // as the durable fallback and never infer equivalent parameters for vendors

@@ -965,6 +965,17 @@ json.dump({
         self.assertIn("CURRENT OPERATOR AUTHORIZATION", page)
         self.assertIn("exactly one manual response", page)
         self.assertIn("opening. Paste the copied prompt", page)
+        self.assertIn("Return only one JSON object", page)
+        self.assertIn("__SUDOFX_VENDOR__", page)
+        self.assertIn("__SUDOFX_TEST_ID__", page)
+        self.assertIn("__SUDOFX_NONCE__", page)
+        self.assertIn("objective_fidelity", page)
+        self.assertIn("authority_fidelity", page)
+        self.assertIn("epistemic_discipline", page)
+        self.assertIn("transfer_usability", page)
+        self.assertIn("crypto.getRandomValues", page)
+        self.assertIn("const nonce='HANDOFF-'+testId", page)
+        self.assertNotIn("Return exactly these labeled sections", page)
         # The response never enters a URL or persistent browser storage. The
         # fragment carries intent only; the clipboard supplies transient text
         # after an authenticated user gesture.
