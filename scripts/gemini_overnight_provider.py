@@ -19,9 +19,33 @@ import json
 import os
 import re
 import sys
+import time
 import urllib.error
 import urllib.request
 from typing import Any
+
+
+def _request_json(request: urllib.request.Request) -> dict[str, Any]:
+    """Call Gemini with bounded retries for transient network/provider failures."""
+    delays = (0, 2, 5)
+    last_error: BaseException | None = None
+    for attempt, delay in enumerate(delays, start=1):
+        if delay:
+            time.sleep(delay)
+        try:
+            with urllib.request.urlopen(request, timeout=45) as response:
+                return json.loads(response.read().decode("utf-8"))
+        except urllib.error.HTTPError as error:
+            detail = error.read().decode("utf-8", errors="replace")[:1000]
+            if error.code not in {408, 429, 500, 502, 503, 504} or attempt == len(delays):
+                raise RuntimeError(f"Gemini API HTTP {error.code}: {detail}") from error
+            last_error = error
+        except (urllib.error.URLError, TimeoutError) as error:
+            if attempt == len(delays):
+                reason = getattr(error, "reason", str(error))
+                raise RuntimeError(f"Gemini API transport failure after {attempt} attempts: {reason}") from error
+            last_error = error
+    raise RuntimeError(f"Gemini API transient failure: {last_error}")
 
 
 def _bounded_work(context: dict[str, Any]) -> tuple[str, dict[str, Any], dict[str, Any]]:
@@ -135,14 +159,7 @@ def main() -> int:
         headers={"Content-Type": "application/json", "x-goog-api-key": api_key},
         method="POST",
     )
-    try:
-        with urllib.request.urlopen(request, timeout=80) as response:
-            payload = json.loads(response.read().decode("utf-8"))
-    except urllib.error.HTTPError as error:
-        detail = error.read().decode("utf-8", errors="replace")[:1000]
-        raise RuntimeError(f"Gemini API HTTP {error.code}: {detail}") from error
-    except urllib.error.URLError as error:
-        raise RuntimeError(f"Gemini API transport failure: {error.reason}") from error
+    payload = _request_json(request)
 
     semantic = _semantic_output(_extract_text(payload))
     current_obligations = work.get("open_obligations", [])
