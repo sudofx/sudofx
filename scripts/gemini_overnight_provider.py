@@ -25,6 +25,21 @@ import urllib.request
 from typing import Any
 
 
+class RecoverableProviderFailure(RuntimeError):
+    """Provider/transport/response problem that a later fresh cycle may recover from."""
+
+
+class QuotaExhausted(RuntimeError):
+    """Confirmed API quota exhaustion; the continuous runner must stop."""
+
+
+def _quota_exhausted(detail: str) -> bool:
+    lowered = detail.lower()
+    return "resource_exhausted" in lowered or (
+        "quota" in lowered and any(token in lowered for token in ("exceed", "exhaust", "limit"))
+    )
+
+
 def _request_json(request: urllib.request.Request) -> dict[str, Any]:
     """Call Gemini with bounded retries for transient network/provider failures."""
     delays = (0, 2, 5)
@@ -37,15 +52,22 @@ def _request_json(request: urllib.request.Request) -> dict[str, Any]:
                 return json.loads(response.read().decode("utf-8"))
         except urllib.error.HTTPError as error:
             detail = error.read().decode("utf-8", errors="replace")[:1000]
-            if error.code not in {408, 429, 500, 502, 503, 504} or attempt == len(delays):
-                raise RuntimeError(f"Gemini API HTTP {error.code}: {detail}") from error
-            last_error = error
+            if error.code == 429 and _quota_exhausted(detail):
+                raise QuotaExhausted(f"Gemini API quota exhausted: {detail}") from error
+            if error.code in {408, 429, 500, 502, 503, 504} and attempt < len(delays):
+                last_error = error
+                continue
+            raise RecoverableProviderFailure(
+                f"Gemini API HTTP {error.code} after {attempt} attempt(s): {detail}"
+            ) from error
         except (urllib.error.URLError, TimeoutError) as error:
             if attempt == len(delays):
                 reason = getattr(error, "reason", str(error))
-                raise RuntimeError(f"Gemini API transport failure after {attempt} attempts: {reason}") from error
+                raise RecoverableProviderFailure(
+                    f"Gemini API transport failure after {attempt} attempts: {reason}"
+                ) from error
             last_error = error
-    raise RuntimeError(f"Gemini API transient failure: {last_error}")
+    raise RecoverableProviderFailure(f"Gemini API transient failure: {last_error}")
 
 
 def _bounded_work(context: dict[str, Any]) -> tuple[str, dict[str, Any], dict[str, Any]]:
@@ -161,7 +183,12 @@ def main() -> int:
     )
     payload = _request_json(request)
 
-    semantic = _semantic_output(_extract_text(payload))
+    try:
+        semantic = _semantic_output(_extract_text(payload))
+    except ValueError as error:
+        raise RecoverableProviderFailure(
+            f"Gemini response was unusable for this cycle: {error}"
+        ) from error
     current_obligations = work.get("open_obligations", [])
     if not isinstance(current_obligations, list) or not all(isinstance(item, str) for item in current_obligations):
         raise ValueError("work open_obligations must be a list of strings")
@@ -198,4 +225,11 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    except QuotaExhausted as error:
+        print(f"API_QUOTA_EXHAUSTED: {error}", file=sys.stderr)
+        raise SystemExit(78)
+    except RecoverableProviderFailure as error:
+        print(f"RECOVERABLE_PROVIDER_FAILURE: {error}", file=sys.stderr)
+        raise SystemExit(75)
