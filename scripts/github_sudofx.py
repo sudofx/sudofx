@@ -51,7 +51,8 @@ from sudofx.continuity import (
     run_work_continuity_probe,
 )
 from sudofx.report import export_site
-from sudofx.handoff import export_handoff_packet
+from sudofx.handoff import build_handoff_packet, export_handoff_packet
+from sudofx.gauntlet import score_gauntlet_response
 from sudofx.overnight import EXPERIMENT_STATE_KEY
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -283,6 +284,7 @@ def main() -> int:
     parser.add_argument("--prove-vacuum-recovery", action="store_true")
     parser.add_argument("--auto", action="store_true")
     parser.add_argument("--operator-transition", choices=("start", "stop"))
+    parser.add_argument("--record-gauntlet", action="store_true")
     parser.add_argument(
         "--action", choices=("set", "delete", "work-create", "work-advance", "record-assessment", "work-complete")
     )
@@ -400,7 +402,21 @@ def main() -> int:
             raise RuntimeError(f"operator {args.operator_transition} transition was {receipt.status}")
         checkpoint()
         kernel = Kernel(Record(DATA))
-    if not args.publish_only and not args.prove_work and not args.prove_model and not args.prove_model_uncompressed and not args.prove_model_compressed and not args.prove_anthropic and not args.export_handoff and not args.prove_vacuum_recovery and not args.auto and not args.operator_transition:
+    if args.record_gauntlet:
+        raw_response = os.environ.get("GAUNTLET_RESPONSE", "")
+        packet = build_handoff_packet(kernel, AUTO_HANDOFF_ID)
+        result = score_gauntlet_response(raw_response, packet)
+        context = kernel.context()
+        receipt = kernel.submit(Proposal(
+            str(uuid.uuid4()), context.revision,
+            (Operation("record_gauntlet", AUTO_HANDOFF_ID, result),),
+            "Authenticated Shortcut submitted one human-transported gauntlet response",
+        ))
+        if receipt.status != "accepted":
+            raise RuntimeError(f"gauntlet result was {receipt.status}: {receipt.reasons}")
+        checkpoint()
+        kernel = Kernel(Record(DATA))
+    if not args.publish_only and not args.prove_work and not args.prove_model and not args.prove_model_uncompressed and not args.prove_model_compressed and not args.prove_anthropic and not args.export_handoff and not args.prove_vacuum_recovery and not args.auto and not args.operator_transition and not args.record_gauntlet:
         if not args.action or not args.key:
             parser.error("--action and --key are required for a mutation")
         context = kernel.context()

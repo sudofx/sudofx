@@ -30,6 +30,7 @@ from sudofx.continuity import (
 )
 from sudofx.report import export_site, render
 from sudofx.handoff import build_handoff_packet, export_handoff_packet
+from sudofx.gauntlet import DIMENSIONS, score_gauntlet_response
 from scripts.github_sudofx import main as github_main
 
 # These tests protect durable guarantees rather than implementation shape.
@@ -1093,6 +1094,41 @@ json.dump({
         self.assertIn("Current work", page)
         self.assertIn("Visible work", page)
         self.assertNotIn("Create or advance", page)
+
+    def test_gauntlet_response_is_bound_scored_and_governed(self) -> None:
+        """A shared answer must match the packet and cite it before becoming evidence."""
+        self.kernel.submit(
+            Proposal(
+                "create-gauntlet",
+                0,
+                (Operation("create_work", "handoff-v1", {"objective": "Portable continuity", "constraints": []}),),
+            )
+        )
+        packet = build_handoff_packet(self.kernel, "handoff-v1")
+        evidence = packet["work"]["objective"]
+        response = {
+            "test_id": "UUID-123456",
+            "nonce": "GAUNTLET-UUID-123456",
+            "vendor": "ChatGPT",
+            "packet_digest": packet["packet_digest"],
+            "answers": {
+                dimension: {"answer": f"Grounded answer for {dimension}", "evidence": evidence}
+                for dimension in DIMENSIONS
+            },
+        }
+        result = score_gauntlet_response(json.dumps(response), packet)
+        self.assertEqual(result["score"], 7)
+        receipt = self.kernel.submit(
+            Proposal("record-gauntlet", 1, (Operation("record_gauntlet", "handoff-v1", result),))
+        )
+        self.assertEqual(receipt.status, "accepted")
+        saved = self.kernel.context().state["work:handoff-v1"]["gauntlet_runs"][0]
+        self.assertEqual(saved["test_id"], response["test_id"])
+        self.assertEqual(saved["raw_response"], json.dumps(response))
+
+        response["packet_digest"] = "stale"
+        with self.assertRaisesRegex(ValueError, "different packet"):
+            score_gauntlet_response(json.dumps(response), packet)
 
 
 if __name__ == "__main__":

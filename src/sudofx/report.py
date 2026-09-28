@@ -20,7 +20,7 @@ import html
 import json
 from pathlib import Path
 
-from .handoff import HANDOFF_WORK_ID, build_handoff_packet
+from .handoff import HANDOFF_WORK_ID, build_handoff_packet, export_handoff_packet
 from .kernel import Kernel
 from .models import Context
 
@@ -135,6 +135,25 @@ def _work_cards(state: dict[str, object]) -> str:
                 <div class="quality-provenance">{_escape(provider)} · {_escape(model)}{f' · run {_escape(run_id)}' if run_id else ''}</div>
               </div>
             """
+        gauntlet_runs = work.get("gauntlet_runs", [])
+        gauntlet_html = ""
+        if isinstance(gauntlet_runs, list) and gauntlet_runs:
+            latest_gauntlet = gauntlet_runs[-1]
+            if isinstance(latest_gauntlet, dict):
+                criteria = latest_gauntlet.get("criteria", {})
+                passed = int(latest_gauntlet.get("score", 0))
+                criteria_html = "".join(
+                    f'<div><span>{_escape(key.replace("_", " "))}</span>'
+                    f'<strong class="quality-{_escape(result)}">{_escape(str(result).upper())}</strong></div>'
+                    for key, result in criteria.items()
+                ) if isinstance(criteria, dict) else ""
+                gauntlet_html = f"""
+                  <div class="quality-block">
+                    <div class="quality-head"><b>Continuity Gauntlet</b><span class="quality-verdict quality-{'pass' if passed == 7 else 'uncertain'}">{passed}/7</span></div>
+                    <div class="quality-grid">{criteria_html}</div>
+                    <div class="quality-provenance">{_escape(latest_gauntlet.get('vendor', ''))} · test {_escape(latest_gauntlet.get('test_id', ''))}</div>
+                  </div>
+                """
         constraints_html = "".join(f"<li>{_escape(item)}</li>" for item in constraints)
         results_html = "".join(f"<li>{_escape(item)}</li>" for item in results)
         obligations_html = "".join(f"<li>{_escape(item)}</li>" for item in obligations)
@@ -149,6 +168,7 @@ def _work_cards(state: dict[str, object]) -> str:
               {f'<div class="work-section"><b>Accepted results</b><ol>{results_html}</ol></div>' if results else ''}
               {f'<div class="work-section"><b>Open obligations</b><ul>{obligations_html}</ul></div>' if obligations else ''}
               {assessment_html}
+              {gauntlet_html}
               {f'<div class="final-result"><b>Final result</b><p>{_escape(final)}</p></div>' if final else ''}
             </article>
             """
@@ -1012,6 +1032,13 @@ def export_site(
         json.dumps(kernel.record.health(), indent=2, sort_keys=True),
         encoding="utf-8",
     )
+    try:
+        # The Shortcut fetches this replaceable, public-safe projection. The
+        # packet is never read back as authority; submission is checked against
+        # a freshly reconstructed packet before SQLite accepts the evidence.
+        export_handoff_packet(kernel, destination, HANDOFF_WORK_ID)
+    except ValueError:
+        pass
     (destination / ".nojekyll").write_text("", encoding="utf-8")
     # The local operator loop must make its continuation decision from the same
     # verified artifact the human sees, never from workflow success alone. A

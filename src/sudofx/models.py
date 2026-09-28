@@ -63,7 +63,7 @@ class Operation:
     construct one freely; nothing changes until Kernel.submit evaluates the
     complete Proposal and appends one accepted or rejected event atomically.
     """
-    action: Literal["set", "delete", "create_work", "advance_work", "record_assessment", "complete_work"]
+    action: Literal["set", "delete", "create_work", "advance_work", "record_assessment", "record_gauntlet", "complete_work"]
     key: str
     value: JsonValue = None
 

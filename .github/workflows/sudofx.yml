@@ -14,7 +14,7 @@ on:
       action:
         description: Verify only, or run one governed operation
         type: choice
-        options: [auto, verify, backup, operator-stop, prove-work, prove-model, export-handoff, work-create, work-advance, record-assessment, work-complete, set, delete]
+        options: [auto, verify, backup, operator-stop, gauntlet-submit, prove-work, prove-model, export-handoff, work-create, work-advance, record-assessment, work-complete, set, delete]
         default: auto
         required: true
       key:
@@ -30,6 +30,10 @@ on:
         description: Gemini model ID for prove-model only
         type: string
         default: 'gemini-3.5-flash-lite'
+        required: false
+      response:
+        description: Exact JSON response returned by a Continuity Gauntlet vendor
+        type: string
         required: false
 
 permissions:
@@ -71,7 +75,7 @@ jobs:
       - name: Apply governed operation
         # Only a manual dispatch enters the mutation path. The adapter restores
         # and verifies sudofx-state, appends one receipt, checkpoints, and renders.
-        if: github.event_name == 'workflow_dispatch' && inputs.action != 'auto' && inputs.action != 'verify' && inputs.action != 'backup' && inputs.action != 'prove-work' && inputs.action != 'prove-model' && inputs.action != 'export-handoff' && inputs.action != 'operator-stop'
+        if: github.event_name == 'workflow_dispatch' && inputs.action != 'auto' && inputs.action != 'verify' && inputs.action != 'backup' && inputs.action != 'prove-work' && inputs.action != 'prove-model' && inputs.action != 'export-handoff' && inputs.action != 'operator-stop' && inputs.action != 'gauntlet-submit'
         env:
           ACTION: ${{ inputs.action }}
           KEY: ${{ inputs.key }}
@@ -83,6 +87,14 @@ jobs:
         # concurrency then ensures any later Start records after this event.
         if: github.event_name == 'workflow_dispatch' && inputs.action == 'operator-stop'
         run: PYTHONPATH=src python scripts/github_sudofx.py --operator-transition stop
+      - name: Record Continuity Gauntlet response
+        # The Shortcut transports untrusted vendor text. The adapter binds it to
+        # the current packet, calculates the score, and submits one governed
+        # operation; the response never becomes shell syntax or direct state.
+        if: github.event_name == 'workflow_dispatch' && inputs.action == 'gauntlet-submit'
+        env:
+          GAUNTLET_RESPONSE: ${{ inputs.response }}
+        run: PYTHONPATH=src python scripts/github_sudofx.py --record-gauntlet
       - name: Probe real work continuity
         # This path restores authoritative state but submits only against a
         # temporary snapshot. It publishes derived proof and must leave the
@@ -124,4 +136,3 @@ jobs:
           name: sudofx-recovery-${{ github.run_id }}
           path: recovery/sudofx.sqlite
           retention-days: 30
-

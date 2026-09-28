@@ -86,6 +86,7 @@ def apply_operation(state: dict[str, JsonValue], operation: dict[str, Any]) -> N
             "status": "open",
             "accepted_results": [],
             "semantic_assessments": [],
+            "gauntlet_runs": [],
             "open_obligations": [],
             "work_revision": 0,
         }
@@ -107,6 +108,17 @@ def apply_operation(state: dict[str, JsonValue], operation: dict[str, Any]) -> N
         assessments = list(work.get("semantic_assessments", []))
         assessments.append(value)
         work["semantic_assessments"] = assessments
+        work["work_revision"] = int(work.get("work_revision", 0)) + 1
+        state[work_key(key)] = work
+    elif action == "record_gauntlet":
+        # Raw vendor output is durable evidence, not authority over the work.
+        # Keeping it under the governed work item preserves provenance while
+        # preventing any answer text from mutating objective or frontier fields.
+        value = operation["value"]
+        work = dict(state[work_key(key)])
+        runs = list(work.get("gauntlet_runs", []))
+        runs.append(value)
+        work["gauntlet_runs"] = runs
         work["work_revision"] = int(work.get("work_revision", 0)) + 1
         state[work_key(key)] = work
     elif action == "complete_work":
