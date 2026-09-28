@@ -30,7 +30,7 @@ from sudofx.continuity import (
 )
 from sudofx.report import export_site, render
 from sudofx.handoff import build_handoff_packet, export_handoff_packet
-from sudofx.gauntlet import DIMENSIONS, gauntlet_packet_digest, score_gauntlet_response
+from plugins.manual_handoff.scoring import DIMENSIONS, handoff_packet_digest, evaluate_handoff_response
 from scripts.github_sudofx import main as github_main
 
 # These tests protect durable guarantees rather than implementation shape.
@@ -1106,11 +1106,11 @@ json.dump({
         self.assertIn("Visible work", page)
         self.assertNotIn("Create or advance", page)
 
-    def test_gauntlet_response_is_bound_scored_and_governed(self) -> None:
+    def test_handoff_evaluation_is_bound_scored_and_governed(self) -> None:
         """A shared answer must match the packet and cite it before becoming evidence."""
         self.kernel.submit(
             Proposal(
-                "create-gauntlet",
+                "create-handoff-evaluation",
                 0,
                 (Operation("create_work", "handoff-v1", {"objective": "Portable continuity", "constraints": []}),),
             )
@@ -1119,7 +1119,7 @@ json.dump({
         evidence = packet["work"]["objective"]
         response = {
             "test_id": "UUID-123456",
-            "nonce": "GAUNTLET-UUID-123456",
+            "nonce": "HANDOFF-UUID-123456",
             "vendor": "ChatGPT",
             "packet_digest": packet["packet_digest"],
             "answers": {
@@ -1127,25 +1127,25 @@ json.dump({
                 for dimension in DIMENSIONS
             },
         }
-        result = score_gauntlet_response(json.dumps(response), packet)
+        result = evaluate_handoff_response(json.dumps(response), packet)
         self.assertEqual(result["score"], 7)
         receipt = self.kernel.submit(
-            Proposal("record-gauntlet", 1, (Operation("record_gauntlet", "handoff-v1", result),))
+            Proposal("record-handoff-evaluation", 1, (Operation("record_handoff_evaluation", "handoff-v1", result),))
         )
         self.assertEqual(receipt.status, "accepted")
-        saved = self.kernel.context().state["work:handoff-v1"]["gauntlet_runs"][0]
+        saved = self.kernel.context().state["work:handoff-v1"]["handoff_evaluations"][0]
         self.assertEqual(saved["test_id"], response["test_id"])
         self.assertEqual(saved["raw_response"], json.dumps(response))
 
         response["packet_digest"] = "stale"
         with self.assertRaisesRegex(ValueError, "different packet"):
-            score_gauntlet_response(json.dumps(response), packet)
+            evaluate_handoff_response(json.dumps(response), packet)
 
-    def test_gauntlet_accepts_consumer_chat_json_typography(self) -> None:
+    def test_handoff_evaluation_accepts_consumer_chat_json_typography(self) -> None:
         """Smart quotes and a JSON fence are transport decoration, not semantic failure."""
         self.kernel.submit(
             Proposal(
-                "create-smart-gauntlet",
+                "create-smart-handoff-evaluation",
                 0,
                 (Operation("create_work", "handoff-v1", {"objective": "Portable continuity", "constraints": []}),),
             )
@@ -1154,7 +1154,7 @@ json.dump({
         evidence = packet["work"]["objective"]
         response = {
             "test_id": "UUID-654321",
-            "nonce": "GAUNTLET-UUID-654321",
+            "nonce": "HANDOFF-UUID-654321",
             "vendor": "ChatGPT",
             "packet_digest": packet["packet_digest"],
             "answers": {
@@ -1163,8 +1163,8 @@ json.dump({
             },
         }
         decorated = "```json\n" + json.dumps(response).replace('"', "\u201c") + "\n```"
-        self.assertEqual(gauntlet_packet_digest(decorated), packet["packet_digest"])
-        self.assertEqual(score_gauntlet_response(decorated, packet)["score"], 7)
+        self.assertEqual(handoff_packet_digest(decorated), packet["packet_digest"])
+        self.assertEqual(evaluate_handoff_response(decorated, packet)["score"], 7)
 
 
 if __name__ == "__main__":
