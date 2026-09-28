@@ -334,8 +334,13 @@ def _exchange_panel(proof: dict[str, object]) -> str:
     if not isinstance(coordinate, dict):
         coordinate = {}
     matrix_progress = ""
-    if isinstance(matrix_cycle, int) and isinstance(matrix_size, int) and matrix_size > 0:
-        matrix_progress = f"{matrix_cycle}/{matrix_size} ({matrix_cycle / matrix_size * 100:.1f}%)"
+    if isinstance(matrix_cycle, int) and isinstance(matrix_size, int) and matrix_cycle > 0 and matrix_size > 0:
+        matrix_pass = (matrix_cycle - 1) // matrix_size + 1
+        matrix_position = (matrix_cycle - 1) % matrix_size + 1
+        matrix_progress = (
+            f"pass {matrix_pass} · {matrix_position}/{matrix_size} "
+            f"({matrix_position / matrix_size * 100:.1f}%)"
+        )
     coordinate_text = " · ".join(
         str(coordinate.get(key, "")).strip()
         for key in ("semantic_lens", "exposure", "pressure")
@@ -1221,9 +1226,11 @@ const refreshExchange=async()=>{{
     const matrix=document.querySelector('[data-exchange-matrix]');
     if(matrix){{
       const current=Number(trial.matrix_cycle),size=Number(trial.matrix_size);
-      matrix.textContent=Number.isInteger(current)&&Number.isInteger(size)&&size>0
-        ?current+'/'+size+' ('+(current/size*100).toFixed(1)+'%)'
-        :'—';
+      if(Number.isInteger(current)&&Number.isInteger(size)&&current>0&&size>0){{
+        const pass=Math.floor((current-1)/size)+1;
+        const position=((current-1)%size)+1;
+        matrix.textContent='pass '+pass+' · '+position+'/'+size+' ('+(position/size*100).toFixed(1)+'%)';
+      }}else matrix.textContent='—';
     }}
     const coordinate=document.querySelector('[data-exchange-coordinate]');
     if(coordinate){{

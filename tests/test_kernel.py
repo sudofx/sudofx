@@ -680,6 +680,7 @@ json.dump({
         self.assertIn("Stress matrix", page)
         self.assertIn("data-exchange-matrix", page)
         self.assertIn("data-exchange-coordinate", page)
+        self.assertIn("pass '+pass+' · '+position+'/'+size", page)
         self.assertIn("CHECKING…", page)
         self.assertIn("Loading current status…", page)
         self.assertIn('data-fallback-state="CONTINUOUS"', page)
@@ -821,6 +822,29 @@ json.dump({
         self.assertEqual(trial["matrix_cycle"], 17)
         self.assertEqual(trial["matrix_size"], 343)
         self.assertEqual(trial["coordinate"]["pressure"], "authority_injection")
+
+    def test_report_wraps_matrix_progress_without_exceeding_one_hundred_percent(self) -> None:
+        page = render(
+            self.kernel,
+            continuity_proof={
+                "passed": True,
+                "artifact_run_id": "wrap",
+                "candidate_result": "Gemini understood: wrapped matrix.",
+                "overnight_trial": {
+                    "cycle": 344,
+                    "matrix_cycle": 344,
+                    "matrix_size": 343,
+                    "coordinate": {
+                        "semantic_lens": "reconstruction",
+                        "exposure": "rich",
+                        "pressure": "clean",
+                    },
+                },
+            },
+        )
+        self.assertIn("pass 2 · 1/343 (0.3%)", page)
+        self.assertNotIn("344/343", page)
+        self.assertNotIn("100.3%", page)
 
     def test_exported_runner_state_continues_after_bounded_model_review(self) -> None:
         """
