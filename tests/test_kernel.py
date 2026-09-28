@@ -28,7 +28,7 @@ from sudofx.continuity import (
     run_model_continuity_probe,
     run_work_continuity_probe,
 )
-from sudofx.report import export_site, render
+from sudofx.report import _format_bytes, export_site, render
 from sudofx.handoff import build_handoff_packet, export_handoff_packet
 from plugins.manual_handoff.scoring import (
     DIMENSIONS,
@@ -80,6 +80,14 @@ class KernelTests(unittest.TestCase):
 
     def tearDown(self) -> None:
         self.tempdir.cleanup()
+
+    def test_database_size_uses_compact_units_at_binary_thresholds(self) -> None:
+        """The phone readout should scale without changing the authoritative byte count."""
+        self.assertEqual(_format_bytes(1023), "1023 B")
+        self.assertEqual(_format_bytes(1024), "1 KB")
+        self.assertEqual(_format_bytes(147456), "144 KB")
+        self.assertEqual(_format_bytes(1572864), "1.5 MB")
+        self.assertEqual(_format_bytes(1073741824), "1 GB")
 
     def test_deterministic_continuity_proof_crosses_fresh_process_boundary(self) -> None:
         """

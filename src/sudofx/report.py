@@ -30,6 +30,28 @@ def _escape(value: object) -> str:
     return html.escape(str(value), quote=True)
 
 
+def _format_bytes(value: object) -> str:
+    """Format a byte count for the compact operator view.
+
+    SQLite remains authoritative for the integer byte count; this conversion is
+    presentation only. Binary 1024-byte thresholds keep the displayed magnitude
+    stable as the database crosses B, KB, MB, and GB boundaries, while the short
+    labels match the phone interface's requested vocabulary.
+    """
+    size = max(0, int(value))
+    units = ("B", "KB", "MB", "GB")
+    unit_index = 0
+    amount = float(size)
+    while amount >= 1024 and unit_index < len(units) - 1:
+        amount /= 1024
+        unit_index += 1
+    if unit_index == 0:
+        return f"{size} B"
+    precision = 0 if amount >= 100 else 1
+    number = f"{amount:.0f}" if precision == 0 else f"{amount:.1f}".rstrip("0").rstrip(".")
+    return f"{number} {units[unit_index]}"
+
+
 def _public_model_response(proof: dict[str, object]) -> str:
     """Translate stored model output into a plain-language public reading view.
 
@@ -658,7 +680,7 @@ def render(
     </div>
     <div class="technical-stats">
       <div><span>Record revision</span><strong data-record-revision>{context.revision}</strong></div>
-      <div><span>Database</span><strong>{int(health['database_bytes'])} B</strong></div>
+      <div><span>Database</span><strong>{_format_bytes(health['database_bytes'])}</strong></div>
       <div><span>Replay</span><strong>{health['replay_ms']} ms</strong></div>
       <div><span>Receipts</span><strong>{total_receipts}</strong></div>
     </div>
@@ -730,6 +752,17 @@ if(controlUrl && location.hash.startsWith(ownerFragment)){{
   }}catch{{}}
 }}
 const ownerSession=()=>{{try{{return localStorage.getItem(ownerSessionKey)||''}}catch{{return ''}}}};
+const formatBytes=(value)=>{{
+  // This is the browser equivalent of the server renderer's presentation-only
+  // formatter. The Worker still returns the exact integer byte count; no display
+  // rounding becomes storage or governance truth.
+  const units=['B','KB','MB','GB'];
+  let amount=Math.max(0,Number(value)||0),unit=0;
+  while(amount>=1024&&unit<units.length-1){{amount/=1024;unit+=1;}}
+  if(unit===0)return Math.trunc(amount)+' B';
+  const precision=amount>=100?0:1;
+  return Number(amount.toFixed(precision))+' '+units[unit];
+}};
 const ownerRequest=async(path,method='GET')=>{{
   const response=await fetch(controlUrl+path,{{method,headers:{{Authorization:'Bearer '+ownerSession()}}}});
   const body=await response.json().catch(()=>({{}}));
@@ -803,7 +836,7 @@ const refreshOwnerControls=async()=>{{
     const workflowLabel=state.enabled?(state.activeRuns.length?'Running now':(failed?'Paused · last cycle failed':'Enabled · next cycle starting')):'Stopped';
     ownerMenuLabel.textContent='Settings';
     ownerMenuToggle.classList.toggle('is-active',state.enabled);
-    ownerControlStatus.textContent=workflowLabel+' · DB '+databaseSize+' bytes · '+storageRisk+' · '+protection;
+    ownerControlStatus.textContent=workflowLabel+' · DB '+formatBytes(databaseSize)+' · '+storageRisk+' · '+protection;
     ownerStart.disabled=state.enabled;
     ownerStop.disabled=!state.enabled;
     if(ownerBackup){{ownerBackup.hidden=!Array.isArray(state.capabilities)||!state.capabilities.includes('backup');ownerBackup.disabled=false;}}
