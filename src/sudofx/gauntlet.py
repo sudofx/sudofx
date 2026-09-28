@@ -27,14 +27,8 @@ DIMENSIONS = (
 )
 
 
-def score_gauntlet_response(raw_response: str, packet: dict[str, Any]) -> dict[str, Any]:
-    """Return a governance-ready result or reject stale/unparseable transport.
-
-    A pass means the answer is non-empty and cites a literal fragment from the
-    frozen packet. This is a reproducible grounding score, not an LLM-as-judge
-    semantic score. Packet and nonce checks keep accidental response reuse from
-    being recorded as evidence for the current test.
-    """
+def parse_gauntlet_response(raw_response: str) -> dict[str, Any]:
+    """Parse one response while tolerating consumer-chat transport decoration."""
     # Consumer chat surfaces sometimes typography-substitute JSON quotes even
     # when explicitly asked for machine output, and some wrap the object in a
     # Markdown fence. Normalize only those transport decorations; malformed
@@ -50,6 +44,28 @@ def score_gauntlet_response(raw_response: str, packet: dict[str, Any]) -> dict[s
         raise ValueError("gauntlet response must be one JSON object") from error
     if not isinstance(response, dict):
         raise ValueError("gauntlet response must be one JSON object")
+
+    return response
+
+
+def gauntlet_packet_digest(raw_response: str) -> str:
+    """Read the frozen-packet identity before resolving its durable snapshot."""
+    response = parse_gauntlet_response(raw_response)
+    digest = response.get("packet_digest")
+    if not isinstance(digest, str) or not digest:
+        raise ValueError("gauntlet response is missing transport metadata")
+    return digest
+
+
+def score_gauntlet_response(raw_response: str, packet: dict[str, Any]) -> dict[str, Any]:
+    """Return a governance-ready result or reject stale/unparseable transport.
+
+    A pass means the answer is non-empty and cites a literal fragment from the
+    frozen packet. This is a reproducible grounding score, not an LLM-as-judge
+    semantic score. Packet and nonce checks keep accidental response reuse from
+    being recorded as evidence for the current test.
+    """
+    response = parse_gauntlet_response(raw_response)
 
     required = ("test_id", "nonce", "vendor", "packet_digest", "answers")
     if any(key not in response for key in required):

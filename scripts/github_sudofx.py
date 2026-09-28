@@ -52,7 +52,7 @@ from sudofx.continuity import (
 )
 from sudofx.report import export_site
 from sudofx.handoff import build_handoff_packet, export_handoff_packet
-from sudofx.gauntlet import score_gauntlet_response
+from sudofx.gauntlet import gauntlet_packet_digest, score_gauntlet_response
 from sudofx.overnight import EXPERIMENT_STATE_KEY
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -222,6 +222,37 @@ def checkpoint() -> None:
             git("-C", str(checkout), "push", "origin", f"HEAD:{STATE_BRANCH}")
         finally:
             git("worktree", "remove", "--force", str(checkout), check=False)
+
+
+def frozen_handoff_packet(packet_digest: str, current_kernel: Kernel) -> dict[str, object]:
+    """Resolve the exact governed packet snapshot named by a returned answer.
+
+    A Gauntlet may be in flight while other governed work advances. The state
+    branch is append-only Git history, so it can reproduce the packet that was
+    actually tested without turning disposable Pages output into authority.
+    """
+    current = build_handoff_packet(current_kernel, AUTO_HANDOFF_ID)
+    if current.get("packet_digest") == packet_digest:
+        return current
+
+    revisions = git("rev-list", f"origin/{STATE_BRANCH}", capture=True).stdout.splitlines()
+    with tempfile.TemporaryDirectory() as temporary:
+        snapshot = Path(temporary) / "historical.sqlite"
+        for revision in revisions:
+            with snapshot.open("wb") as destination:
+                shown = subprocess.run(
+                    ["git", "show", f"{revision}:sudofx.sqlite"],
+                    cwd=ROOT, stdout=destination, stderr=subprocess.DEVNULL,
+                )
+            if shown.returncode != 0:
+                continue
+            try:
+                candidate = build_handoff_packet(Kernel(Record(snapshot)), AUTO_HANDOFF_ID)
+            except (ValueError, sqlite3.DatabaseError):
+                continue
+            if candidate.get("packet_digest") == packet_digest:
+                return candidate
+    raise ValueError("gauntlet response names no packet in durable state history")
 
 
 def publish_live_projection(payload: dict[str, object]) -> None:
@@ -404,7 +435,7 @@ def main() -> int:
         kernel = Kernel(Record(DATA))
     if args.record_gauntlet:
         raw_response = os.environ.get("GAUNTLET_RESPONSE", "")
-        packet = build_handoff_packet(kernel, AUTO_HANDOFF_ID)
+        packet = frozen_handoff_packet(gauntlet_packet_digest(raw_response), kernel)
         result = score_gauntlet_response(raw_response, packet)
         context = kernel.context()
         receipt = kernel.submit(Proposal(

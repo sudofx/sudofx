@@ -30,7 +30,7 @@ from sudofx.continuity import (
 )
 from sudofx.report import export_site, render
 from sudofx.handoff import build_handoff_packet, export_handoff_packet
-from sudofx.gauntlet import DIMENSIONS, score_gauntlet_response
+from sudofx.gauntlet import DIMENSIONS, gauntlet_packet_digest, score_gauntlet_response
 from scripts.github_sudofx import main as github_main
 
 # These tests protect durable guarantees rather than implementation shape.
@@ -1155,6 +1155,7 @@ json.dump({
             },
         }
         decorated = "```json\n" + json.dumps(response).replace('"', "\u201c") + "\n```"
+        self.assertEqual(gauntlet_packet_digest(decorated), packet["packet_digest"])
         self.assertEqual(score_gauntlet_response(decorated, packet)["score"], 7)
 
 
