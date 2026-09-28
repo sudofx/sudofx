@@ -35,7 +35,7 @@ from sudofx.overnight import (
     advance_experiment_state,
     build_trial_directive,
 )
-from sudofx.providers import CommandIntelligence
+from sudofx.providers import CommandIntelligence, ProviderTemporaryError
 from sudofx.record import Record
 from sudofx.storage import GENESIS_HASH, canonical_json
 
@@ -225,7 +225,7 @@ def _probe(
         snapshot_kernel = Kernel(Record(snapshot_path))
         intelligence = CommandIntelligence(
             (sys.executable, str(cloud.ROOT / "scripts" / "gemini_overnight_provider.py")),
-            timeout_seconds=90,
+            timeout_seconds=150,
         )
         proposal = intelligence.propose(bounded)
         receipt = snapshot_kernel.submit(proposal)
@@ -421,11 +421,29 @@ def main() -> int:
     if not os.environ.get("GEMINI_API_KEY", "").strip():
         raise RuntimeError("GEMINI_API_KEY is required for evolving continuity")
 
-    proof, directive = _probe(
-        kernel=kernel,
-        previous_experiment=previous_experiment,
-        model=model,
-    )
+    try:
+        proof, directive = _probe(
+            kernel=kernel,
+            previous_experiment=previous_experiment,
+            model=model,
+        )
+    except ProviderTemporaryError as error:
+        # A disposable provider cycle is allowed to fail without poisoning the
+        # durable chain. No authoritative state is changed, so the successor
+        # safely retries the same cube coordinate with a fresh model process.
+        print(
+            json.dumps(
+                {
+                    "overnight_cycle_recovered": True,
+                    "reason": str(error),
+                    "authoritative_state_changed": False,
+                    "next_cycle_retries_same_coordinate": True,
+                },
+                sort_keys=True,
+            ),
+            file=sys.stderr,
+        )
+        return 0
 
     repository = os.environ.get("GITHUB_REPOSITORY", "sudofx/sudofx")
     run_id = os.environ.get("GITHUB_RUN_ID", "")
