@@ -568,6 +568,9 @@ def main() -> int:
             raise ValueError("SEMANTIC_REVIEW must be one JSON object")
         submitted_run_id = submitted.get("artifact_run_id")
         submitted_digest = submitted.get("context_digest")
+        reviewer = str(submitted.get("reviewer", "operator")).strip().lower()
+        if reviewer not in {"operator", "chatgpt"}:
+            raise ValueError("semantic review reviewer must be operator or chatgpt")
         if not isinstance(submitted_run_id, str) or not submitted_run_id.strip():
             raise ValueError("semantic review requires artifact_run_id")
         if not isinstance(submitted_digest, str) or not submitted_digest.strip():
@@ -611,20 +614,24 @@ def main() -> int:
                 isinstance(provenance, dict)
                 and provenance.get("artifact_run_id") == expected_run_id
                 and provenance.get("context_digest") == expected_digest
+                and provenance.get("reviewer", "operator") == reviewer
             ):
-                raise RuntimeError("semantic review for this exact run and context is already recorded")
+                raise RuntimeError("semantic review for this exact run, context, and reviewer is already recorded")
 
+        provenance = {
+            "artifact_run_id": expected_run_id,
+            "context_digest": expected_digest,
+            "reviewer": reviewer,
+        }
+        for key in ("artifact_commit", "provider", "model"):
+            value = str(proof.get(key, "")).strip()
+            if value:
+                provenance[key] = value
         assessment = {
             "kind": "human_semantic_review_v1",
             "verdict": verdict,
             "criteria": criteria,
-            "provenance": {
-                "artifact_run_id": expected_run_id,
-                "artifact_commit": str(proof.get("artifact_commit", "")),
-                "context_digest": expected_digest,
-                "provider": str(proof.get("provider", "")),
-                "model": str(proof.get("model", "")),
-            },
+            "provenance": provenance,
         }
         context = kernel.context(work_id=AUTO_HANDOFF_ID)
         receipt = kernel.submit(
