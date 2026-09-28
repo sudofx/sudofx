@@ -289,6 +289,12 @@ def publish_live_projection(
                 )
             git("-C", str(checkout), "add", "live.json")
             if handoff_packet is not None:
+                (checkout / "handoff-v1.json").write_text(
+                    json.dumps(handoff_packet, indent=2, sort_keys=True) + "\n",
+                    encoding="utf-8",
+                )
+                git("-C", str(checkout), "add", "handoff-v1.json")
+            if handoff_packet is not None:
                 git("-C", str(checkout), "add", "handoff-v1.json")
             git(
                 "-C", str(checkout),
