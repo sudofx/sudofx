@@ -138,9 +138,13 @@ async function workflowStatus(env, token, githubFetch) {
   );
   const runs = (await runsResponse.json()).workflow_runs || [];
   const active = runs.filter((run) => run.status !== "completed");
+  const latest = runs[0] || null;
   return {
     enabled: workflow.state === "active",
     activeRuns: active.map((run) => ({ id: run.id, status: run.status, url: run.html_url })),
+    latestRun: latest
+      ? { id: latest.id, status: latest.status, conclusion: latest.conclusion || null, url: latest.html_url }
+      : null,
   };
 }
 
