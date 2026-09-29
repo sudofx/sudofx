@@ -844,7 +844,7 @@ def main() -> int:
                 ),
                 file=sys.stderr,
             )
-    if not args.publish_only and not args.prove_work and not args.prove_model and not args.prove_model_uncompressed and not args.prove_model_compressed and not args.prove_anthropic and not args.export_handoff and not args.prove_vacuum_recovery and not args.auto and not args.operator_transition and not args.record_handoff_evaluation:
+    if not args.publish_only and not args.prove_work and not args.prove_model and not args.prove_model_uncompressed and not args.prove_model_compressed and not args.prove_anthropic and not args.export_handoff and not args.prove_vacuum_recovery and not args.auto and not args.operator_transition and not args.record_handoff_evaluation and not args.record_semantic_review and not args.record_chatgpt_semantic_review:
         if not args.action or not args.key:
             parser.error("--action and --key are required for a mutation")
         context = kernel.context()
