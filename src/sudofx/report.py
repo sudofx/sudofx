@@ -519,12 +519,12 @@ def render(
     # This structure intentionally matches WAKE's compact operator popover so
     # both related tools keep the same location and interaction vocabulary.
     owner_access_html = (
-        f'''<div class="owner-access" data-owner-access>
+        f'''<div class="owner-access" data-owner-access data-light-state="unknown">
       <a class="owner-login" data-owner-login href="{_escape(control_url)}/auth/login" aria-label="Open Settings" title="Settings">
-        <span class="settings-glyph" aria-hidden="true">⚙︎</span><span class="sr-only">Settings</span>
+        <span class="owner-status-track" aria-hidden="true"><i class="owner-status-light"></i></span><span class="sr-only">Settings</span>
       </a>
       <button class="owner-menu-toggle" data-owner-menu-toggle type="button" aria-label="Open Settings" title="Settings" aria-expanded="false" aria-haspopup="true" hidden>
-        <span class="settings-glyph" aria-hidden="true">⚙︎</span><span class="sr-only" data-owner-menu-label>Settings</span>
+        <span class="owner-status-track" aria-hidden="true"><i class="owner-status-light"></i></span><span class="sr-only" data-owner-menu-label>Settings</span>
       </button>
       <div class="owner-controls" data-owner-controls hidden aria-live="polite">
         <div class="owner-control-heading"><strong>Settings</strong><span data-owner-identity></span><span data-owner-control-status>Checking controls…</span></div>
@@ -593,13 +593,10 @@ def render(
     .observer-head {{ display:flex; align-items:flex-start; justify-content:space-between; gap:18px }}
     .observer-head h1 {{ margin:6px 0 16px; font-size:clamp(24px,6vw,34px); line-height:1; letter-spacing:-.04em }}
     .observer-signal {{ display:flex; align-items:center; gap:9px }}
-    .status-led {{ width:9px; height:9px; border-radius:50%; flex:0 0 9px; animation:none }}
-    .status-led.checking {{ background:var(--accent); box-shadow:none }}
-    .status-led.idle {{ background:#f7768e; box-shadow:0 0 10px #f7768e }}\n    .status-led.waiting {{ background:#e0af68; box-shadow:0 0 8px #e0af68 }}
-    .status-led.continuous {{ background:var(--green); box-shadow:none }}
-    .status-led.working {{ background:var(--green); box-shadow:none }}
-    .status-led.failed {{ background:#f7768e; box-shadow:0 0 10px #f7768e }}
-    @keyframes led-blink {{ 0%,100% {{ opacity:.25 }} 50% {{ opacity:1 }} }}
+    .status-led {{ width:9px; height:9px; border-radius:50%; flex:0 0 9px; background:#e7c35a; animation:none }}
+    .status-led.checking,.status-led.waiting {{ background:#e7c35a }}
+    .status-led.continuous,.status-led.working {{ background:#307444; animation:owner-light-pulse 3.2s ease-in-out infinite }}
+    .status-led.idle,.status-led.failed {{ background:#d65e6c; animation:owner-light-blink 2.4s step-end infinite }}
     .observer-state {{ padding:0; border:0; font:700 10px var(--mono); letter-spacing:.08em; text-transform:uppercase }}
     .observer-state.working {{ color:var(--green) }}
     .observer-state.idle {{ color:#f7768e }}
@@ -617,10 +614,16 @@ def render(
        elevated layer and mobile fixed panel mirror WAKE while keeping every
        authenticated action hidden until the control service accepts a session. */
     .sr-only {{ position:absolute!important; width:1px!important; height:1px!important; padding:0!important; margin:-1px!important; overflow:hidden!important; clip:rect(0,0,0,0)!important; white-space:nowrap!important; border:0!important }}
-    .owner-access {{ position:relative; z-index:2000; font:10px var(--mono) }}
-    .owner-login,.owner-menu-toggle {{ width:26px; height:26px; display:inline-grid; place-items:center; position:relative; color:var(--muted); padding:0; border:0; border-radius:50%; background:transparent; text-decoration:none; cursor:pointer }}
-    .settings-glyph {{ display:block; font:26px/1 system-ui,-apple-system,sans-serif; line-height:26px; transform:none }}
-    .owner-menu-toggle:hover,.owner-menu-toggle:focus-visible,.owner-login:hover,.owner-login:focus-visible {{ color:var(--ink); background:color-mix(in srgb,var(--surface) 70%,transparent) }}
+    .owner-access {{ position:relative; z-index:2000; font:10px var(--mono); display:flex; align-items:center }}
+    .owner-login,.owner-menu-toggle {{ width:30px; height:30px; display:inline-flex; align-items:center; justify-content:center; position:relative; color:var(--muted); padding:0; border:0; background:transparent; text-decoration:none; cursor:pointer }}
+    .owner-status-track {{ width:18px; height:18px; box-sizing:border-box; flex:0 0 18px; padding:2px; border:1px solid var(--line); border-radius:20px; background:var(--surface); display:inline-flex; align-items:center; justify-content:center }}
+    .owner-status-light {{ display:block; width:12px; height:12px; flex:0 0 12px; border-radius:50%; background:#e7c35a; transition:none }}
+    .owner-access[data-light-state="running"] .owner-status-light {{ background:#307444; animation:owner-light-pulse 3.2s ease-in-out infinite }}
+    .owner-access[data-light-state="stopped"] .owner-status-light {{ background:#d65e6c; animation:owner-light-blink 2.4s step-end infinite }}
+    @keyframes owner-light-pulse {{ 0%,100% {{ opacity:.3 }} 50% {{ opacity:1 }} }}
+    @keyframes owner-light-blink {{ 0%,49% {{ opacity:1 }} 50%,100% {{ opacity:.18 }} }}
+    .owner-menu-toggle:hover,.owner-menu-toggle:focus-visible,.owner-login:hover,.owner-login:focus-visible {{ color:var(--ink) }}
+    @media (prefers-reduced-motion: reduce) {{ .owner-status-light,.status-led {{ animation:none!important; opacity:1!important }} }}
     .owner-controls {{ position:absolute; top:calc(100% + 8px); right:0; width:250px; padding:14px; background:var(--surface); border:1px solid var(--line); box-shadow:0 14px 36px #0003; display:grid; gap:12px }}
     .owner-controls[hidden],.owner-menu-toggle[hidden],.owner-login[hidden] {{ display:none!important }}
     .owner-control-heading {{ display:grid; gap:3px; padding-bottom:10px; border-bottom:1px solid var(--line) }}
@@ -753,25 +756,26 @@ def render(
     footer {{ margin-top:64px; padding-top:22px; border-top:1px solid var(--line); color:var(--muted); font:12px var(--mono) }}
     /* Keeping the switch in normal grid flow anchors it to the upper-right while
        retaining its full touch target and respecting the phone's content inset. */
-    .theme-switch {{ display:flex; align-items:center; height:26px; cursor:pointer; user-select:none }}
+    .theme-switch {{ display:inline-flex; align-items:center; justify-content:center; min-width:34px; min-height:30px; cursor:pointer; user-select:none }}
     .theme-switch input {{ position:absolute; width:1px; height:1px; margin:0; opacity:0; pointer-events:none }}
-    /* The track is the complete visual control. A second theme glyph repeated
-       the same meaning and introduced an unnecessary alignment relationship. */
-    .data-switch-track {{ width:44px; height:26px; padding:2px; border:1px solid var(--line); background:var(--surface); border-radius:20px }}
-    .data-switch-track i {{ display:block; width:20px; height:20px; border-radius:50%; background:var(--muted); transition:transform .2s ease,background .2s ease }}
-    .theme-switch input:checked + .data-switch-track i {{ transform:translateX(17px); background:var(--green) }}
-    .theme-switch input:focus-visible + .data-switch-track {{ outline:3px solid var(--green); outline-offset:3px }}
+    /* The theme switch and operator light intentionally share WAKE's visual
+       geometry while keeping separate interaction semantics. */
+    .data-switch-track {{ width:34px; height:18px; box-sizing:border-box; flex:0 0 34px; padding:2px; border:1px solid var(--line); background:var(--surface); border-radius:20px; display:inline-flex; align-items:center; justify-content:flex-start }}
+    .data-switch-track i {{ display:block; width:12px; height:12px; flex:0 0 12px; box-sizing:border-box; border-radius:50%; background:var(--muted); transition:transform .15s ease,background .15s ease }}
+    .theme-switch input:checked + .data-switch-track i {{ transform:translateX(16px); background:var(--green) }}
+    .theme-switch input:focus-visible + .data-switch-track {{ outline:2px solid var(--green); outline-offset:2px }}
     @media(max-width:600px) {{ header {{ column-gap:10px; row-gap:16px; padding:28px 0 22px }}
       .brand-block {{ gap:9px; min-width:0 }}
       .brand {{ font-size:clamp(34px,10.8vw,42px); flex:0 0 auto }}
       .inspired {{ font-size:9px; line-height:1.15; letter-spacing:.07em; flex:0 1 auto; overflow:hidden; text-overflow:clip }}
       .masthead-actions {{ gap:9px }}
-      .theme-switch {{ height:32px }}
-      .data-switch-track {{ width:52px; height:32px; padding:3px }}
-      .data-switch-track i {{ width:24px; height:24px }}
-      .theme-switch input:checked + .data-switch-track i {{ transform:translateX(20px) }}
-      .owner-login,.owner-menu-toggle {{ width:32px; height:32px }}
-      .settings-glyph {{ font-size:30px; line-height:32px }}
+      .theme-switch {{ min-width:44px; min-height:38px }}
+      .data-switch-track {{ width:42px; height:24px; flex-basis:42px; padding:3px }}
+      .data-switch-track i {{ width:16px; height:16px; flex-basis:16px }}
+      .theme-switch input:checked + .data-switch-track i {{ transform:translateX(18px) }}
+      .owner-login,.owner-menu-toggle {{ width:44px; height:38px }}
+      .owner-status-track {{ width:24px; height:24px; flex-basis:24px; padding:3px }}
+      .owner-status-light {{ width:16px; height:16px; flex-basis:16px }}
       .tagline {{ font-size:13px; line-height:1.45 }}
       .owner-controls {{ position:fixed; top:62px; right:16px; left:auto; width:min(320px,calc(100vw - 32px)); padding:16px; gap:10px; box-shadow:0 18px 46px #0005 }}
       .owner-control-actions {{ grid-template-columns:1fr 1fr; gap:8px }}
@@ -929,6 +933,8 @@ if(controlUrl && location.hash.startsWith(ownerFragment)){{
   }}catch{{}}
 }}
 const ownerSession=()=>{{try{{return localStorage.getItem(ownerSessionKey)||''}}catch{{return ''}}}};
+const setOwnerLight=(state)=>{{if(ownerLogin?.closest('[data-owner-access]'))ownerLogin.closest('[data-owner-access]').dataset.lightState=state;}};
+const ownerLightForVisualState=(state)=>state==='working'?'running':((state==='idle'||state==='failed')?'stopped':'unknown');
 // The Shortcut transports no credential and no model response in its URL. Its
 // fragment is only a same-browser intent marker; the response remains on the
 // clipboard until an authenticated, user-initiated paste submits it.
@@ -971,6 +977,7 @@ const showOwnerSignedOut=()=>{{
   if(ownerMenuToggle)ownerMenuToggle.hidden=true;
   if(ownerLogin)ownerLogin.hidden=false;
   if(ownerTechnical)ownerTechnical.hidden=true;
+  setOwnerLight('unknown');
 }};
 const applyOwnerWorkflowState=(state)=>{{
   // The authenticated control service reads the workflow's enabled flag and
@@ -978,6 +985,7 @@ const applyOwnerWorkflowState=(state)=>{{
   // outranks both anonymous API telemetry and the last published HTML snapshot.
   const running=state.enabled&&state.activeRuns.length>0;
   const visualState=running?'working':(state.enabled?'continuous':'idle');
+  setOwnerLight(ownerLightForVisualState(visualState));
   observer.className='observer-console '+visualState;
   observerState.className='observer-state '+visualState;
   observerState.textContent=running?'Live':(state.enabled?'Running':'Stopped');
@@ -1023,7 +1031,6 @@ const refreshOwnerControls=async()=>{{
     const failed=Boolean(state.enabled&&!state.activeRuns.length&&latest&&latest.status==='completed'&&latest.conclusion==='failure');
     const workflowLabel=state.enabled?(state.activeRuns.length?'Running now':(failed?'Paused · last cycle failed':'Enabled · next cycle starting')):'Stopped';
     ownerMenuLabel.textContent='Settings';
-    ownerMenuToggle.classList.toggle('is-active',state.enabled);
     ownerControlStatus.textContent=workflowLabel+' · DB '+formatBytes(databaseSize)+' · '+storageRisk+' · '+protection;
     ownerStart.disabled=state.enabled;
     ownerStop.disabled=!state.enabled;
@@ -1226,6 +1233,7 @@ const refreshObserver=async()=>{{
     const running=run.status!=='completed';
     const failed=enabled&&!running&&run.conclusion==='failure';
     const visualState=running?'working':(failed?'failed':(enabled?'continuous':'idle'));
+    if(!ownerSession())setOwnerLight(ownerLightForVisualState(visualState));
     observer.className='observer-console '+visualState;
     observerState.className='observer-state '+visualState;
     observerState.textContent=running?'Live':(failed?'Paused':(enabled?'Running':'Stopped'));
