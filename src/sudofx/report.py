@@ -370,7 +370,7 @@ def _exchange_panel(proof: dict[str, object]) -> str:
     return f"""
       <section class="exchange" aria-label="Gemini exchange" data-artifact-run-id="{_escape(proof.get('artifact_run_id', ''))}">
         <div class="exchange-head">
-          <div><span class="eyebrow">One AI to the next</span><h2>Latest exchange</h2></div>
+          <div class="exchange-title"><span class="eyebrow">One AI to the next</span><h2>Can a fresh AI pick up where the last one left off?</h2></div>
           <span class="exchange-status" data-exchange-status>{_escape(status)}</span>
         </div>
         <div class="quality-metrics">
@@ -576,16 +576,15 @@ def render(
     main {{ width:min(980px,100%); max-width:100%; min-width:0; margin:auto; padding:clamp(14px,4vw,40px) }}
     /* Identity stays compact because live status—not project explanation—is the
        first reason an operator opens this page on a phone. */
-    header {{ position:relative; display:grid; grid-template-columns:minmax(0,1fr) auto; grid-template-areas:"brand actions" "tagline tagline";
-      column-gap:18px; row-gap:14px; align-items:center; padding:30px 0 20px }}
-    .brand-block {{ grid-area:brand; display:flex; align-items:baseline; gap:12px; min-width:0; white-space:nowrap }}
+    header {{ position:relative; display:grid; grid-template-columns:minmax(0,1fr) auto; grid-template-areas:"brand actions";
+      column-gap:18px; align-items:center; padding:30px 0 24px }}
+    .brand-block {{ grid-area:brand; display:grid; justify-items:start; align-content:center; gap:8px; min-width:0 }}
     .masthead-actions {{ grid-area:actions; display:flex; align-items:center; justify-content:flex-end; gap:12px; min-width:max-content }}
     .brand {{ color:var(--ink); text-decoration:none; font:900 clamp(30px,8vw,48px)/.85 var(--mono); letter-spacing:-.08em }}
     .brand i {{ color:var(--green); font-style:normal }}
-    .inspired {{ color:var(--muted); text-decoration:none; font:700 9px/1 var(--mono); letter-spacing:.12em; text-transform:uppercase }}
+    .inspired {{ color:var(--muted); text-decoration:none; font:700 9px/1 var(--mono); letter-spacing:.12em; text-transform:uppercase; white-space:nowrap }}
     .inspired b {{ color:var(--green) }}
     .brand:hover,.inspired:hover {{ color:var(--hot) }}
-    .tagline {{ grid-area:tagline; max-width:520px; color:var(--muted); font-size:12px; text-align:left }}
     .eyebrow {{ font:700 11px/1 var(--mono); letter-spacing:.14em; text-transform:uppercase; color:var(--green) }}
     .observer-console {{ margin:0 0 32px; padding:18px; border:1px solid var(--line); border-top:4px solid var(--accent); background:var(--surface) }}
     .observer-console.working {{ border-top-color:var(--green) }}
@@ -670,7 +669,8 @@ def render(
     @media (prefers-reduced-motion: reduce) {{ .machine-activity.working .machine-lights i,.machine-track span {{ animation:none }} }}
     .exchange {{ margin:0 0 48px; padding:24px; border:1px solid var(--line); background:var(--surface) }}
     .exchange-head {{ display:flex; align-items:flex-start; justify-content:space-between; gap:22px; margin-bottom:22px }}
-    .exchange-head h2 {{ margin-top:6px }}
+    .exchange-head h2 {{ max-width:560px; margin:7px 0 0; font-size:clamp(20px,4vw,28px); line-height:1.12; letter-spacing:-.035em }}
+    .exchange-title {{ min-width:0 }}
     .exchange-status {{ padding:0; border:0; color:var(--muted); font:700 9px var(--mono); letter-spacing:.08em; text-transform:uppercase; white-space:nowrap }}
     .exchange-status.working {{ color:var(--green) }}
     .question {{ margin:18px 0; padding:14px; border-left:4px solid var(--accent); background:var(--paper); font-size:16px; font-weight:650 }}
@@ -765,9 +765,9 @@ def render(
     .theme-switch input:checked + .data-switch-track i {{ transform:translateX(16px); background:var(--green) }}
     .theme-switch input:focus-visible + .data-switch-track {{ outline:2px solid var(--green); outline-offset:2px }}
     @media(max-width:600px) {{ header {{ column-gap:10px; row-gap:16px; padding:28px 0 22px }}
-      .brand-block {{ gap:9px; min-width:0 }}
-      .brand {{ font-size:clamp(34px,10.8vw,42px); flex:0 0 auto }}
-      .inspired {{ font-size:9px; line-height:1.15; letter-spacing:.07em; flex:0 1 auto; overflow:hidden; text-overflow:clip }}
+      .brand-block {{ gap:7px; min-width:0 }}
+      .brand {{ font-size:clamp(34px,10.8vw,42px) }}
+      .inspired {{ font-size:9px; line-height:1.15; letter-spacing:.07em }}
       .masthead-actions {{ gap:9px }}
       .theme-switch {{ min-width:44px; min-height:38px }}
       .data-switch-track {{ width:42px; height:24px; flex-basis:42px; padding:3px }}
@@ -776,7 +776,6 @@ def render(
       .owner-login,.owner-menu-toggle {{ width:44px; height:38px }}
       .owner-status-track {{ width:24px; height:24px; flex-basis:24px; padding:3px }}
       .owner-status-light {{ width:16px; height:16px; flex-basis:16px }}
-      .tagline {{ font-size:13px; line-height:1.45 }}
       .owner-controls {{ position:fixed; top:62px; right:16px; left:auto; width:min(320px,calc(100vw - 32px)); padding:16px; gap:10px; box-shadow:0 18px 46px #0005 }}
       .owner-control-actions {{ grid-template-columns:1fr 1fr; gap:8px }}
       .owner-control-actions [data-owner-backup] {{ grid-column:1/-1 }}
@@ -798,8 +797,7 @@ def render(
     <div class="masthead-actions">
       <label class="theme-switch" title="Follow system theme"><input id="theme-toggle" type="checkbox" role="switch" aria-label="Use dark theme"><span class="data-switch-track" aria-hidden="true"><i></i></span></label>
       {owner_access_html}
-    </div>
-    <div class="tagline">Can a fresh AI pick up where the last one left off?</div></header>
+    </div></header>
   <dialog class="handoff-dialog" data-handoff-dialog>
     <div class="handoff-shell">
       <div class="handoff-head"><div><span class="eyebrow">Owner-only transport</span><h2>Manual AI handoff</h2></div><button type="button" data-handoff-close aria-label="Close manual handoff">Close</button></div>
