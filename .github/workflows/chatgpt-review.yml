@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 concurrency:
   group: sudofx-authority-v3
@@ -32,3 +33,22 @@ jobs:
             exit 0
           fi
           PYTHONPATH=src python scripts/github_sudofx.py --record-chatgpt-semantic-review chatgpt-review.json
+
+      - name: Resume authorized continuity chain
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          state="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/prove-model.yml" --jq '.state')"
+          if [[ "$state" != "active" ]]; then
+            echo "Continuity workflow is disabled; preserving operator Stop."
+            exit 0
+          fi
+
+          live="$(gh api "repos/$GITHUB_REPOSITORY/contents/live.json?ref=sudofx-live" --jq '.content' | base64 --decode)"
+          runtime_ref="$(printf '%s' "$live" | python -c 'import json,sys; print(json.load(sys.stdin).get("artifact_commit",""))')"
+          if [[ -z "$runtime_ref" ]]; then
+            echo "No runtime_ref available from live projection; refusing to change experiment implementation."
+            exit 1
+          fi
+
+          gh workflow run prove-model.yml --repo "$GITHUB_REPOSITORY" --ref master             -f "dispatch_token=review-$GITHUB_RUN_ID"             -f "runtime_ref=$runtime_ref"
