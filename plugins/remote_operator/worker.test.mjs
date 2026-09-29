@@ -210,6 +210,9 @@ test("authenticated session reports storage maintenance metadata without databas
       if (parsed.pathname.endsWith("/actions/workflows/prove-model.yml/runs")) {
         return Response.json({ workflow_runs: [] });
       }
+      if (parsed.pathname.endsWith("/branches/sudofx-runtime")) {
+        return Response.json({ commit: { sha: "runtime-head" } });
+      }
       if (parsed.pathname === "/repos/sudofx/sudofx") {
         return Response.json({ visibility: "public", private: false });
       }
@@ -251,6 +254,9 @@ test("missing diagnostics permission does not disable authenticated workflow con
       if (path.endsWith("/actions/workflows/prove-model.yml/runs")) {
         return Response.json({ workflow_runs: [] });
       }
+      if (path.endsWith("/branches/sudofx-runtime")) {
+        return Response.json({ commit: { sha: "runtime-head" } });
+      }
       return new Response("permission missing", { status: 403 });
     },
   );
@@ -260,7 +266,7 @@ test("missing diagnostics permission does not disable authenticated workflow con
   assert.equal(body.maintenance.unavailable, true);
 });
 
-test("stale master continuity runs are ignored by runtime status", async () => {
+test("stale master and superseded runtime runs are ignored by runtime status", async () => {
   const session = await ownerSession();
   const response = await handleRequest(
     new Request("https://control.example/api/session", {
@@ -274,11 +280,15 @@ test("stale master continuity runs are ignored by runtime status", async () => {
       }
       if (path.endsWith("/actions/workflows/prove-model.yml/runs")) {
         return Response.json({ workflow_runs: [
-          { id: 99, status: "queued", head_branch: "master", html_url: "https://example/run/99" },
+          { id: 98, status: "queued", head_branch: "sudofx-runtime", head_sha: "old-runtime", html_url: "https://example/run/98" },
+          { id: 99, status: "queued", head_branch: "master", head_sha: "old-master", html_url: "https://example/run/99" },
         ] });
       }
       if (path === "/repos/sudofx/sudofx") {
         return Response.json({ visibility: "public", private: false });
+      }
+      if (path.endsWith("/branches/sudofx-runtime")) {
+        return Response.json({ commit: { sha: "runtime-head" } });
       }
       if (path.endsWith("/branches/sudofx-state")) {
         return Response.json({ protected: false, commit: { sha: "state-head" } });
@@ -353,9 +363,10 @@ test("Stop disables the workflow before discovering and cancelling active runs",
       const path = new URL(url).pathname;
       operations.push([path, init.method || "GET"]);
       if (path.endsWith("/prove-model.yml")) return Response.json({ state: "disabled_manually" });
+      if (path.endsWith("/branches/sudofx-runtime")) return Response.json({ commit: { sha: "runtime-head" } });
       if (path.endsWith("/runs")) return Response.json({ workflow_runs: [
           { id: 41, status: "queued", head_branch: "master", html_url: "https://example/run/41" },
-          { id: 42, status: "in_progress", head_branch: "sudofx-runtime", html_url: "https://example/run/42" },
+          { id: 42, status: "in_progress", head_branch: "sudofx-runtime", head_sha: "runtime-head", html_url: "https://example/run/42" },
         ] });
       return new Response(null, { status: 204 });
     },
@@ -365,6 +376,7 @@ test("Stop disables the workflow before discovering and cancelling active runs",
     ["/repos/sudofx/sudofx/actions/workflows/prove-model.yml/disable", "PUT"],
     ["/repos/sudofx/sudofx/actions/workflows/prove-model.yml", "GET"],
     ["/repos/sudofx/sudofx/actions/workflows/prove-model.yml/runs", "GET"],
+    ["/repos/sudofx/sudofx/branches/sudofx-runtime", "GET"],
     ["/repos/sudofx/sudofx/actions/runs/42/cancel", "POST"],
     ["/repos/sudofx/sudofx/actions/workflows/sudofx.yml/dispatches", "POST"],
   ]);
@@ -561,6 +573,7 @@ test("Text configuration can narrow capabilities but never invent new ones", asy
       const path = new URL(url).pathname;
       if (path.endsWith("/actions/workflows/prove-model.yml")) return Response.json({ state: "active" });
       if (path.endsWith("/actions/workflows/prove-model.yml/runs")) return Response.json({ workflow_runs: [] });
+      if (path.endsWith("/branches/sudofx-runtime")) return Response.json({ commit: { sha: "runtime-head" } });
       return new Response("permission missing", { status: 403 });
     },
   );
