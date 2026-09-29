@@ -761,13 +761,19 @@ def render(
     .data-switch-track i {{ display:block; width:20px; height:20px; border-radius:50%; background:var(--muted); transition:transform .2s ease,background .2s ease }}
     .theme-switch input:checked + .data-switch-track i {{ transform:translateX(17px); background:var(--green) }}
     .theme-switch input:focus-visible + .data-switch-track {{ outline:3px solid var(--green); outline-offset:3px }}
-    @media(max-width:600px) {{ header {{ column-gap:12px; row-gap:16px; padding:26px 0 20px }}
-      .brand-block {{ gap:7px; min-width:0 }}
-      .brand {{ font-size:clamp(28px,9.5vw,36px); flex:0 0 auto }}
-      .inspired {{ font-size:7px; letter-spacing:.08em; flex:0 1 auto; overflow:hidden; text-overflow:clip }}
-      .masthead-actions {{ gap:7px }}
-      .tagline {{ font-size:12px; line-height:1.45 }}
-      .owner-controls {{ position:fixed; top:52px; right:16px; left:auto; width:min(320px,calc(100vw - 32px)); padding:16px; gap:10px; box-shadow:0 18px 46px #0005 }}
+    @media(max-width:600px) {{ header {{ column-gap:10px; row-gap:16px; padding:28px 0 22px }}
+      .brand-block {{ gap:9px; min-width:0 }}
+      .brand {{ font-size:clamp(34px,10.8vw,42px); flex:0 0 auto }}
+      .inspired {{ font-size:9px; line-height:1.15; letter-spacing:.07em; flex:0 1 auto; overflow:hidden; text-overflow:clip }}
+      .masthead-actions {{ gap:9px }}
+      .theme-switch {{ height:32px }}
+      .data-switch-track {{ width:52px; height:32px; padding:3px }}
+      .data-switch-track i {{ width:24px; height:24px }}
+      .theme-switch input:checked + .data-switch-track i {{ transform:translateX(20px) }}
+      .owner-login,.owner-menu-toggle {{ width:32px; height:32px }}
+      .settings-glyph {{ font-size:30px; line-height:32px }}
+      .tagline {{ font-size:13px; line-height:1.45 }}
+      .owner-controls {{ position:fixed; top:62px; right:16px; left:auto; width:min(320px,calc(100vw - 32px)); padding:16px; gap:10px; box-shadow:0 18px 46px #0005 }}
       .owner-control-actions {{ grid-template-columns:1fr 1fr; gap:8px }}
       .owner-control-actions [data-owner-backup] {{ grid-column:1/-1 }}
       .owner-controls button {{ min-height:42px }}
