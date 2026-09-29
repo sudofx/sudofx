@@ -43,6 +43,9 @@ on:
 permissions:
   # Stateful operator actions may checkpoint the authoritative state branch.
   contents: write
+  # Successful operator/review work may restart the already-enabled continuity
+  # workflow after borrowing the serialized authority lane.
+  actions: write
 
 concurrency:
   # All manual governed mutations serialize with the continuity runner.
@@ -158,3 +161,25 @@ jobs:
           name: sudofx-recovery-${{ github.run_id }}
           path: recovery/sudofx.sqlite
           retention-days: 30
+      - name: Resume enabled continuity after operator work
+        # Continuity may yield when governed operator/review work is waiting.
+        # Once that work succeeds, restore liveness only when the workflow is
+        # still enabled (an explicit Stop disables it) and no runtime cycle is
+        # already queued or running. Historical master queues are ignored.
+        if: success() && inputs.action != 'operator-stop'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          state="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/prove-model.yml" --jq '.state')"
+          if [[ "$state" != "active" ]]; then
+            echo "Continuity is disabled; preserving operator Stop."
+            exit 0
+          fi
+          active_runtime="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/prove-model.yml/runs?per_page=100" \
+            --jq '[.workflow_runs[] | select(.head_branch == "sudofx-runtime" and .status != "completed")] | length')"
+          if [[ "$active_runtime" -gt 0 ]]; then
+            echo "A runtime continuity cycle is already active; no resume dispatch needed."
+            exit 0
+          fi
+          gh workflow run prove-model.yml --repo "$GITHUB_REPOSITORY" --ref sudofx-runtime \
+            -f "dispatch_token=resume-after-operator-$GITHUB_RUN_ID"
