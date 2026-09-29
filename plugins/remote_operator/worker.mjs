@@ -301,7 +301,7 @@ async function shortcutHandoff(request, env, githubFetch) {
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ref: "master", inputs: { action: "handoff-evaluate", response } }),
+      body: JSON.stringify({ ref: RUNTIME_REF, inputs: { action: "handoff-evaluate", response } }),
     },
     githubFetch,
   );
@@ -476,7 +476,7 @@ async function stop(env, session, githubFetch) {
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ref: "master", inputs: { action: "operator-stop" } }),
+      body: JSON.stringify({ ref: RUNTIME_REF, inputs: { action: "operator-stop" } }),
     },
     githubFetch,
   );
@@ -551,7 +551,7 @@ async function operate(request, env, session, githubFetch) {
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ref: "master", inputs }),
+      body: JSON.stringify({ ref: RUNTIME_REF, inputs }),
     },
     githubFetch,
   );
@@ -576,7 +576,7 @@ async function backup(env, session, githubFetch) {
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ref: "master", inputs: { action: "backup" } }),
+      body: JSON.stringify({ ref: RUNTIME_REF, inputs: { action: "backup" } }),
     },
     githubFetch,
   );
