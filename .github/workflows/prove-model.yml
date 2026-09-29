@@ -11,8 +11,10 @@ run-name: sudofx continue · ${{ inputs.dispatch_token || github.run_id }}
 # The authenticated website Start control records operator intent on the first
 # cycle. Every successful successor is a fresh Gemini process that inherits only
 # bounded, governed residue from the preceding experiment observation.
-# The chain also carries its initial implementation commit as runtime_ref, so
-# unrelated master/UI development cannot change the experiment mid-series.
+# The experiment executes only from the dedicated sudofx-runtime branch.
+# master remains the development lane, so source/UI pushes cannot alter a live
+# continuity series. Runtime changes require an explicit, separately verified
+# promotion of sudofx-runtime.
 
 on:
   # One manual dispatch starts or repairs the chain. Successful runs create one
@@ -30,7 +32,7 @@ on:
         default: false
         required: false
       runtime_ref:
-        description: Immutable implementation commit carried by this experiment chain
+        description: Deprecated compatibility input; runtime is pinned by sudofx-runtime
         type: string
         required: false
 
@@ -56,12 +58,9 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 1
-          ref: ${{ inputs.runtime_ref || github.sha }}
       - uses: actions/setup-python@v7
         with:
           python-version: '3.13'
-      - name: Verify the kernel
-        run: PYTHONPATH=src python -m unittest discover -s tests -v
       - name: Ask fresh Gemini and record bounded residue
         # Model output is governed only on an isolated SQLite snapshot. The
         # production write records what the model said as untrusted experiment
@@ -88,7 +87,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PREVIOUS_RUN_ID: ${{ github.run_id }}
-          RUNTIME_REF: ${{ inputs.runtime_ref || github.sha }}
+          RUNTIME_REF: ${{ github.sha }}
         run: |
           # GitHub concurrency keeps one running and one pending member, but a
           # newly dispatched successor replaces that pending member even when
@@ -105,4 +104,4 @@ jobs:
             echo "Governed review/operator work is waiting; yielding the authority lane instead of replacing it."
             exit 0
           fi
-          gh workflow run prove-model.yml --repo "$GITHUB_REPOSITORY" --ref master -f "dispatch_token=continuous-$PREVIOUS_RUN_ID" -f "runtime_ref=$RUNTIME_REF"
+          gh workflow run prove-model.yml --repo "$GITHUB_REPOSITORY" --ref sudofx-runtime -f "dispatch_token=continuous-$PREVIOUS_RUN_ID" -f "runtime_ref=$RUNTIME_REF"
