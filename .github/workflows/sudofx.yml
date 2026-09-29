@@ -49,7 +49,7 @@ permissions:
 
 concurrency:
   # All manual governed mutations serialize with the continuity runner.
-  group: sudofx-authority-v3
+  group: sudofx-authority-v4
   cancel-in-progress: false
 
 jobs:
