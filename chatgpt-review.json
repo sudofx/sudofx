@@ -1,0 +1,12 @@
+{
+  "artifact_run_id": "36502335526",
+  "context_digest": "7fd6ba88e7ccb9b4f083e00ea30deeb40609c4f4bc6d0f194558d20f7e8cc46e",
+  "criteria": {
+    "objective_fidelity": "pass",
+    "history_fidelity": "pass",
+    "frontier_fidelity": "pass",
+    "compression_awareness": "pass",
+    "unsupported_claims": "pass",
+    "actionability": "pass"
+  }
+}
