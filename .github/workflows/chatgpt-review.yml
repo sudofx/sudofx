@@ -26,4 +26,9 @@ jobs:
       - name: Verify kernel before ChatGPT review
         run: PYTHONPATH=src python -m unittest discover -s tests -v
       - name: Record ChatGPT semantic review
-        run: PYTHONPATH=src python scripts/github_sudofx.py --record-chatgpt-semantic-review chatgpt-review.json
+        run: |
+          if [ ! -f chatgpt-review.json ]; then
+            echo "No ChatGPT review payload on this transport commit; nothing to record."
+            exit 0
+          fi
+          PYTHONPATH=src python scripts/github_sudofx.py --record-chatgpt-semantic-review chatgpt-review.json
