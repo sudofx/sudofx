@@ -1075,6 +1075,11 @@ json.dump({
         self.assertIn("group: sudofx-authority-v3", continuity)
         self.assertNotIn("group: sudofx-pages", operator)
         self.assertNotIn("group: sudofx-pages", continuity)
+        self.assertIn("Resume enabled continuity after operator work", operator)
+        self.assertIn("actions: write", operator)
+        self.assertIn('inputs.action != \'operator-stop\'', operator)
+        self.assertIn('.head_branch == "sudofx-runtime"', operator)
+        self.assertIn("--ref sudofx-runtime", operator)
 
     def test_live_exchange_is_outside_pages_and_disposable(self) -> None:
         """Cycles must refresh one replaceable live view without deploying Pages."""
