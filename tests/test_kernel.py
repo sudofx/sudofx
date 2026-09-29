@@ -834,7 +834,7 @@ json.dump({
         self.assertNotIn("Run operation", page)
         self.assertIn("data-status-led", page)
         self.assertIn("status-led checking", page)
-        self.assertIn("led-blink", page)
+        self.assertIn("owner-light-blink", page)
         self.assertIn("wake-theme", page)
         self.assertIn("data-theme=dark", page)
         # Green is the accepted toggle highlight. The switch remains the only
