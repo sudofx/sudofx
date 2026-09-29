@@ -120,7 +120,7 @@ test("background Shortcut handoff has one compiled capability and preserves the 
   assert.deepEqual(calls, [[
     "/repos/sudofx/sudofx/actions/workflows/sudofx.yml/dispatches",
     "Bearer server-side-github-token",
-    { ref: "master", inputs: { action: "handoff-evaluate", response: handoffResponse } },
+    { ref: "sudofx-runtime", inputs: { action: "handoff-evaluate", response: handoffResponse } },
   ]]);
 });
 
@@ -301,7 +301,7 @@ test("Backup dispatches only the named verified recovery action", async () => {
   assert.deepEqual(operations, [[
     "/repos/sudofx/sudofx/actions/workflows/sudofx.yml/dispatches",
     "POST",
-    { ref: "master", inputs: { action: "backup" } },
+    { ref: "sudofx-runtime", inputs: { action: "backup" } },
   ]]);
 });
 
@@ -356,7 +356,7 @@ test("Remote operator dispatches a bounded handoff export", async () => {
   assert.deepEqual(operations, [[
     "/repos/sudofx/sudofx/actions/workflows/sudofx.yml/dispatches",
     "POST",
-    { ref: "master", inputs: { action: "export-handoff", key: "phase2-real-handoff-001" } },
+    { ref: "sudofx-runtime", inputs: { action: "export-handoff", key: "phase2-real-handoff-001" } },
   ]]);
 });
 
@@ -388,7 +388,7 @@ test("Authenticated handoff evaluation preserves untrusted JSON for the governed
   assert.deepEqual(operations, [[
     "/repos/sudofx/sudofx/actions/workflows/sudofx.yml/dispatches",
     "POST",
-    { ref: "master", inputs: { action: "handoff-evaluate", response: handoffResponse } },
+    { ref: "sudofx-runtime", inputs: { action: "handoff-evaluate", response: handoffResponse } },
   ]]);
   assert.equal((await response.json()).message, "Handoff evaluation accepted for governed recording.");
 });
@@ -434,7 +434,7 @@ test("Authenticated semantic review dispatches only the bounded review payload",
   assert.deepEqual(operations, [[
     "/repos/sudofx/sudofx/actions/workflows/sudofx.yml/dispatches",
     "POST",
-    { ref: "master", inputs: { action: "semantic-review", review: JSON.stringify(review) } },
+    { ref: "sudofx-runtime", inputs: { action: "semantic-review", review: JSON.stringify(review) } },
   ]]);
 });
 
