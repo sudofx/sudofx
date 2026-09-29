@@ -260,6 +260,41 @@ test("missing diagnostics permission does not disable authenticated workflow con
   assert.equal(body.maintenance.unavailable, true);
 });
 
+test("stale master continuity runs are ignored by runtime status", async () => {
+  const session = await ownerSession();
+  const response = await handleRequest(
+    new Request("https://control.example/api/session", {
+      headers: { Origin: "https://sudofx.github.io", Authorization: `Bearer ${session}` },
+    }),
+    env,
+    async (url) => {
+      const path = new URL(url).pathname;
+      if (path.endsWith("/actions/workflows/prove-model.yml")) {
+        return Response.json({ state: "active" });
+      }
+      if (path.endsWith("/actions/workflows/prove-model.yml/runs")) {
+        return Response.json({ workflow_runs: [
+          { id: 99, status: "queued", head_branch: "master", html_url: "https://example/run/99" },
+        ] });
+      }
+      if (path === "/repos/sudofx/sudofx") {
+        return Response.json({ visibility: "public", private: false });
+      }
+      if (path.endsWith("/branches/sudofx-state")) {
+        return Response.json({ protected: false, commit: { sha: "state-head" } });
+      }
+      if (path.endsWith("/contents/sudofx.sqlite")) {
+        return Response.json({ size: 24576, sha: "database-blob" });
+      }
+      throw new Error(`unexpected session request: ${url}`);
+    },
+  );
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.deepEqual(body.activeRuns, []);
+  assert.equal(body.latestRun, null);
+});
+
 test("Start enables the workflow before dispatching one bootstrap", async () => {
   const session = await ownerSession();
   const operations = [];
@@ -318,7 +353,10 @@ test("Stop disables the workflow before discovering and cancelling active runs",
       const path = new URL(url).pathname;
       operations.push([path, init.method || "GET"]);
       if (path.endsWith("/prove-model.yml")) return Response.json({ state: "disabled_manually" });
-      if (path.endsWith("/runs")) return Response.json({ workflow_runs: [{ id: 42, status: "in_progress", html_url: "https://example/run/42" }] });
+      if (path.endsWith("/runs")) return Response.json({ workflow_runs: [
+          { id: 41, status: "queued", head_branch: "master", html_url: "https://example/run/41" },
+          { id: 42, status: "in_progress", head_branch: "sudofx-runtime", html_url: "https://example/run/42" },
+        ] });
       return new Response(null, { status: 204 });
     },
   );
