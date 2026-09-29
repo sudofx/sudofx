@@ -175,8 +175,9 @@ jobs:
             echo "Continuity is disabled; preserving operator Stop."
             exit 0
           fi
+          runtime_head="$(gh api "repos/$GITHUB_REPOSITORY/branches/sudofx-runtime" --jq '.commit.sha')"
           active_runtime="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/prove-model.yml/runs?per_page=100" \
-            --jq '[.workflow_runs[] | select(.head_branch == "sudofx-runtime" and .status != "completed")] | length')"
+            --jq --arg sha "$runtime_head" '[.workflow_runs[] | select(.head_branch == "sudofx-runtime" and .head_sha == $sha and .status != "completed")] | length')"
           if [[ "$active_runtime" -gt 0 ]]; then
             echo "A runtime continuity cycle is already active; no resume dispatch needed."
             exit 0
