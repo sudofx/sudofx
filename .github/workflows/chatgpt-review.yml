@@ -1,0 +1,29 @@
+name: sudofx — ChatGPT semantic review
+
+on:
+  push:
+    branches: [chatgpt-review-inbox]
+    paths: [chatgpt-review.json]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sudofx-authority-v3
+  cancel-in-progress: false
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+      - name: Verify kernel before ChatGPT review
+        run: PYTHONPATH=src python -m unittest discover -s tests -v
+      - name: Record ChatGPT semantic review
+        run: PYTHONPATH=src python scripts/github_sudofx.py --record-chatgpt-semantic-review chatgpt-review.json
