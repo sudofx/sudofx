@@ -995,8 +995,15 @@ json.dump({
         self.assertIn("operator_start:", workflow)
         self.assertIn("--operator-start", workflow)
         self.assertIn("runtime_ref:", workflow)
-        self.assertIn("ref: ${{ inputs.runtime_ref || github.sha }}", workflow)
+        self.assertIn("--ref sudofx-runtime", workflow)
         self.assertIn('-f "runtime_ref=$RUNTIME_REF"', workflow)
+        self.assertNotIn("name: Verify the kernel", workflow)
+        promotion = (Path(__file__).parents[1] / ".github/workflows/promote-runtime.yml").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("Verify candidate", promotion)
+        self.assertIn("Continuity is active; stop it before promoting", promotion)
+        self.assertIn("git/refs/heads/sudofx-runtime", promotion)
         self.assertNotIn("cron:", workflow)
         self.assertNotIn("\n  push:", workflow)
 
