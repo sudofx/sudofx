@@ -1,0 +1,55 @@
+name: sudofx — promote runtime
+
+# Development and execution are deliberately separate.
+# master may move freely. The continuity experiment consumes only
+# sudofx-runtime, which changes through this explicit verified promotion.
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_ref:
+        description: Development ref to promote after verification
+        type: string
+        default: master
+        required: true
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: sudofx-runtime-promotion
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.source_ref }}
+          fetch-depth: 1
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+      - name: Verify candidate
+        run: |
+          PYTHONPATH=src python -m unittest discover -s tests -v
+          node --test plugins/remote_operator/worker.test.mjs
+      - name: Refuse to change a live experiment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          active="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/prove-model.yml/runs?per_page=100"             --jq '[.workflow_runs[] | select(.status != "completed")] | length')"
+          if [[ "$active" -ne 0 ]]; then
+            echo "Continuity is active; stop it before promoting a new runtime."
+            exit 1
+          fi
+      - name: Promote verified commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          sha="$(git rev-parse HEAD)"
+          gh api --method PATCH "repos/$GITHUB_REPOSITORY/git/refs/heads/sudofx-runtime"             -f "sha=$sha" -F force=false
+          echo "Promoted sudofx-runtime to $sha"
