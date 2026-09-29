@@ -842,9 +842,14 @@ json.dump({
         self.assertIn("background:var(--green)", page)
         self.assertNotIn("theme-icon", page)
         self.assertIn("width:1px; height:1px", page)
-        # Brand and masthead actions share the top row; the tagline stays below.
-        # This protects the compact phone layout from wrapping operator controls.
-        self.assertIn('grid-template-areas:"brand actions" "tagline tagline"', page)
+        # Brand identity stays stacked at left while controls retain the top-right.
+        # The experiment question belongs with the "One AI to the next" section.
+        self.assertIn('grid-template-areas:"brand actions"', page)
+        self.assertIn('class="brand-block"', page)
+        self.assertIn('display:grid; justify-items:start; align-content:center; gap:8px', page)
+        self.assertIn('Inspired by WAKE<b>✳︎</b>', page)
+        self.assertIn('<span class="eyebrow">One AI to the next</span><h2>Can a fresh AI pick up where the last one left off?</h2>', page)
+        self.assertNotIn('class="tagline"', page)
         self.assertIn('class="masthead-actions"', page)
         self.assertIn('aria-label="Open Settings"', page)
         self.assertNotIn('>Operator sign in<', page)
