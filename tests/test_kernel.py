@@ -1071,8 +1071,8 @@ json.dump({
 
         self.assertNotIn("\n  push:", operator)
         self.assertNotIn("gh workflow run pages.yml", operator)
-        self.assertIn("group: sudofx-authority-v3", operator)
-        self.assertIn("group: sudofx-authority-v3", continuity)
+        self.assertIn("group: sudofx-authority-v4", operator)
+        self.assertIn("group: sudofx-authority-v4", continuity)
         self.assertNotIn("group: sudofx-pages", operator)
         self.assertNotIn("group: sudofx-pages", continuity)
         self.assertIn("Resume enabled continuity after operator work", operator)
