@@ -98,8 +98,11 @@ jobs:
           waiting_operator_runs="$(gh api \
             "repos/$GITHUB_REPOSITORY/actions/workflows/sudofx.yml/runs?per_page=20" \
             --jq '[.workflow_runs[] | select(.status != "completed")] | length')"
-          if [[ "$waiting_operator_runs" -gt 0 ]]; then
-            echo "Operator work is waiting; yielding the authority lane instead of replacing it."
+          waiting_chatgpt_reviews="$(gh api \
+            "repos/$GITHUB_REPOSITORY/actions/workflows/chatgpt-review.yml/runs?per_page=20" \
+            --jq '[.workflow_runs[] | select(.status != "completed")] | length')"
+          if [[ "$waiting_operator_runs" -gt 0 || "$waiting_chatgpt_reviews" -gt 0 ]]; then
+            echo "Governed review/operator work is waiting; yielding the authority lane instead of replacing it."
             exit 0
           fi
           gh workflow run prove-model.yml --repo "$GITHUB_REPOSITORY" --ref master -f "dispatch_token=continuous-$PREVIOUS_RUN_ID" -f "runtime_ref=$RUNTIME_REF"
