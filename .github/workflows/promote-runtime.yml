@@ -41,7 +41,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          active="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/prove-model.yml/runs?per_page=100"             --jq '[.workflow_runs[] | select(.status != "completed")] | length')"
+          active="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/prove-model.yml/runs?per_page=100" \
+            --jq '[.workflow_runs[] | select(.head_branch == "sudofx-runtime" and .status != "completed")] | length')"
           if [[ "$active" -ne 0 ]]; then
             echo "Continuity is active; stop it before promoting a new runtime."
             exit 1
