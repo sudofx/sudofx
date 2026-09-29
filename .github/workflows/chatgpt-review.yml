@@ -3,7 +3,9 @@ name: sudofx — ChatGPT semantic review
 on:
   push:
     branches: [chatgpt-review-inbox]
-    paths: [chatgpt-review.json]
+    paths:
+      - chatgpt-review.json
+      - chatgpt-resume
 
 permissions:
   contents: write
