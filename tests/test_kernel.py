@@ -768,7 +768,7 @@ json.dump({
         # Public visitors see the experiment before any operator-only technical
         # material. The technical view is present in the static artifact but must
         # remain hidden until the authenticated control service validates a session.
-        self.assertLess(page.index("Latest exchange"), page.index("Technical view"))
+        self.assertLess(page.index("Can a fresh AI pick up where the last one left off?"), page.index("Technical view"))
         self.assertIn("Stress matrix", page)
         self.assertIn("data-exchange-matrix", page)
         self.assertIn("data-exchange-coordinate", page)
