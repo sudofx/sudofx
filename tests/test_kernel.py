@@ -866,7 +866,7 @@ json.dump({
         self.assertIn('data-owner-backup hidden>Backup</button>', page)
         self.assertIn('data-owner-signout>Sign out</button>', page)
         self.assertIn('.owner-access { position:relative; z-index:2000', page)
-        self.assertIn('position:fixed; top:52px; right:16px', page)
+        self.assertIn('position:fixed; top:62px; right:16px', page)
         self.assertIn("setOwnerMenu(ownerControls.hidden)", page)
         self.assertIn("'/api/backup'", page)
         # Every phone action keeps its panel open and leaves a success or error
