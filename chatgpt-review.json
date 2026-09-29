@@ -1,6 +1,6 @@
 {
-  "artifact_run_id": "36502335526",
-  "context_digest": "7fd6ba88e7ccb9b4f083e00ea30deeb40609c4f4bc6d0f194558d20f7e8cc46e",
+  "artifact_run_id": "36502549469",
+  "context_digest": "2eae43e580ec1eb2ced7da7db626405016ee5ea3acb30db981f8116d6d95b60e",
   "criteria": {
     "objective_fidelity": "pass",
     "history_fidelity": "pass",
