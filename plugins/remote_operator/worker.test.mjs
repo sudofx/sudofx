@@ -279,6 +279,7 @@ test("Start enables the workflow before dispatching one bootstrap", async () => 
     ["/repos/sudofx/sudofx/actions/workflows/prove-model.yml/enable", "PUT"],
     ["/repos/sudofx/sudofx/actions/workflows/prove-model.yml/dispatches", "POST"],
   ]);
+  assert.equal(operations[1][2].ref, "sudofx-runtime");
   assert.equal(operations[1][2].inputs.operator_start, "true");
 });
 
