@@ -574,6 +574,7 @@ def main() -> int:
     parser.add_argument("--operator-transition", choices=("start", "stop"))
     parser.add_argument("--record-handoff-evaluation", action="store_true")
     parser.add_argument("--record-semantic-review", action="store_true")
+    parser.add_argument("--record-chatgpt-semantic-review")
     parser.add_argument("--handoff-work-id", default="")
     parser.add_argument(
         "--action", choices=("set", "delete", "work-create", "work-advance", "record-assessment", "work-complete")
@@ -594,12 +595,15 @@ def main() -> int:
         checkpoint()
         record = Record(DATA)
         kernel = Kernel(record)
-    if args.record_semantic_review:
+    if args.record_semantic_review or args.record_chatgpt_semantic_review:
         # Human review is intentionally stricter than generic record-assessment.
-        # The browser supplies only judgments plus the run/digest it saw. This
-        # process reconstructs the current target from authoritative SQLite and
-        # refuses any stale or mismatched submission before creating a proposal.
-        raw_review = os.environ.get("SEMANTIC_REVIEW", "")
+        # Website reviews come from the authenticated operator path. ChatGPT
+        # reviews arrive through the dedicated GitHub transport branch and have
+        # their reviewer identity forced here rather than trusted from payload.
+        if args.record_chatgpt_semantic_review:
+            raw_review = Path(args.record_chatgpt_semantic_review).read_text(encoding="utf-8")
+        else:
+            raw_review = os.environ.get("SEMANTIC_REVIEW", "")
         try:
             submitted = json.loads(raw_review)
         except json.JSONDecodeError as error:
@@ -608,9 +612,12 @@ def main() -> int:
             raise ValueError("SEMANTIC_REVIEW must be one JSON object")
         submitted_run_id = submitted.get("artifact_run_id")
         submitted_digest = submitted.get("context_digest")
-        reviewer = str(submitted.get("reviewer", "operator")).strip().lower()
-        if reviewer not in {"operator", "chatgpt"}:
-            raise ValueError("semantic review reviewer must be operator or chatgpt")
+        if args.record_chatgpt_semantic_review:
+            reviewer = "chatgpt"
+        else:
+            reviewer = str(submitted.get("reviewer", "operator")).strip().lower()
+            if reviewer != "operator":
+                raise ValueError("website semantic review reviewer must be operator")
         if not isinstance(submitted_run_id, str) or not submitted_run_id.strip():
             raise ValueError("semantic review requires artifact_run_id")
         if not isinstance(submitted_digest, str) or not submitted_digest.strip():
@@ -687,6 +694,13 @@ def main() -> int:
         print(json.dumps({"semantic_review": assessment, "receipt": receipt.__dict__}, default=list))
         checkpoint()
         kernel = Kernel(Record(DATA))
+        current_proof = latest_overnight_proof(kernel)
+        if current_proof is not None:
+            publish_live_projection(
+                current_proof,
+                build_handoff_packet(kernel, AUTO_HANDOFF_ID),
+                build_manual_evaluation_projection(kernel, AUTO_HANDOFF_ID),
+            )
 
     if args.backup:
         if not restored:
