@@ -316,17 +316,22 @@ async function workflowStatus(env, token, githubFetch) {
     githubFetch,
   );
   const workflow = await workflowResponse.json();
-  const runsResponse = await github(
-    `/repos/${env.REPOSITORY}/actions/workflows/${WORKFLOW}/runs?per_page=20`,
-    token,
-    {},
-    githubFetch,
-  );
+  const [runsResponse, runtimeBranchResponse] = await Promise.all([
+    github(
+      `/repos/${env.REPOSITORY}/actions/workflows/${WORKFLOW}/runs?per_page=20`,
+      token,
+      {},
+      githubFetch,
+    ),
+    github(`/repos/${env.REPOSITORY}/branches/${RUNTIME_REF}`, token, {}, githubFetch),
+  ]);
   const runs = (await runsResponse.json()).workflow_runs || [];
-  // Only the pinned runtime branch represents the live experiment. Historical
-  // queued runs from master are inert debris and must not block controls,
-  // promotion, or status.
-  const runtimeRuns = runs.filter((run) => run.head_branch === RUNTIME_REF);
+  const runtimeHead = String((await runtimeBranchResponse.json()).commit?.sha || "");
+  // Only runs from the current pinned runtime commit represent the live
+  // experiment. Old master queues and superseded runtime-SHA queues are debris.
+  const runtimeRuns = runs.filter(
+    (run) => run.head_branch === RUNTIME_REF && run.head_sha === runtimeHead,
+  );
   const active = runtimeRuns.filter((run) => run.status !== "completed");
   const latest = runtimeRuns[0] || null;
   return {
