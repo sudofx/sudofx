@@ -12,7 +12,7 @@ permissions:
   actions: write
 
 concurrency:
-  group: sudofx-authority-v3
+  group: sudofx-authority-v4
   cancel-in-progress: false
 
 jobs:
