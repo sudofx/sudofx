@@ -323,8 +323,12 @@ async function workflowStatus(env, token, githubFetch) {
     githubFetch,
   );
   const runs = (await runsResponse.json()).workflow_runs || [];
-  const active = runs.filter((run) => run.status !== "completed");
-  const latest = runs[0] || null;
+  // Only the pinned runtime branch represents the live experiment. Historical
+  // queued runs from master are inert debris and must not block controls,
+  // promotion, or status.
+  const runtimeRuns = runs.filter((run) => run.head_branch === RUNTIME_REF);
+  const active = runtimeRuns.filter((run) => run.status !== "completed");
+  const latest = runtimeRuns[0] || null;
   return {
     enabled: workflow.state === "active",
     activeRuns: active.map((run) => ({ id: run.id, status: run.status, url: run.html_url })),
