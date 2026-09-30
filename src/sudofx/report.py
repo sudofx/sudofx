@@ -572,8 +572,8 @@ def render(
     .observer-signal {{ display:flex; align-items:center; gap:9px }}
     .status-led {{ width:9px; height:9px; border-radius:50%; flex:0 0 9px; background:#e7c35a; animation:none }}
     .status-led.checking,.status-led.waiting {{ background:#e7c35a }}
-    .status-led.continuous,.status-led.working {{ background:#307444; animation:owner-light-pulse 3.2s ease-in-out infinite }}
-    .status-led.idle,.status-led.failed {{ background:#d65e6c; animation:owner-light-blink 2.4s step-end infinite }}
+    .status-led.continuous,.status-led.working {{ background:#307444; animation:status-light-pulse 3.2s ease-in-out infinite }}
+    .status-led.idle,.status-led.failed {{ background:#d65e6c; animation:status-light-blink 2.4s step-end infinite }}
     .observer-state {{ padding:0; border:0; font:700 10px var(--mono); letter-spacing:.08em; text-transform:uppercase }}
     .observer-state.working {{ color:var(--green) }}
     .observer-state.idle {{ color:#f7768e }}
@@ -592,10 +592,10 @@ def render(
     .actions-light {{ position:relative; z-index:2; width:30px; height:30px; display:inline-flex; align-items:center; justify-content:center; text-decoration:none; cursor:default }}
     .actions-light-track {{ width:18px; height:18px; box-sizing:border-box; flex:0 0 18px; padding:2px; border:1px solid var(--line); border-radius:20px; background:var(--surface); display:inline-flex; align-items:center; justify-content:center }}
     .actions-light-dot {{ display:block; width:12px; height:12px; flex:0 0 12px; border-radius:50%; background:#e7c35a }}
-    .actions-light[data-light-state="running"] .actions-light-dot {{ background:#307444; animation:owner-light-pulse 3.2s ease-in-out infinite }}
-    .actions-light[data-light-state="stopped"] .actions-light-dot {{ background:#d65e6c; animation:owner-light-blink 2.4s step-end infinite }}
-    @keyframes owner-light-pulse {{ 0%,100% {{ opacity:.3 }} 50% {{ opacity:1 }} }}
-    @keyframes owner-light-blink {{ 0%,49% {{ opacity:1 }} 50%,100% {{ opacity:.18 }} }}
+    .actions-light[data-light-state="running"] .actions-light-dot {{ background:#307444; animation:status-light-pulse 3.2s ease-in-out infinite }}
+    .actions-light[data-light-state="stopped"] .actions-light-dot {{ background:#d65e6c; animation:status-light-blink 2.4s step-end infinite }}
+    @keyframes status-light-pulse {{ 0%,100% {{ opacity:.3 }} 50% {{ opacity:1 }} }}
+    @keyframes status-light-blink {{ 0%,49% {{ opacity:1 }} 50%,100% {{ opacity:.18 }} }}
     @media (prefers-reduced-motion: reduce) {{ .actions-light-dot,.status-led {{ animation:none!important; opacity:1!important }} }}
     .machine-activity {{ margin-top:12px; border:1px solid var(--line); background:var(--paper); overflow:hidden }}
     .machine-activity[hidden] {{ display:none }}
@@ -801,8 +801,8 @@ const machineText=document.querySelector('[data-machine-text]');
 const exchangeStatus=document.querySelector('[data-exchange-status]');
 const recordRevision=document.querySelector('[data-record-revision]');
 const actionsLight=document.querySelector('.actions-light');
-const setOwnerLight=(state)=>{{if(actionsLight)actionsLight.dataset.lightState=state;}};
-const ownerLightForVisualState=(state)=>state==='working'?'running':((state==='idle'||state==='failed')?'stopped':'unknown');
+const setActionsLight=(state)=>{{if(actionsLight)actionsLight.dataset.lightState=state;}};
+const actionsLightForVisualState=(state)=>state==='working'?'running':((state==='idle'||state==='failed')?'stopped':'unknown');
 // The workflow owns a success-only successor chain. This field describes that
 // lifecycle rather than estimating a wall-clock time that no longer exists.
 const updateNextCheck=(state)=>{{
@@ -828,7 +828,7 @@ const refreshObserver=async()=>{{
     const running=run.status!=='completed';
     const failed=enabled&&!running&&run.conclusion==='failure';
     const visualState=running?'working':(failed?'failed':(enabled?'continuous':'idle'));
-    setOwnerLight(ownerLightForVisualState(visualState));
+    setActionsLight(actionsLightForVisualState(visualState));
     observer.className='observer-console '+visualState;
     observerState.className='observer-state '+visualState;
     observerState.textContent=running?'Live':(failed?'Paused':(enabled?'Running':'Stopped'));
