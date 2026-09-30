@@ -588,6 +588,21 @@ def render(
     .actions-light-dot {{ display:block; width:12px; height:12px; flex:0 0 12px; border-radius:50%; background:#e7c35a }}
     .actions-light[data-light-state="running"] .actions-light-dot {{ background:#307444; animation:status-light-pulse 3.2s ease-in-out infinite }}
     .actions-light[data-light-state="stopped"] .actions-light-dot {{ background:#d65e6c; animation:status-light-blink 2.4s step-end infinite }}
+    .manual-test-panel {{ margin-top:24px; padding:18px; border:1px solid var(--line); background:var(--surface) }}
+    .manual-test-panel .quality-head {{ margin-bottom:12px }}
+    .manual-test-intro {{ margin:0 0 14px; color:var(--muted); font:11px/1.5 var(--mono) }}
+    .provider-buttons {{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:7px; margin-bottom:14px }}
+    .provider-buttons button,.manual-actions button,.manual-actions a {{ border:1px solid var(--line); border-radius:4px; background:var(--surface); color:var(--ink); padding:9px 11px; font:800 11px var(--mono); cursor:pointer; text-align:center; text-decoration:none }}
+    .provider-buttons button:hover,.provider-buttons button:focus-visible,.manual-actions button:hover,.manual-actions a:hover {{ border-color:var(--accent); color:var(--accent) }}
+    .provider-buttons button[aria-pressed="true"] {{ color:var(--green); border-color:var(--green) }}
+    .manual-field {{ display:grid; gap:6px; margin-top:12px; color:var(--muted); font:700 10px var(--mono); letter-spacing:.05em; text-transform:uppercase }}
+    .manual-field textarea {{ width:100%; min-height:180px; resize:vertical; border:1px solid var(--line); background:var(--paper); color:var(--ink); padding:12px; font:12px/1.45 var(--mono); text-transform:none; letter-spacing:normal }}
+    .manual-actions {{ display:flex; flex-wrap:wrap; gap:8px; margin-top:10px }}
+    .manual-actions [data-manual-copy],.manual-actions [data-manual-analyze] {{ border-color:var(--accent); color:var(--accent) }}
+    .manual-actions [hidden] {{ display:none!important }}
+    .manual-note {{ min-height:1.5em; margin:10px 0 0; color:var(--muted); font:11px/1.45 var(--mono) }}
+    .manual-local-score {{ margin-top:14px }}
+    .manual-local-score[hidden] {{ display:none!important }}
     @keyframes status-light-pulse {{ 0%,100% {{ opacity:.3 }} 50% {{ opacity:1 }} }}
     @keyframes status-light-blink {{ 0%,49% {{ opacity:1 }} 50%,100% {{ opacity:.18 }} }}
     @media (prefers-reduced-motion: reduce) {{ .actions-light-dot,.status-led {{ animation:none!important; opacity:1!important }} }}
@@ -644,6 +659,7 @@ def render(
     @media(max-width:600px) {{
       .technical-stats {{ grid-template-columns:1fr 1fr }}
       .technical-provenance {{ grid-template-columns:1fr }}
+      .provider-buttons {{ grid-template-columns:1fr 1fr }}
       main {{ padding:18px 16px 34px }}
       header {{ padding:40px 0 22px }}
       .observer-compact {{ margin-bottom:38px }}
