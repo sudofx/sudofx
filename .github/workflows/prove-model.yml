@@ -8,7 +8,7 @@ run-name: sudofx continue · ${{ inputs.dispatch_token || github.run_id }}
 # Stable one-tap device entry point.
 #
 # Existing iPhone/iPad/Mac Shortcuts dispatch this workflow with no parameters.
-# The authenticated website Start control records operator intent on the first
+# GitHub Actions Start opens the continuation latch and dispatches the first
 # cycle. Every successful successor is a fresh Gemini process that inherits only
 # bounded, governed residue from the preceding experiment observation.
 # The experiment executes only from the dedicated sudofx-runtime branch.
@@ -48,11 +48,26 @@ concurrency:
 jobs:
   continue:
     runs-on: ubuntu-latest
+    if: github.ref_name == 'sudofx-runtime'
     timeout-minutes: 5
     steps:
+      - name: Confirm runtime isolation
+        env:
+          REQUESTED_RUNTIME_REF: ${{ inputs.runtime_ref }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = "sudofx-runtime" || {
+            echo "::error::sudofx cycles may execute only from sudofx-runtime"
+            exit 1
+          }
+          if [[ -n "$REQUESTED_RUNTIME_REF" && "$REQUESTED_RUNTIME_REF" != "$GITHUB_SHA" ]]; then
+            echo "::error::Pinned runtime $REQUESTED_RUNTIME_REF does not match dispatched sudofx-runtime head $GITHUB_SHA"
+            exit 1
+          fi
       - uses: actions/checkout@v7
         with:
           fetch-depth: 1
+          ref: ${{ inputs.runtime_ref || github.sha }}
       - uses: actions/setup-python@v7
         with:
           python-version: '3.13'
