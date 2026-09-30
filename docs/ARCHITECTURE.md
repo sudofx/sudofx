@@ -86,7 +86,7 @@ only a bounded recent window and exports content-free health evidence such as
 database bytes, event count, replay duration, and integrity status. This bounds
 browser growth without deleting the history needed for replay or audit.
 
-An authenticated owner may request a verified recovery snapshot. GitHub Actions
+An operator may request a verified recovery snapshot through GitHub Actions. GitHub Actions
 retains that artifact for 30 days outside Pages. It is a recovery copy, not
 authority, and does not replace the need for private independent storage as the
 record becomes sensitive or operationally valuable.
