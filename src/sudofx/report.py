@@ -452,16 +452,10 @@ def render(
     )
     semantic_run = str(continuity_proof.get("artifact_run_id", ""))
     semantic_digest = str(continuity_proof.get("context_digest", ""))
-    # The public page embeds only public-safe technical projection data. The
-    # operator session controls visibility, not confidentiality: hidden HTML is
-    # not a security boundary. Sensitive state must remain behind the authenticated
-    # service rather than being rendered into Pages at all.
-    # The manual exchange is a derived, provider-neutral view of the same
-    # compressed handoff used for automated continuity tests. It is embedded in
-    # the current public-safe projection but stays inaccessible through normal
-    # UI interaction until the confidential service authenticates the owner.
-    # Private persistence will require moving delivery behind that service too;
-    # presentation gating alone is deliberately not claimed as confidentiality.
+    # Pages is intentionally public. The manual exchange is a derived,
+    # provider-neutral view of the same bounded handoff used for continuity
+    # testing. It may be copied and evaluated by anyone, but browser-side work
+    # never mutates authoritative SQLite state.
     manual_prompt = ""
     try:
         manual_packet = build_handoff_packet(kernel, HANDOFF_WORK_ID)
@@ -489,8 +483,8 @@ def render(
         )
     except ValueError:
         # A projection without the experiment work item remains valid; the
-        # authenticated workbench simply stays unavailable instead of inventing
-        # a prompt from unrelated state.
+        # public manual workbench stays unavailable instead of inventing a
+        # prompt from unrelated state.
         pass
     observer_continuous = continuity_proof.get("assessment_status") == "semantic_review_pending"
     # A semantic review result remains evidence rather than authoritative state,
@@ -594,6 +588,21 @@ def render(
     .actions-light-dot {{ display:block; width:12px; height:12px; flex:0 0 12px; border-radius:50%; background:#e7c35a }}
     .actions-light[data-light-state="running"] .actions-light-dot {{ background:#307444; animation:status-light-pulse 3.2s ease-in-out infinite }}
     .actions-light[data-light-state="stopped"] .actions-light-dot {{ background:#d65e6c; animation:status-light-blink 2.4s step-end infinite }}
+    .manual-test-panel {{ margin-top:24px; padding:18px; border:1px solid var(--line); background:var(--surface) }}
+    .manual-test-panel .quality-head {{ margin-bottom:12px }}
+    .manual-test-intro {{ margin:0 0 14px; color:var(--muted); font:11px/1.5 var(--mono) }}
+    .provider-buttons {{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:7px; margin-bottom:14px }}
+    .provider-buttons button,.manual-actions button,.manual-actions a {{ border:1px solid var(--line); border-radius:4px; background:var(--surface); color:var(--ink); padding:9px 11px; font:800 11px var(--mono); cursor:pointer; text-align:center; text-decoration:none }}
+    .provider-buttons button:hover,.provider-buttons button:focus-visible,.manual-actions button:hover,.manual-actions a:hover {{ border-color:var(--accent); color:var(--accent) }}
+    .provider-buttons button[aria-pressed="true"] {{ color:var(--green); border-color:var(--green) }}
+    .manual-field {{ display:grid; gap:6px; margin-top:12px; color:var(--muted); font:700 10px var(--mono); letter-spacing:.05em; text-transform:uppercase }}
+    .manual-field textarea {{ width:100%; min-height:180px; resize:vertical; border:1px solid var(--line); background:var(--paper); color:var(--ink); padding:12px; font:12px/1.45 var(--mono); text-transform:none; letter-spacing:normal }}
+    .manual-actions {{ display:flex; flex-wrap:wrap; gap:8px; margin-top:10px }}
+    .manual-actions [data-manual-copy],.manual-actions [data-manual-analyze] {{ border-color:var(--accent); color:var(--accent) }}
+    .manual-actions [hidden] {{ display:none!important }}
+    .manual-note {{ min-height:1.5em; margin:10px 0 0; color:var(--muted); font:11px/1.45 var(--mono) }}
+    .manual-local-score {{ margin-top:14px }}
+    .manual-local-score[hidden] {{ display:none!important }}
     @keyframes status-light-pulse {{ 0%,100% {{ opacity:.3 }} 50% {{ opacity:1 }} }}
     @keyframes status-light-blink {{ 0%,49% {{ opacity:1 }} 50%,100% {{ opacity:.18 }} }}
     @media (prefers-reduced-motion: reduce) {{ .actions-light-dot,.status-led {{ animation:none!important; opacity:1!important }} }}
@@ -650,6 +659,7 @@ def render(
     @media(max-width:600px) {{
       .technical-stats {{ grid-template-columns:1fr 1fr }}
       .technical-provenance {{ grid-template-columns:1fr }}
+      .provider-buttons {{ grid-template-columns:1fr 1fr }}
       main {{ padding:18px 16px 34px }}
       header {{ padding:40px 0 22px }}
       .observer-compact {{ margin-bottom:38px }}
@@ -748,6 +758,29 @@ def render(
       <div><span>Database</span><strong>{_format_bytes(health['database_bytes'])}</strong></div>
       <div><span>Replay</span><strong>{health['replay_ms']} ms</strong></div>
       <div><span>Receipts</span><strong>{total_receipts}</strong></div>
+    </div>
+    <div class="manual-test-panel" data-manual-test>
+      <div class="quality-head"><b>Manual AI continuity test</b><span class="quality-verdict quality-pass">PUBLIC</span></div>
+      <p class="manual-test-intro">Anyone can run this test. Choose an AI, send the generated bounded prompt, paste its JSON response back here, and sudofx will score packet grounding locally. Local scoring is evidence, not database authority.</p>
+      <div class="provider-buttons" aria-label="Choose AI provider">
+        <button type="button" data-manual-vendor="ChatGPT" data-manual-url="com.openai.chat://">ChatGPT</button>
+        <button type="button" data-manual-vendor="Claude" data-manual-url="claude://">Claude</button>
+        <button type="button" data-manual-vendor="Gemini" data-manual-url="https://gemini.google.com/app">Gemini</button>
+        <button type="button" data-manual-vendor="DeepSeek" data-manual-url="deepseek://">DeepSeek</button>
+      </div>
+      <label class="manual-field">Prompt to send<textarea data-manual-prompt readonly>{_escape(manual_prompt)}</textarea></label>
+      <div class="manual-actions"><button type="button" data-manual-copy>Copy prompt</button></div>
+      <label class="manual-field">Returned JSON<textarea data-manual-response spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="Paste the complete JSON response here."></textarea></label>
+      <div class="manual-actions">
+        <button type="button" data-manual-analyze>Analyze response</button>
+        <a data-manual-contribute hidden href="https://github.com/{_escape(repository)}/issues/new" target="_blank" rel="noopener noreferrer">Contribute result</a>
+        <a data-manual-record href="https://github.com/{_escape(repository)}/actions/workflows/sudofx.yml" target="_blank" rel="noopener noreferrer">Record in Actions</a>
+      </div>
+      <div class="manual-local-score" data-manual-local-score hidden>
+        <div class="quality-head"><b>Local grounding score</b><span class="quality-verdict" data-manual-local-total>—</span></div>
+        <div class="quality-grid" data-manual-local-criteria></div>
+      </div>
+      <p class="manual-note" data-manual-status>{"Choose a provider to generate a fresh test ID and copy the prompt." if manual_prompt else "No handoff work item is available in this projection yet."}</p>
     </div>
     <div class="quality-block" data-manual-live>
       <div class="quality-head"><b>Live manual grounding evidence</b><span class="quality-verdict" data-manual-latest>—</span></div>
@@ -892,6 +925,129 @@ const publicAnswer=(proof)=>{{
 const liveExchangeUrl='https://raw.githubusercontent.com/'+(observer?.dataset.repository||'sudofx/sudofx')+'/sudofx-live/live.json';
 const liveHandoffUrl='https://raw.githubusercontent.com/'+(observer?.dataset.repository||'sudofx/sudofx')+'/sudofx-live/handoff-v1.json';
 const liveManualUrl='https://raw.githubusercontent.com/'+(observer?.dataset.repository||'sudofx/sudofx')+'/sudofx-live/manual-evaluations.json';
+const manualPrompt=document.querySelector('[data-manual-prompt]');
+const manualResponse=document.querySelector('[data-manual-response]');
+const manualStatus=document.querySelector('[data-manual-status]');
+const manualAnalyze=document.querySelector('[data-manual-analyze]');
+const manualCopy=document.querySelector('[data-manual-copy]');
+const manualContribute=document.querySelector('[data-manual-contribute]');
+const manualRecord=document.querySelector('[data-manual-record]');
+const manualLocalScore=document.querySelector('[data-manual-local-score]');
+const manualLocalTotal=document.querySelector('[data-manual-local-total]');
+const manualLocalCriteria=document.querySelector('[data-manual-local-criteria]');
+const manualBasePrompt=manualPrompt?.value||'';
+const manualDimensions=['objective_fidelity','authority_fidelity','history_fidelity','constraint_fidelity','frontier_fidelity','epistemic_discipline','transfer_usability'];
+const freshManualId=()=>{{
+  const values=new Uint32Array(1);
+  crypto.getRandomValues(values);
+  return 'UUID-'+String(values[0]%1000000).padStart(6,'0');
+}};
+const manualPacketText=()=>{{
+  const packetMarker='COMPLETE JSON PACKET\n';
+  const source=manualPrompt?.value||manualBasePrompt;
+  const index=source.indexOf(packetMarker);
+  return index>=0?source.slice(index+packetMarker.length).trim():'';
+}};
+const setManualStatus=(message)=>{{if(manualStatus)manualStatus.textContent=message;}};
+const copyManual=async(value)=>{{
+  if(!value)return false;
+  try{{await navigator.clipboard.writeText(value);return true;}}catch{{return false;}}
+}};
+const prepareManualProvider=async(button)=>{{
+  if(!manualPrompt||!manualBasePrompt){{setManualStatus('No manual packet is available yet.');return;}}
+  const vendor=button.dataset.manualVendor||'';
+  const testId=freshManualId();
+  const nonce='HANDOFF-'+testId;
+  manualPrompt.value=manualBasePrompt
+    .replaceAll('__SUDOFX_VENDOR__',vendor)
+    .replaceAll('__SUDOFX_TEST_ID__',testId)
+    .replaceAll('__SUDOFX_NONCE__',nonce);
+  document.querySelectorAll('[data-manual-vendor]').forEach(node=>node.setAttribute('aria-pressed',String(node===button)));
+  const copied=await copyManual(manualPrompt.value);
+  setManualStatus((copied?'Prompt copied. ':'Prompt ready. ')+'Send it to '+vendor+', then paste the returned JSON below.');
+  const url=button.dataset.manualUrl||'';
+  if(url){{
+    if(url.startsWith('http'))window.open(url,'_blank','noopener,noreferrer');
+    else location.href=url;
+  }}
+}};
+document.querySelectorAll('[data-manual-vendor]').forEach(button=>button.addEventListener('click',()=>prepareManualProvider(button)));
+if(manualCopy)manualCopy.addEventListener('click',async()=>{{
+  const copied=await copyManual(manualPrompt?.value||'');
+  setManualStatus(copied?'Prompt copied.':'Copy was blocked by the browser; select the prompt manually.');
+}});
+const parseManualResponse=(raw)=>{{
+  let candidate=String(raw||'').trim();
+  if(candidate.startsWith('&#96;&#96;&#96;')&&candidate.endsWith('&#96;&#96;&#96;')){{
+    const lines=candidate.split(/\r?\n/);
+    candidate=lines.slice(1,-1).join('\n').trim();
+  }}
+  if(candidate.startsWith(String.fromCharCode(96,96,96))&&candidate.endsWith(String.fromCharCode(96,96,96))){{
+    const lines=candidate.split(/\r?\n/);
+    candidate=lines.slice(1,-1).join('\n').trim();
+  }}
+  candidate=candidate.replaceAll('“','"').replaceAll('”','"');
+  const response=JSON.parse(candidate);
+  if(!response||Array.isArray(response)||typeof response!=='object')throw new Error('Response must be one JSON object.');
+  return response;
+}};
+const analyzeManual=()=>{{
+  if(!manualResponse||!manualPrompt)throw new Error('Manual test panel is unavailable.');
+  const response=parseManualResponse(manualResponse.value);
+  const packetText=manualPacketText();
+  if(!packetText)throw new Error('The visible prompt does not contain a packet.');
+  const packet=JSON.parse(packetText);
+  const required=['test_id','nonce','vendor','work_id','packet_digest','answers'];
+  if(required.some(key=>!(key in response)))throw new Error('Response is missing transport metadata.');
+  if(response.packet_digest!==packet.packet_digest)throw new Error('Response belongs to a different packet.');
+  if(response.work_id!==packet.work_id)throw new Error('Response belongs to a different work item.');
+  if(typeof response.test_id!=='string'||!/^UUID-[0-9]{{6}}$/.test(response.test_id))throw new Error('test_id must use UUID-NNNNNN.');
+  if(typeof response.nonce!=='string'||!/^HANDOFF-UUID-[0-9]{{6}}$/.test(response.nonce))throw new Error('nonce must use HANDOFF-UUID-NNNNNN.');
+  if(typeof response.vendor!=='string'||!response.vendor.trim())throw new Error('vendor is required.');
+  if(!response.answers||Array.isArray(response.answers)||typeof response.answers!=='object')throw new Error('answers must be an object.');
+  const results=manualDimensions.map(dimension=>{{
+    const answer=response.answers[dimension];
+    const answerText=answer&&typeof answer.answer==='string'?answer.answer.trim():'';
+    const evidence=answer&&typeof answer.evidence==='string'?answer.evidence.trim():'';
+    return {{dimension,passed:Boolean(answerText)&&evidence.length>=8&&packetText.includes(evidence)}};
+  }});
+  const score=results.filter(item=>item.passed).length;
+  if(manualLocalCriteria){{
+    manualLocalCriteria.replaceChildren(...results.map(item=>{{
+      const row=document.createElement('div');
+      const label=document.createElement('span');
+      label.textContent=item.dimension.replaceAll('_',' ');
+      const value=document.createElement('strong');
+      value.textContent=item.passed?'PASS':'FAIL';
+      value.className=item.passed?'quality-pass':'quality-fail';
+      row.append(label,value);
+      return row;
+    }}));
+  }}
+  if(manualLocalTotal){{
+    manualLocalTotal.textContent=score+'/7';
+    manualLocalTotal.className='quality-verdict '+(score===7?'quality-pass':'quality-uncertain');
+  }}
+  if(manualLocalScore)manualLocalScore.hidden=false;
+  if(manualContribute){{
+    const title='Manual handoff result · '+String(response.vendor).trim()+' · '+String(response.test_id);
+    manualContribute.href='https://github.com/'+(observer?.dataset.repository||'sudofx/sudofx')+'/issues/new?title='+encodeURIComponent(title);
+    manualContribute.hidden=false;
+  }}
+  setManualStatus('Local scorer v2: '+score+'/7 packet-grounding checks passed. This browser result is not yet authoritative.');
+  return score;
+}};
+if(manualAnalyze)manualAnalyze.addEventListener('click',()=>{{
+  try{{analyzeManual();}}catch(error){{if(manualLocalScore)manualLocalScore.hidden=true;setManualStatus('Could not score: '+error.message);}}
+}});
+if(manualContribute)manualContribute.addEventListener('click',async()=>{{
+  await copyManual(manualResponse?.value||'');
+  setManualStatus('Response copied. Paste it into the GitHub issue so the contribution is preserved for review.');
+}});
+if(manualRecord)manualRecord.addEventListener('click',async()=>{{
+  await copyManual(manualResponse?.value||'');
+  setManualStatus('Response copied. Use handoff-evaluate in GitHub Actions to record it into governed SQLite state.');
+}});
 const refreshManualEvidence=async()=>{{
   try{{
     const response=await fetch(liveManualUrl+'?ts='+Date.now(),{{cache:'no-store'}});
