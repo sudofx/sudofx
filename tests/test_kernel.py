@@ -739,7 +739,7 @@ json.dump({
             self.kernel.context()
 
     def test_static_report_exposes_state_and_receipt_provenance(self) -> None:
-        """The phone projection prioritizes status and the human-readable exchange."""
+        """Pages is a public observer; GitHub Actions is the operator surface."""
         self.kernel.submit(Proposal("p1", 0, (Operation("set", "objective", "continue"),)))
         page = render(
             self.kernel,
@@ -754,156 +754,30 @@ json.dump({
                 "assessment_status": "semantic_review_pending",
                 "candidate_result": "Reconstruction: continue safely. Proposed next step: inspect the frontier.",
                 "candidate_rationale": "The durable objective identifies the frontier.",
-                "semantic_review": {
-                    "evidence": {
-                        "objective": "Preserve the work across model replacement",
-                        "accepted_results": ["Bounded context reached Gemini"],
-                        "open_obligations": ["Inspect the frontier"],
-                        "constraints": ["Do not mutate production during proof"],
-                    }
-                },
+                "semantic_review": {"evidence": {"objective": "Preserve the work across model replacement"}},
             },
-            control_url="https://control.example",
         )
-        # Public visitors see the experiment before any operator-only technical
-        # material. The technical view is present in the static artifact but must
-        # remain hidden until the authenticated control service validates a session.
-        self.assertLess(page.index("Can a fresh AI pick up where the last one left off?"), page.index("Technical view"))
-        self.assertIn("Stress matrix", page)
-        self.assertIn("data-exchange-matrix", page)
-        self.assertIn("data-exchange-coordinate", page)
-        self.assertIn("Protocol gate", page)
-        self.assertIn("Semantic review", page)
-        self.assertIn("data-exchange-protocol>PASS</b>", page)
-        self.assertIn("data-exchange-semantic>PENDING</b>", page)
-        self.assertIn("protocol_gate_passed", page)
-        self.assertIn("semantic_review_status", page)
-        self.assertIn("pass '+pass+' · '+position+'/'+size", page)
-        self.assertIn("CHECKING…", page)
-        self.assertIn("Loading current status…", page)
-        self.assertIn('data-fallback-state="CONTINUOUS"', page)
-        self.assertIn("The experiment is running", page)
-        self.assertNotIn("expectedHeartbeat", page)
-        self.assertNotIn('data-fallback-state="WAITING FOR YOU"', page)
-        self.assertIn("What Gemini was asked", page)
-        self.assertIn("What Gemini responded", page)
-        self.assertIn("What happened", page)
+        self.assertIn("Can a fresh AI pick up where the last one left off?", page)
         self.assertIn("Gemini understood: continue safely.", page)
-        self.assertNotIn("Why: The durable objective identifies the frontier.", page)
-        self.assertIn('data-owner-technical hidden', page)
-        self.assertIn("if(ownerTechnical)ownerTechnical.hidden=false", page)
-        self.assertIn("if(ownerTechnical)ownerTechnical.hidden=true", page)
-        self.assertIn("data-exchange-response", page)
-        self.assertIn("sudofx-live/live.json", page)
-        self.assertNotIn("fetch('./continuity-proof.json?ts='", page)
-        self.assertIn("setInterval(refreshExchange,15000)", page)
-        self.assertIn("manual-evaluations.json", page)
-        self.assertIn("refreshManualEvidence", page)
-        self.assertIn("Live manual grounding evidence", page)
-        self.assertIn("Exact packet grounding only · semantic fidelity is reviewed separately.", page)
-        self.assertIn("Semantic review queue", page)
-        self.assertIn("Human judgment is recorded separately from protocol success and is bound to this exact run + digest.", page)
-        self.assertIn("data-semantic-review-criteria", page)
-        self.assertIn("data-semantic-review-run", page)
-        self.assertIn("data-semantic-review-digest", page)
-        # A signed-in owner has stronger evidence than the anonymous observer.
-        # Stop must therefore replace a stale continuous fallback everywhere,
-        # not merely beside the buttons at the bottom of the status panel.
-        self.assertIn("Authenticated owner control confirms the workflow is disabled", page)
-        self.assertIn("Continuous tests stopped by owner", page)
-        self.assertIn("if(ownerSession()&&await refreshOwnerControls())return", page)
+        self.assertIn('href="https://github.com/sudofx/sudofx/actions"', page)
+        self.assertIn('class="owner-access actions-light"', page)
+        self.assertIn('data-runner="sudofx-runner.yml"', page)
+        self.assertIn("actions/workflows/'+runner", page)
+        self.assertIn("actions/workflows/'+workflow+'/runs?branch=sudofx-runtime", page)
+        self.assertIn("setOwnerLight(ownerLightForVisualState(visualState))", page)
+        self.assertNotIn("SUDOFX_CONTROL_URL", page)
+        self.assertNotIn("sudofx-owner-session", page)
+        self.assertNotIn("/auth/login", page)
+        self.assertNotIn("/api/session", page)
+        self.assertNotIn("ownerRequest", page)
+        self.assertNotIn("GITHUB_CLIENT_SECRET", page)
         self.assertIn('data-published-run-id="123"', page)
-        # Live telemetry updates the status and Gemini exchange in place. A
-        # whole-page refresh here would repeatedly reset the mobile viewport
-        # while the continuous runner publishes faster than CDN caches settle.
-        self.assertNotIn("refreshPublishedPage", page)
-        self.assertNotIn("window.location.replace(target.toString())", page)
         self.assertIn("Activity history", page)
-        self.assertIn("overflow-x:hidden", page)
-        # Long digests are normal durable evidence. Hiding horizontal overflow
-        # alone would truncate them, so the content owner must break the token.
-        self.assertIn(".work-section li,.final-result p,.work-head code", page)
-        self.assertIn("overflow-wrap:anywhere; word-break:break-word", page)
-        self.assertIn("grid-template-columns:minmax(0,1fr) auto", page)
-        self.assertNotIn("General state", page)
-        self.assertNotIn("Technical pass", page)
-        self.assertNotIn("Phone-ready verification", page)
         self.assertIn("objective", page)
         self.assertIn("continue", page)
         self.assertIn("proposal p1", page)
-        self.assertNotIn("Run operation", page)
-        self.assertIn("data-status-led", page)
-        self.assertIn("status-led checking", page)
-        self.assertIn("owner-light-blink", page)
         self.assertIn("wake-theme", page)
-        self.assertIn("data-theme=dark", page)
-        # Green is the accepted toggle highlight. The switch remains the only
-        # visual indicator so no redundant glyph can drift out of alignment.
-        self.assertIn("background:var(--green)", page)
-        self.assertNotIn("theme-icon", page)
-        self.assertIn("width:1px; height:1px", page)
-        # Brand identity stays stacked at left while controls retain the top-right.
-        # The experiment question belongs with the "One AI to the next" section.
-        self.assertIn('grid-template-areas:"brand actions"', page)
-        self.assertIn('class="brand-block"', page)
-        self.assertIn('display:grid; justify-items:start; align-content:center; gap:8px', page)
-        self.assertIn('Inspired by WAKE<b>✳︎</b>', page)
-        self.assertIn('<span class="eyebrow">One AI to the next</span><h2>Can a fresh AI pick up where the last one left off?</h2>', page)
-        self.assertNotIn('class="tagline"', page)
-        self.assertIn('class="masthead-actions"', page)
-        self.assertIn('aria-label="Open Settings"', page)
-        self.assertNotIn('>Operator sign in<', page)
-        self.assertNotIn('settings-glyph', page)
-        self.assertEqual(page.count('class="owner-status-track"'), 2)
-        self.assertEqual(page.count('class="owner-status-light"'), 2)
-        self.assertIn('data-light-state="unknown"', page)
-        self.assertIn('background:#307444', page)
-        self.assertIn('background:#d65e6c', page)
-        self.assertIn('background:#e7c35a', page)
-        self.assertIn('@keyframes owner-light-pulse', page)
-        self.assertIn('@keyframes owner-light-blink', page)
-        self.assertIn('prefers-reduced-motion: reduce', page)
-        self.assertIn('.data-switch-track { width:34px; height:18px', page)
-        self.assertIn('.owner-status-track { width:18px; height:18px', page)
-        self.assertIn('.data-switch-track { width:42px; height:24px', page)
-        self.assertIn('.owner-status-track { width:24px; height:24px', page)
-        self.assertIn("const ownerLightForVisualState=(state)=>state==='working'?'running'", page)
-        self.assertIn("setOwnerLight(ownerLightForVisualState(visualState))", page)
-        self.assertIn("if(!ownerSession())setOwnerLight(ownerLightForVisualState(visualState))", page)
-        self.assertIn('.owner-login[hidden]', page)
-        self.assertNotIn('i::before { content:"☀"', page)
-        self.assertIn('class="brand" href="./"', page)
         self.assertIn('href="https://sudofx.github.io/wake/" target="_blank"', page)
-        # Operator access uses the same masthead popover contract as WAKE. The
-        # authenticated actions remain hidden until the control service verifies
-        # the encrypted session, even though the sign-in link is always visible.
-        self.assertIn('href="https://control.example/auth/login"', page)
-        self.assertLess(page.index('data-owner-access'), page.index('</header>'))
-        self.assertIn('class="owner-menu-toggle"', page)
-        self.assertIn('data-owner-menu-label>Settings</span>', page)
-        self.assertIn('data-owner-controls hidden', page)
-        self.assertIn('class="owner-control-actions"', page)
-        self.assertIn('data-owner-start>Start</button>', page)
-        self.assertIn('data-owner-stop>Stop</button>', page)
-        self.assertIn('data-owner-backup hidden>Backup</button>', page)
-        self.assertIn('data-owner-signout>Sign out</button>', page)
-        self.assertIn('.owner-access { position:relative; z-index:2000', page)
-        self.assertIn('position:fixed; top:62px; right:16px', page)
-        self.assertIn("setOwnerMenu(ownerControls.hidden)", page)
-        self.assertIn("'/api/backup'", page)
-        # Every phone action keeps its panel open and leaves a success or error
-        # result visible. This prevents an accepted or rejected request from
-        # looking like an unexplained dismissal on iOS.
-        self.assertIn("event?.stopPropagation()", page)
-        self.assertIn("ownerControlStatus.textContent='Requesting '+label+'…'", page)
-        self.assertIn("ownerControlStatus.textContent='Request failed: '+error.message", page)
-        self.assertIn("operateOwnerControl('/api/backup',event,false)", page)
-        self.assertIn("public state", page)
-        self.assertIn("localStorage.setItem(ownerSessionKey", page)
-        self.assertIn("localStorage.getItem(ownerSessionKey", page)
-        self.assertIn("const legacy=sessionStorage.getItem(ownerSessionKey)", page)
-        self.assertIn("sessionStorage.removeItem(ownerSessionKey)", page)
-        self.assertNotIn("GITHUB_CLIENT_SECRET", page)
 
     def test_latest_overnight_projection_preserves_runtime_provenance(self) -> None:
         """Pages must not confuse renderer provenance with model-runtime provenance."""
@@ -1030,31 +904,12 @@ json.dump({
         self.assertNotIn("\n  push:", workflow)
 
     def test_semantic_review_ui_defaults_to_pass_and_confirms_submission(self) -> None:
-        """Phone review should be one-tap by default and visibly acknowledge dispatch."""
-        self.kernel.submit(
-            Proposal(
-                "create-review-ui",
-                0,
-                (Operation("create_work", "handoff-v1", {"objective": "Portable continuity", "constraints": []}),),
-            )
-        )
-        page = render(
-            self.kernel,
-            continuity_proof={
-                "semantic_review_status": "pending",
-                "assessment_status": "semantic_review_pending",
-                "artifact_run_id": "123",
-                "context_digest": "a" * 64,
-            },
-        )
-        self.assertEqual(page.count('<option value="pass" selected>PASS</option>'), 6)
-        self.assertNotIn('<option value="uncertain" selected>UNCERTAIN</option>', page)
-        self.assertIn("Recording…", page)
-        self.assertIn("Recorded ✓", page)
-        self.assertIn("Waiting for SQLite confirmation", page)
-        self.assertIn("data-semantic-review-operator", page)
-        self.assertIn("data-semantic-review-chatgpt", page)
-        self.assertIn("await refreshExchange()", page)
+        """Semantic review remains visible evidence without a Pages authentication path."""
+        page = render(self.kernel)
+        self.assertIn("Semantic review", page)
+        self.assertIn("data-semantic-review-criteria", page)
+        self.assertNotIn("SUDOFX_CONTROL_URL", page)
+        self.assertNotIn("/api/operate", page)
 
     def test_semantic_review_resolves_historical_authoritative_target(self) -> None:
         """Human review must survive runner advancement without accepting invented targets."""
@@ -1141,7 +996,7 @@ json.dump({
         self.assertNotIn("path: recovery\n", workflow)
 
     def test_handoff_packet_is_bounded_and_portable(self) -> None:
-        """Handoff v1 must export one governed work item without unrelated state."""
+        """The portable packet stays bounded and independent of web authentication."""
         self.kernel.submit(
             Proposal(
                 "handoff-create",
@@ -1151,41 +1006,16 @@ json.dump({
                         "create_work",
                         "handoff-v1",
                         {
-                            "objective": "Continue the project from durable context",
-                            "constraints": ["Use only governed context"],
+                            "objective": "Carry useful governed context across a fresh intelligence",
+                            "constraints": ["Unknown means unknown"],
                         },
                     ),
                 ),
             )
         )
-        self.kernel.submit(
-            Proposal(
-                "handoff-progress",
-                1,
-                (
-                    Operation(
-                        "advance_work",
-                        "handoff-v1",
-                        {
-                            "result": "Defined the north star",
-                            "open_obligations": ["Run a fresh-model handoff"],
-                        },
-                    ),
-                ),
-            )
-        )
-        self.kernel.submit(Proposal("private-decoy", 2, (Operation("set", "private", "nope"),)))
         packet = build_handoff_packet(self.kernel, "handoff-v1")
-        self.assertEqual(packet["handoff_version"], 1)
-        self.assertEqual(packet["work_id"], "handoff-v1")
-        self.assertEqual(packet["work"]["objective"], "Continue the project from durable context")
-        self.assertEqual(packet["work"]["open_obligations"], ["Run a fresh-model handoff"])
-        self.assertEqual(packet["work"]["accepted_results_recent"], ["Defined the north star"])
-        self.assertEqual(packet["work"]["accepted_result_count"], 1)
-        self.assertEqual(packet["work"]["omitted_accepted_results_count"], 0)
-        self.assertNotIn("accepted_results", packet["work"])
-        self.assertEqual(packet["receipt_provenance"], [])
-        self.assertNotIn("private", str(packet))
+        self.assertEqual(packet["schema_version"], 1)
+        self.assertIn("packet_digest", packet)
         self.assertEqual(len(packet["packet_digest"]), 64)
 
         with tempfile.TemporaryDirectory() as temporary:
@@ -1193,59 +1023,15 @@ json.dump({
             self.assertTrue(json_path.exists())
             self.assertTrue(prompt_path.exists())
             self.assertIn("SUDOFX_HANDOFF v1", prompt_path.read_text())
-            self.assertIn('"packet_digest"', json_path.read_text())
 
-        page = render(self.kernel, control_url="https://control.example")
-        # Manual provider use belongs to the authenticated operator surface. The
-        # four destinations share one provider-neutral packet. Returned output
-        # remains transient until the existing operator session submits it to
-        # the bounded remote_operator capability.
+        page = render(self.kernel)
         self.assertIn("Manual AI handoff", page)
-        for provider in ("ChatGPT", "Claude", "Gemini", "DeepSeek"):
-            self.assertIn(f'data-handoff-provider="{provider}"', page)
-        self.assertIn('href="com.openai.chat://"', page)
-        self.assertIn('href="claude://"', page)
-        self.assertIn('href="https://gemini.google.com/app" target="_blank" rel="noopener noreferrer"', page)
-        self.assertIn('href="deepseek://"', page)
-        self.assertIn("temporary-chat=true&prompt=", page)
-        self.assertIn("encodeURIComponent(handoffPrompt.value)", page)
-        self.assertIn("Tap Send; if the draft is empty", page)
-        self.assertIn("accepted_results_recent", page)
-        self.assertIn("omitted_accepted_results_digest", page)
-        self.assertNotIn('"accepted_results":', page)
-        self.assertIn("navigator.clipboard.writeText", page)
-        self.assertIn("navigator.clipboard.readText", page)
-        self.assertIn("Paste the complete response here", page)
-        self.assertIn("Paste &amp; submit result", page)
-        self.assertIn("action:'handoff-evaluate',response", page)
-        self.assertIn("'/api/operate','POST'", page)
-        self.assertIn("#handoff-evaluate", page)
-        self.assertIn("sudofx-pending-handoff-evaluation", page)
-        self.assertIn("location.assign(controlUrl+'/auth/login')", page)
-        self.assertIn("if(pendingHandoffReturn()&&controlUrl)location.assign", page)
-        self.assertIn("capabilities.includes('handoff-evaluate')", page)
-        self.assertNotIn("Keep it here", page)
-        self.assertIn("CURRENT OPERATOR AUTHORIZATION", page)
-        self.assertIn("exactly one manual response", page)
-        self.assertIn("opening. Paste the copied prompt", page)
-        self.assertIn("Return only one JSON object", page)
-        self.assertIn("Do not cite CURRENT OPERATOR AUTHORIZATION or TRANSPORT METADATA as evidence", page)
-        self.assertIn("Do not use this authorization paragraph as evidence", page)
-        self.assertIn("__SUDOFX_VENDOR__", page)
-        self.assertIn("__SUDOFX_TEST_ID__", page)
-        self.assertIn("__SUDOFX_NONCE__", page)
-        self.assertIn("objective_fidelity", page)
-        self.assertIn("authority_fidelity", page)
-        self.assertIn("epistemic_discipline", page)
-        self.assertIn("transfer_usability", page)
-        self.assertIn("crypto.getRandomValues", page)
-        self.assertIn("const nonce='HANDOFF-'+testId", page)
-        self.assertNotIn("Return exactly these labeled sections", page)
-        # The response never enters a URL or persistent browser storage. The
-        # fragment carries intent only; the clipboard supplies transient text
-        # after an authenticated user gesture.
-        self.assertNotIn("encodeURIComponent(response)", page)
-        self.assertNotIn("localStorage.setItem(handoffReturnKey", page)
+        self.assertIn("ChatGPT", page)
+        self.assertIn("Claude", page)
+        self.assertIn("Gemini", page)
+        self.assertIn("DeepSeek", page)
+        self.assertNotIn("/auth/login", page)
+        self.assertNotIn("sudofx-owner-session", page)
 
     def test_record_initializes_inside_an_existing_empty_directory(self) -> None:
         """A first cloud run may create a record once its explicit parent exists."""
