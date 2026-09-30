@@ -391,8 +391,9 @@ json.dump({
         self.assertIn("88.0%", page)
         self.assertIn("test-provider", page)
         self.assertIn("run 123", page)
-        self.assertIn("data-semantic-review-submit", page)
-        self.assertIn('data-review-criterion="objective_fidelity"', page)
+        self.assertIn("data-semantic-review-criteria", page)
+        self.assertNotIn("data-semantic-review-submit", page)
+        self.assertNotIn('data-review-criterion="objective_fidelity"', page)
 
         helper = """
 import json, sys
