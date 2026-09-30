@@ -719,14 +719,6 @@ def render(
       .data-switch-track {{ width:42px; height:24px; flex-basis:42px; padding:3px }}
       .data-switch-track i {{ width:16px; height:16px; flex-basis:16px }}
       .theme-switch input:checked + .data-switch-track i {{ transform:translateX(18px) }}
-      .owner-login,.owner-menu-toggle {{ width:44px; height:38px }}
-      .owner-status-track {{ width:24px; height:24px; flex-basis:24px; padding:3px }}
-      .owner-status-light {{ width:16px; height:16px; flex-basis:16px }}
-      .owner-controls {{ position:fixed; top:62px; right:16px; left:auto; width:min(320px,calc(100vw - 32px)); padding:16px; gap:10px; box-shadow:0 18px 46px #0005 }}
-      .owner-control-actions {{ grid-template-columns:1fr 1fr; gap:8px }}
-      .owner-control-actions [data-owner-backup] {{ grid-column:1/-1 }}
-      .owner-controls button {{ min-height:42px }}
-      .provider-buttons {{ grid-template-columns:1fr 1fr }}
       .observer-head {{ gap:12px }} .observer-signal {{ align-items:flex-start }}
       .observer-state {{ max-width:112px; text-align:center }}
       .observer-grid {{ grid-template-columns:1fr 1fr }} .observer-cell.primary {{ grid-column:1/-1 }}
@@ -746,7 +738,7 @@ def render(
     </div></header>
   {observer_console_html}
   {_exchange_panel(continuity_proof)}
-  <section class="owner-technical" data-owner-technical hidden aria-label="Operator technical view">
+  <section class="technical-view" aria-label="Public technical record">
     <div class="technical-head">
       <div><span class="eyebrow">Public record</span><h2>Technical view</h2></div>
       <span class="technical-badge">DERIVED VIEW</span>
