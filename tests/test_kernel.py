@@ -984,8 +984,8 @@ json.dump({
         workflow = (Path(__file__).parents[1] / ".github/workflows/sudofx.yml").read_text(
             encoding="utf-8"
         )
-        self.assertIn("inputs.action == 'operator-stop'", workflow)
-        self.assertIn("--operator-transition stop", workflow)
+        self.assertNotIn("operator-stop", workflow)
+        self.assertNotIn("--operator-transition", workflow)
         self.assertIn("inputs.action == 'backup'", workflow)
         self.assertIn("--backup recovery/sudofx.sqlite", workflow)
         # Keep the backup action on the Node.js 24-compatible generation. An
