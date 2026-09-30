@@ -925,6 +925,129 @@ const publicAnswer=(proof)=>{{
 const liveExchangeUrl='https://raw.githubusercontent.com/'+(observer?.dataset.repository||'sudofx/sudofx')+'/sudofx-live/live.json';
 const liveHandoffUrl='https://raw.githubusercontent.com/'+(observer?.dataset.repository||'sudofx/sudofx')+'/sudofx-live/handoff-v1.json';
 const liveManualUrl='https://raw.githubusercontent.com/'+(observer?.dataset.repository||'sudofx/sudofx')+'/sudofx-live/manual-evaluations.json';
+const manualPrompt=document.querySelector('[data-manual-prompt]');
+const manualResponse=document.querySelector('[data-manual-response]');
+const manualStatus=document.querySelector('[data-manual-status]');
+const manualAnalyze=document.querySelector('[data-manual-analyze]');
+const manualCopy=document.querySelector('[data-manual-copy]');
+const manualContribute=document.querySelector('[data-manual-contribute]');
+const manualRecord=document.querySelector('[data-manual-record]');
+const manualLocalScore=document.querySelector('[data-manual-local-score]');
+const manualLocalTotal=document.querySelector('[data-manual-local-total]');
+const manualLocalCriteria=document.querySelector('[data-manual-local-criteria]');
+const manualBasePrompt=manualPrompt?.value||'';
+const manualDimensions=['objective_fidelity','authority_fidelity','history_fidelity','constraint_fidelity','frontier_fidelity','epistemic_discipline','transfer_usability'];
+const freshManualId=()=>{{
+  const values=new Uint32Array(1);
+  crypto.getRandomValues(values);
+  return 'UUID-'+String(values[0]%1000000).padStart(6,'0');
+}};
+const manualPacketText=()=>{{
+  const packetMarker='COMPLETE JSON PACKET\n';
+  const source=manualPrompt?.value||manualBasePrompt;
+  const index=source.indexOf(packetMarker);
+  return index>=0?source.slice(index+packetMarker.length).trim():'';
+}};
+const setManualStatus=(message)=>{{if(manualStatus)manualStatus.textContent=message;}};
+const copyManual=async(value)=>{{
+  if(!value)return false;
+  try{{await navigator.clipboard.writeText(value);return true;}}catch{{return false;}}
+}};
+const prepareManualProvider=async(button)=>{{
+  if(!manualPrompt||!manualBasePrompt){{setManualStatus('No manual packet is available yet.');return;}}
+  const vendor=button.dataset.manualVendor||'';
+  const testId=freshManualId();
+  const nonce='HANDOFF-'+testId;
+  manualPrompt.value=manualBasePrompt
+    .replaceAll('__SUDOFX_VENDOR__',vendor)
+    .replaceAll('__SUDOFX_TEST_ID__',testId)
+    .replaceAll('__SUDOFX_NONCE__',nonce);
+  document.querySelectorAll('[data-manual-vendor]').forEach(node=>node.setAttribute('aria-pressed',String(node===button)));
+  const copied=await copyManual(manualPrompt.value);
+  setManualStatus((copied?'Prompt copied. ':'Prompt ready. ')+'Send it to '+vendor+', then paste the returned JSON below.');
+  const url=button.dataset.manualUrl||'';
+  if(url){{
+    if(url.startsWith('http'))window.open(url,'_blank','noopener,noreferrer');
+    else location.href=url;
+  }}
+}};
+document.querySelectorAll('[data-manual-vendor]').forEach(button=>button.addEventListener('click',()=>prepareManualProvider(button)));
+if(manualCopy)manualCopy.addEventListener('click',async()=>{{
+  const copied=await copyManual(manualPrompt?.value||'');
+  setManualStatus(copied?'Prompt copied.':'Copy was blocked by the browser; select the prompt manually.');
+}});
+const parseManualResponse=(raw)=>{{
+  let candidate=String(raw||'').trim();
+  if(candidate.startsWith('&#96;&#96;&#96;')&&candidate.endsWith('&#96;&#96;&#96;')){{
+    const lines=candidate.split(/\r?\n/);
+    candidate=lines.slice(1,-1).join('\n').trim();
+  }}
+  if(candidate.startsWith(String.fromCharCode(96,96,96))&&candidate.endsWith(String.fromCharCode(96,96,96))){{
+    const lines=candidate.split(/\r?\n/);
+    candidate=lines.slice(1,-1).join('\n').trim();
+  }}
+  candidate=candidate.replaceAll('“','"').replaceAll('”','"');
+  const response=JSON.parse(candidate);
+  if(!response||Array.isArray(response)||typeof response!=='object')throw new Error('Response must be one JSON object.');
+  return response;
+}};
+const analyzeManual=()=>{{
+  if(!manualResponse||!manualPrompt)throw new Error('Manual test panel is unavailable.');
+  const response=parseManualResponse(manualResponse.value);
+  const packetText=manualPacketText();
+  if(!packetText)throw new Error('The visible prompt does not contain a packet.');
+  const packet=JSON.parse(packetText);
+  const required=['test_id','nonce','vendor','work_id','packet_digest','answers'];
+  if(required.some(key=>!(key in response)))throw new Error('Response is missing transport metadata.');
+  if(response.packet_digest!==packet.packet_digest)throw new Error('Response belongs to a different packet.');
+  if(response.work_id!==packet.work_id)throw new Error('Response belongs to a different work item.');
+  if(typeof response.test_id!=='string'||!/^UUID-[0-9]{{6}}$/.test(response.test_id))throw new Error('test_id must use UUID-NNNNNN.');
+  if(typeof response.nonce!=='string'||!/^HANDOFF-UUID-[0-9]{{6}}$/.test(response.nonce))throw new Error('nonce must use HANDOFF-UUID-NNNNNN.');
+  if(typeof response.vendor!=='string'||!response.vendor.trim())throw new Error('vendor is required.');
+  if(!response.answers||Array.isArray(response.answers)||typeof response.answers!=='object')throw new Error('answers must be an object.');
+  const results=manualDimensions.map(dimension=>{{
+    const answer=response.answers[dimension];
+    const answerText=answer&&typeof answer.answer==='string'?answer.answer.trim():'';
+    const evidence=answer&&typeof answer.evidence==='string'?answer.evidence.trim():'';
+    return {{dimension,passed:Boolean(answerText)&&evidence.length>=8&&packetText.includes(evidence)}};
+  }});
+  const score=results.filter(item=>item.passed).length;
+  if(manualLocalCriteria){{
+    manualLocalCriteria.replaceChildren(...results.map(item=>{{
+      const row=document.createElement('div');
+      const label=document.createElement('span');
+      label.textContent=item.dimension.replaceAll('_',' ');
+      const value=document.createElement('strong');
+      value.textContent=item.passed?'PASS':'FAIL';
+      value.className=item.passed?'quality-pass':'quality-fail';
+      row.append(label,value);
+      return row;
+    }}));
+  }}
+  if(manualLocalTotal){{
+    manualLocalTotal.textContent=score+'/7';
+    manualLocalTotal.className='quality-verdict '+(score===7?'quality-pass':'quality-uncertain');
+  }}
+  if(manualLocalScore)manualLocalScore.hidden=false;
+  if(manualContribute){{
+    const title='Manual handoff result · '+String(response.vendor).trim()+' · '+String(response.test_id);
+    manualContribute.href='https://github.com/'+(observer?.dataset.repository||'sudofx/sudofx')+'/issues/new?title='+encodeURIComponent(title);
+    manualContribute.hidden=false;
+  }}
+  setManualStatus('Local scorer v2: '+score+'/7 packet-grounding checks passed. This browser result is not yet authoritative.');
+  return score;
+}};
+if(manualAnalyze)manualAnalyze.addEventListener('click',()=>{{
+  try{{analyzeManual();}}catch(error){{if(manualLocalScore)manualLocalScore.hidden=true;setManualStatus('Could not score: '+error.message);}}
+}});
+if(manualContribute)manualContribute.addEventListener('click',async()=>{{
+  await copyManual(manualResponse?.value||'');
+  setManualStatus('Response copied. Paste it into the GitHub issue so the contribution is preserved for review.');
+}});
+if(manualRecord)manualRecord.addEventListener('click',async()=>{{
+  await copyManual(manualResponse?.value||'');
+  setManualStatus('Response copied. Use handoff-evaluate in GitHub Actions to record it into governed SQLite state.');
+}});
 const refreshManualEvidence=async()=>{{
   try{{
     const response=await fetch(liveManualUrl+'?ts='+Date.now(),{{cache:'no-store'}});
