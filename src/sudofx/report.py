@@ -8,8 +8,8 @@ but never an input to governance, replay, or recovery.
 
 Rendering is intentionally dependency-free so a fresh GitHub runner can publish
 without a JavaScript toolchain or package registry. State-derived text is escaped
-before interpolation. Interactive behavior is limited to live observer telemetry,
-history filtering, disclosure, and theme preference.
+before interpolation. Interactive behavior is limited to live observer telemetry, the public manual
+continuity workbench, history filtering, disclosure, and theme preference.
 
 The browser receives no GitHub token and cannot mutate the record directly.
 """
@@ -55,7 +55,7 @@ def _format_bytes(value: object) -> str:
 def _public_model_response(proof: dict[str, object]) -> str:
     """Translate stored model output into a plain-language public reading view.
 
-    The authenticated technical view still exposes exact durable work and receipt
+    The public technical view still exposes exact durable work and receipt
     material. This helper changes presentation only; it never rewrites evidence.
     """
     raw = str(proof.get("candidate_result", "")).strip()
