@@ -156,8 +156,6 @@ It exposes:
 - exact workflow/run provenance
 - direct access to the repository's GitHub Actions operator surface
 
-Signed-in owner status is sourced from the confidential control service and outranks anonymous GitHub telemetry or an older published HTML snapshot.
-
 ## Operator control boundary
 
 GitHub Actions is the operator surface.
