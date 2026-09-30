@@ -759,6 +759,29 @@ def render(
       <div><span>Replay</span><strong>{health['replay_ms']} ms</strong></div>
       <div><span>Receipts</span><strong>{total_receipts}</strong></div>
     </div>
+    <div class="manual-test-panel" data-manual-test>
+      <div class="quality-head"><b>Manual AI continuity test</b><span class="quality-verdict quality-pass">PUBLIC</span></div>
+      <p class="manual-test-intro">Anyone can run this test. Choose an AI, send the generated bounded prompt, paste its JSON response back here, and sudofx will score packet grounding locally. Local scoring is evidence, not database authority.</p>
+      <div class="provider-buttons" aria-label="Choose AI provider">
+        <button type="button" data-manual-vendor="ChatGPT" data-manual-url="com.openai.chat://">ChatGPT</button>
+        <button type="button" data-manual-vendor="Claude" data-manual-url="claude://">Claude</button>
+        <button type="button" data-manual-vendor="Gemini" data-manual-url="https://gemini.google.com/app">Gemini</button>
+        <button type="button" data-manual-vendor="DeepSeek" data-manual-url="deepseek://">DeepSeek</button>
+      </div>
+      <label class="manual-field">Prompt to send<textarea data-manual-prompt readonly>{_escape(manual_prompt)}</textarea></label>
+      <div class="manual-actions"><button type="button" data-manual-copy>Copy prompt</button></div>
+      <label class="manual-field">Returned JSON<textarea data-manual-response spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="Paste the complete JSON response here."></textarea></label>
+      <div class="manual-actions">
+        <button type="button" data-manual-analyze>Analyze response</button>
+        <a data-manual-contribute hidden href="https://github.com/{_escape(repository)}/issues/new" target="_blank" rel="noopener noreferrer">Contribute result</a>
+        <a data-manual-record href="https://github.com/{_escape(repository)}/actions/workflows/sudofx.yml" target="_blank" rel="noopener noreferrer">Record in Actions</a>
+      </div>
+      <div class="manual-local-score" data-manual-local-score hidden>
+        <div class="quality-head"><b>Local grounding score</b><span class="quality-verdict" data-manual-local-total>—</span></div>
+        <div class="quality-grid" data-manual-local-criteria></div>
+      </div>
+      <p class="manual-note" data-manual-status>{"Choose a provider to generate a fresh test ID and copy the prompt." if manual_prompt else "No handoff work item is available in this projection yet."}</p>
+    </div>
     <div class="quality-block" data-manual-live>
       <div class="quality-head"><b>Live manual grounding evidence</b><span class="quality-verdict" data-manual-latest>—</span></div>
       <div class="quality-metrics">
