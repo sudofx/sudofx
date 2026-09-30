@@ -1,6 +1,6 @@
 # Project status
 
-**Date:** September 27, 2026
+**Date:** September 30, 2026
 **Scope:** current implementation on `master`
 
 ## Objective
@@ -42,12 +42,11 @@ The project crossed several implementation boundaries in one day:
 - kept bounded recovery operations in GitHub Actions
 - added SQLite application identity, ordered schema migrations, and fail-closed restore checks
 - bounded the public activity projection while preserving the complete authoritative event chain
-- 
-- 
 - refreshed GitHub Actions to current Node.js 24-compatible major versions
-- 
-- 
+- removed Cloudflare/OAuth control plumbing and made GitHub Actions the operator surface
+- added GitHub-native Start/Stop workflows plus a durable continuation latch
 - made the Pages status light link directly to GitHub Actions
+- restored the manual continuity workbench as a public, credential-free local scoring surface
 - opened the WAKE✳︎ inspiration link in a separate tab
 
 These changes increase operational capability without changing the core authority model.
@@ -138,8 +137,7 @@ repeatability batches in addition to the earlier finite proofs. Paid-vendor
 substitution remains deliberately deferred until the owner chooses to spend on
 provider breadth rather than deepen the free-vendor baseline.
 
-Continuous mode is technically eligible to resume, but it remains intentionally
-**owner-stopped**. The next continuous run no longer repeats one packet shape:
+Continuous mode remains explicitly controlled through GitHub Actions Start/Stop. The next continuous run no longer repeats one packet shape:
 a deterministic seven-phase stress matrix varies which continuity cues survive
 into each fresh-model handoff. Some cycles remove the latest readable milestone,
 some remove the previous model observation, and the frontier-only phase removes
@@ -181,6 +179,7 @@ The next work remains intentionally narrow:
 - prevent assessment/history growth from leaking back into provider context
 - keep the uncompressed Gemini path only as an explicit diagnostic baseline
 - migrate authoritative persistence out of the public Git ref before any private or identifying context is stored
+- validate provider substitution with a materially different provider when that experiment is deliberately authorized
 - use the seven-phase dropout matrix to locate the semantic floor before spending on another provider; provider substitution, a longer time gap, and human-maintainer replacement remain later independent boundaries
 - establish an independent/private backup target before sensitive durable context exists
 - resist product breadth that weakens the kernel experiment

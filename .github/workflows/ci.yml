@@ -12,6 +12,9 @@ on:
       - '.github/workflows/ci.yml'
       - '.github/workflows/sudofx.yml'
       - '.github/workflows/prove-model.yml'
+      - '.github/workflows/operator-start.yml'
+      - '.github/workflows/operator-stop.yml'
+      - '.github/workflows/sudofx-runner.yml'
       - '.github/workflows/promote-runtime.yml'
       - '.github/workflows/pages.yml'
   pull_request:
