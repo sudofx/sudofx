@@ -571,7 +571,6 @@ def main() -> int:
     parser.add_argument("--backup")
     parser.add_argument("--prove-vacuum-recovery", action="store_true")
     parser.add_argument("--auto", action="store_true")
-    parser.add_argument("--operator-transition", choices=("start", "stop"))
     parser.add_argument("--record-handoff-evaluation", action="store_true")
     parser.add_argument("--record-semantic-review", action="store_true")
     parser.add_argument("--record-chatgpt-semantic-review")
@@ -764,42 +763,6 @@ def main() -> int:
             checkpoint()
             kernel = Kernel(Record(DATA))
         auto_handoff_id = AUTO_HANDOFF_ID
-    if args.operator_transition:
-        # Operator intent is durable work context, not UI-only control state.
-        # Start is recorded before the first fresh intelligence is invoked; Stop
-        # is recorded after the control service has disabled/cancelled the chain.
-        # This closes the boundary bug where a model could be asked to wait for
-        # authorization that the operator had already granted in the browser.
-        context = kernel.context()
-        work_key = f"work:{AUTO_HANDOFF_ID}"
-        if work_key not in context.state:
-            raise RuntimeError("operator transition requires existing handoff-v1 work")
-        if args.operator_transition == "start":
-            result = "Operator explicitly authorized the sustained Gemini continuity trial."
-            obligations = [
-                "Evaluate whether fresh Gemini invocations preserve semantic continuity across repeated governed cycles; stop and inspect if fidelity degrades."
-            ]
-        else:
-            result = "Operator explicitly stopped the sustained Gemini continuity trial."
-            obligations = ["Await explicit operator Start before invoking another intelligence."]
-        receipt = kernel.submit(
-            Proposal(
-                str(uuid.uuid4()),
-                context.revision,
-                (
-                    Operation(
-                        "advance_work",
-                        AUTO_HANDOFF_ID,
-                        {"result": result, "open_obligations": obligations},
-                    ),
-                ),
-                f"Authenticated operator {args.operator_transition} transition",
-            )
-        )
-        if receipt.status != "accepted":
-            raise RuntimeError(f"operator {args.operator_transition} transition was {receipt.status}")
-        checkpoint()
-        kernel = Kernel(Record(DATA))
     if args.record_handoff_evaluation:
         raw_response = os.environ.get("HANDOFF_RESPONSE", "")
         response_work_id = handoff_work_id(raw_response)
@@ -818,7 +781,7 @@ def main() -> int:
             str(uuid.uuid4()), context.revision,
             (Operation("record_handoff_evaluation", selected_work_id, result),),
             # GitHub Actions supplies the authenticated operator boundary; the kernel remains the only path that can record the untrusted result.
-            "Authenticated operator submitted one human-transported handoff evaluation",
+            "GitHub operator submitted one human-transported handoff evaluation",
         ))
         if receipt.status != "accepted":
             raise RuntimeError(f"handoff evaluation was {receipt.status}: {receipt.reasons}")
@@ -842,7 +805,7 @@ def main() -> int:
                 ),
                 file=sys.stderr,
             )
-    if not args.publish_only and not args.prove_work and not args.prove_model and not args.prove_model_uncompressed and not args.prove_model_compressed and not args.prove_anthropic and not args.export_handoff and not args.prove_vacuum_recovery and not args.auto and not args.operator_transition and not args.record_handoff_evaluation and not args.record_semantic_review and not args.record_chatgpt_semantic_review:
+    if not args.publish_only and not args.prove_work and not args.prove_model and not args.prove_model_uncompressed and not args.prove_model_compressed and not args.prove_anthropic and not args.export_handoff and not args.prove_vacuum_recovery and not args.auto and not args.record_handoff_evaluation and not args.record_semantic_review and not args.record_chatgpt_semantic_review:
         if not args.action or not args.key:
             parser.error("--action and --key are required for a mutation")
         context = kernel.context()
