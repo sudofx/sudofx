@@ -998,7 +998,7 @@ json.dump({
         self.assertNotIn("fetch('./continuity-proof.json?ts='", report)
 
     def test_recovery_workflow_retains_verified_backup_outside_pages(self) -> None:
-        """Owner backup must be finite, authenticated, and excluded from public output."""
+        """Recovery backup must be finite, authenticated by GitHub, and excluded from public output."""
         workflow = (Path(__file__).parents[1] / ".github/workflows/sudofx.yml").read_text(
             encoding="utf-8"
         )
