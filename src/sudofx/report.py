@@ -425,10 +425,6 @@ def render(
     open_work = sum(isinstance(item, dict) and item.get("status") == "open" for item in work_items)
     verification = verification or {}
     continuity_proof = continuity_proof or {}
-    # The control service URL is public configuration, not a credential. An
-    # absent URL removes the authentication affordance entirely so local exports
-    # and partially configured deployments never imply controls are available.
-    control_url = control_url.rstrip("/")
     semantic_review = continuity_proof.get("semantic_review", {})
     if not isinstance(semantic_review, dict):
         semantic_review = {}
@@ -591,9 +587,7 @@ def render(
     .observer-cell strong {{ display:block; margin-top:7px; font-size:13px; line-height:1.25; overflow-wrap:anywhere }}
     .observer-detail {{ display:flex; justify-content:space-between; gap:14px; margin-top:12px; color:var(--muted); font:11px var(--mono) }}
     .observer-detail a {{ color:var(--accent); text-decoration:none; white-space:nowrap }}
-    /* Operator access is a masthead popover, not durable report content. Its
-       elevated layer and mobile fixed panel mirror WAKE while keeping every
-       authenticated action hidden until the control service accepts a session. */
+    /* GitHub Actions is the operator surface. The masthead light is only a link and status indicator. */
     .sr-only {{ position:absolute!important; width:1px!important; height:1px!important; padding:0!important; margin:-1px!important; overflow:hidden!important; clip:rect(0,0,0,0)!important; white-space:nowrap!important; border:0!important }}
     .owner-access {{ position:relative; z-index:2000; font:10px var(--mono); display:flex; align-items:center }}
     .owner-login,.owner-menu-toggle {{ width:30px; height:30px; display:inline-flex; align-items:center; justify-content:center; position:relative; color:var(--muted); padding:0; border:0; background:transparent; text-decoration:none; cursor:pointer }}
@@ -869,7 +863,6 @@ const machineActivity=document.querySelector('[data-machine-activity]');
 const machineText=document.querySelector('[data-machine-text]');
 const exchangeStatus=document.querySelector('[data-exchange-status]');
 const recordRevision=document.querySelector('[data-record-revision]');
-const controlUrl={json.dumps(control_url)};
 const ownerLogin=document.querySelector('[data-owner-login]');
 const ownerMenuToggle=document.querySelector('[data-owner-menu-toggle]');
 const ownerMenuLabel=document.querySelector('[data-owner-menu-label]');
