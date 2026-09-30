@@ -17,10 +17,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Close the continuation latch first
+      - name: Close the continuation latch and cycle workflow first
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh api --method PUT "repos/$GITHUB_REPOSITORY/actions/workflows/sudofx-runner.yml/disable" >/dev/null
+        run: |
+          gh api --method PUT "repos/$GITHUB_REPOSITORY/actions/workflows/sudofx-runner.yml/disable" >/dev/null
+          gh api --method PUT "repos/$GITHUB_REPOSITORY/actions/workflows/prove-model.yml/disable" >/dev/null
 
       - name: Cancel any active continuity cycle
         env:
