@@ -62,7 +62,7 @@ Stores the cloud checkpoint of the authoritative SQLite file.
 The branch is operational persistence, not a second state model. The database remains the state authority.
 
 The current repository is public, so the branch and every historical database
-blob are publicly retrievable. Owner authentication protects controls and
+blob are publicly retrievable. GitHub authentication protects repository Actions and
 private recovery artifacts; it cannot make a public Git ref confidential.
 Proposal material must remain public-safe until authority migrates to private
 durable storage.
@@ -108,7 +108,7 @@ A dedicated internal latch workflow provides durable enabled/disabled state. Sta
 `prove-model.yml` is intentionally a single success-only chain.
 
 ```text
-manual/owner bootstrap
+GitHub Actions Start
         ↓
 verify tests
         ↓
@@ -134,15 +134,17 @@ This gives the project continuous experimentation without turning the provider i
 Stop:
 
 1. disable `sudofx-runner.yml`
-2. inspect active runs
-3. cancel active runs
+2. disable `prove-model.yml`
+3. inspect active runs
+4. cancel active runs
 
 Disabling first prevents a concurrently finishing run from successfully dispatching another successor.
 
 Start:
 
-1. enable `sudofx-runner.yml`
-2. dispatch exactly one bootstrap
+1. enable `prove-model.yml`
+2. enable `sudofx-runner.yml`
+3. dispatch exactly one bootstrap
 
 This recreates one chain rather than many competing loops.
 
@@ -175,7 +177,6 @@ Examples:
 - state checkpoint conflict → fail rather than choose a writer silently
 - workflow test failure → no continuation
 - deployment failure → no continuation
-- control-provider failure → contained API error, not escaped worker crash
 - anonymous telemetry failure → preserve last projection and disclose weaker evidence
 
 ## Why this structure matters
