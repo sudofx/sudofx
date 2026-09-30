@@ -1,0 +1,51 @@
+name: sudofx - Start
+run-name: "Start sudofx"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: sudofx-operator-start
+  cancel-in-progress: false
+
+jobs:
+  start:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Make sure sudofx is not already running
+        id: status
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          active="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/prove-model.yml/runs?branch=sudofx-runtime&per_page=50" --jq '[.workflow_runs[] | select(.head_branch=="sudofx-runtime" and .status!="completed")] | length')"
+          echo "active=$active" >> "$GITHUB_OUTPUT"
+
+      - name: Open the continuation latch
+        if: steps.status.outputs.active == '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api --method PUT "repos/$GITHUB_REPOSITORY/actions/workflows/sudofx-runner.yml/enable" >/dev/null
+
+      - name: Start the first continuity cycle
+        if: steps.status.outputs.active == '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          runtime_ref="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/sudofx-runtime" --jq '.object.sha')"
+          gh workflow run prove-model.yml --repo "$GITHUB_REPOSITORY" --ref sudofx-runtime -f "dispatch_token=start-$GITHUB_RUN_ID" -f "runtime_ref=$runtime_ref"
+
+      - name: Explain the result
+        if: always()
+        run: |
+          if [[ "${{ steps.status.outputs.active }}" == "0" ]]; then
+            echo "sudofx was told to start. The first continuity cycle was dispatched and the continuation latch is open." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "sudofx was already running, so nothing was duplicated." >> "$GITHUB_STEP_SUMMARY"
+          fi
