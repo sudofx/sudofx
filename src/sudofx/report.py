@@ -452,16 +452,10 @@ def render(
     )
     semantic_run = str(continuity_proof.get("artifact_run_id", ""))
     semantic_digest = str(continuity_proof.get("context_digest", ""))
-    # The public page embeds only public-safe technical projection data. The
-    # operator session controls visibility, not confidentiality: hidden HTML is
-    # not a security boundary. Sensitive state must remain behind the authenticated
-    # service rather than being rendered into Pages at all.
-    # The manual exchange is a derived, provider-neutral view of the same
-    # compressed handoff used for automated continuity tests. It is embedded in
-    # the current public-safe projection but stays inaccessible through normal
-    # UI interaction until the confidential service authenticates the owner.
-    # Private persistence will require moving delivery behind that service too;
-    # presentation gating alone is deliberately not claimed as confidentiality.
+    # Pages is intentionally public. The manual exchange is a derived,
+    # provider-neutral view of the same bounded handoff used for continuity
+    # testing. It may be copied and evaluated by anyone, but browser-side work
+    # never mutates authoritative SQLite state.
     manual_prompt = ""
     try:
         manual_packet = build_handoff_packet(kernel, HANDOFF_WORK_ID)
@@ -489,8 +483,8 @@ def render(
         )
     except ValueError:
         # A projection without the experiment work item remains valid; the
-        # authenticated workbench simply stays unavailable instead of inventing
-        # a prompt from unrelated state.
+        # public manual workbench stays unavailable instead of inventing a
+        # prompt from unrelated state.
         pass
     observer_continuous = continuity_proof.get("assessment_status") == "semantic_review_pending"
     # A semantic review result remains evidence rather than authoritative state,
