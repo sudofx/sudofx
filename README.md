@@ -154,7 +154,9 @@ It exposes:
 - the governed interpretation
 - accepted/rejected receipt history
 - exact workflow/run provenance
-- direct access to the repository's GitHub Actions operator surface
+- a public manual continuity workbench that can launch/copy a bounded test prompt and score returned JSON locally
+- a public contribution path through GitHub Issues for useful manual test results
+- direct access to the repository's GitHub Actions operator surface for governed recording and runtime control
 
 ## Operator control boundary
 
