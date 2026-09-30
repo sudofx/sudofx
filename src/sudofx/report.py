@@ -457,11 +457,10 @@ def render(
     # not a security boundary. Sensitive state must remain behind the authenticated
     # service rather than being rendered into Pages at all.
     # The manual exchange is a derived, provider-neutral view of the same
-    # compressed handoff used for automated continuity tests. It is embedded in
-    # the current public-safe projection but stays inaccessible through normal
-    # UI interaction until the confidential service authenticates the owner.
-    # Private persistence will require moving delivery behind that service too;
-    # presentation gating alone is deliberately not claimed as confidentiality.
+    # The manual handoff uses the same bounded packet as automated continuity
+    # tests. The repository and its durable state are public today, so the
+    # observer may expose this prompt directly. This panel is transport only:
+    # it cannot write returned model output into authoritative SQLite state.
     manual_prompt = ""
     try:
         manual_packet = build_handoff_packet(kernel, HANDOFF_WORK_ID)
@@ -800,6 +799,22 @@ def render(
       <div><span>Replay</span><strong>{health['replay_ms']} ms</strong></div>
       <div><span>Receipts</span><strong>{total_receipts}</strong></div>
     </div>
+    <section class="manual-test" aria-label="Manual AI continuity test">
+      <div class="manual-test-head">
+        <div><span class="eyebrow">Public manual test</span><h3>Fresh-AI continuity test</h3></div>
+        <span class="technical-badge">READ ONLY</span>
+      </div>
+      <p class="manual-test-note">Copy this bounded packet prompt into a fresh AI with no prior sudofx context. This page cannot submit or commit the returned answer.</p>
+      <div class="manual-test-actions">
+        <button type="button" data-manual-test-copy>Copy test prompt</button>
+        <a href="https://chatgpt.com/" target="_blank" rel="noopener noreferrer">ChatGPT</a>
+        <a href="https://claude.ai/" target="_blank" rel="noopener noreferrer">Claude</a>
+        <a href="https://gemini.google.com/app" target="_blank" rel="noopener noreferrer">Gemini</a>
+        <a href="https://chat.deepseek.com/" target="_blank" rel="noopener noreferrer">DeepSeek</a>
+      </div>
+      <textarea data-manual-test-prompt readonly aria-label="Manual continuity test prompt">{{_escape(manual_prompt)}}</textarea>
+      <p class="manual-test-note" data-manual-test-status>Returned answers remain outside authority until recorded through a governed operator path.</p>
+    </section>
     <div class="quality-block" data-manual-live>
       <div class="quality-head"><b>Live manual grounding evidence</b><span class="quality-verdict" data-manual-latest>—</span></div>
       <div class="quality-metrics">
@@ -886,6 +901,19 @@ const semanticReviewMessage=document.querySelector('[data-semantic-review-messag
 const handoffBasePrompt=handoffPrompt?.value||'';
 let handoffProvider='';
 const actionsLight=document.querySelector('.actions-light');
+const manualTestCopy=document.querySelector('[data-manual-test-copy]');
+const manualTestPrompt=document.querySelector('[data-manual-test-prompt]');
+const manualTestStatus=document.querySelector('[data-manual-test-status]');
+if(manualTestCopy&&manualTestPrompt)manualTestCopy.addEventListener('click',async()=>{{
+  try{{
+    await navigator.clipboard.writeText(manualTestPrompt.value);
+    if(manualTestStatus)manualTestStatus.textContent='Prompt copied. Open a fresh AI and paste it there.';
+  }}catch(error){{
+    manualTestPrompt.focus();
+    manualTestPrompt.select();
+    if(manualTestStatus)manualTestStatus.textContent='Clipboard access was blocked; the prompt is selected for manual copy.';
+  }}
+}});
 const setOwnerLight=(state)=>{{if(actionsLight)actionsLight.dataset.lightState=state;}};
 const ownerLightForVisualState=(state)=>state==='working'?'running':((state==='idle'||state==='failed')?'stopped':'unknown');
 // The workflow owns a success-only successor chain. This field describes that
