@@ -2,7 +2,7 @@ name: sudofx — operator
 
 # SUDOFX CLOUD AUTHORITY BOUNDARY
 #
-# This workflow is the authenticated/manual authority surface. It never owns
+# This workflow is the manual governed-maintenance surface. It never owns
 # Pages deployment. A manual dispatch creates or verifies one governed operation;
 # the Python kernel remains the mutation boundary and SQLite remains authority.
 
@@ -14,7 +14,7 @@ on:
       action:
         description: Verify only, or run one governed operation
         type: choice
-        options: [auto, verify, backup, operator-stop, handoff-evaluate, semantic-review, prove-work, prove-model, export-handoff, work-create, work-advance, record-assessment, work-complete, set, delete]
+        options: [auto, verify, backup, handoff-evaluate, semantic-review, prove-work, prove-model, export-handoff, work-create, work-advance, record-assessment, work-complete, set, delete]
         default: auto
         required: true
       key:
@@ -36,7 +36,7 @@ on:
         type: string
         required: false
       review:
-        description: Bounded human semantic review JSON from the authenticated website
+        description: Bounded human semantic review JSON
         type: string
         required: false
 
@@ -59,8 +59,6 @@ jobs:
     # rather than leaving an ambiguous operation active indefinitely.
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    env:
-      SUDOFX_CONTROL_URL: ${{ vars.SUDOFX_CONTROL_URL }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -72,30 +70,20 @@ jobs:
         # Tests run before any stateful action. A broken implementation must not
         # be allowed to append history merely because the workflow was dispatched.
         run: PYTHONPATH=src python -m unittest discover -s tests -v
-      - name: Verify remote operator plugin contracts
-        run: node --test plugins/remote_operator/worker.test.mjs
       - name: Continue current milestone automatically
         # Observer mode: one stable command handles the next safe milestone step.
         # The operator should not have to carry work IDs or long context between devices.
         if: github.event_name == 'workflow_dispatch' && inputs.action == 'auto'
-        env:
-          SUDOFX_CONTROL_URL: ${{ vars.SUDOFX_CONTROL_URL }}
         run: PYTHONPATH=src python scripts/github_sudofx.py --auto
       - name: Apply governed operation
         # Only a manual dispatch enters the mutation path. The adapter restores
         # and verifies sudofx-state, appends one receipt, checkpoints, and renders.
-        if: github.event_name == 'workflow_dispatch' && inputs.action != 'auto' && inputs.action != 'verify' && inputs.action != 'backup' && inputs.action != 'prove-work' && inputs.action != 'prove-model' && inputs.action != 'export-handoff' && inputs.action != 'operator-stop' && inputs.action != 'handoff-evaluate' && inputs.action != 'semantic-review'
+        if: github.event_name == 'workflow_dispatch' && inputs.action != 'auto' && inputs.action != 'verify' && inputs.action != 'backup' && inputs.action != 'prove-work' && inputs.action != 'prove-model' && inputs.action != 'export-handoff' && inputs.action != 'handoff-evaluate' && inputs.action != 'semantic-review'
         env:
           ACTION: ${{ inputs.action }}
           KEY: ${{ inputs.key }}
           VALUE: ${{ inputs.value }}
         run: PYTHONPATH=src python scripts/github_sudofx.py --action "$ACTION" --key "$KEY" --value "$VALUE"
-      - name: Record authenticated operator Stop
-        # Stop is safety-first: the control service disables and cancels the
-        # continuation chain before dispatching this durable transition. Workflow
-        # concurrency then ensures any later Start records after this event.
-        if: github.event_name == 'workflow_dispatch' && inputs.action == 'operator-stop'
-        run: PYTHONPATH=src python scripts/github_sudofx.py --operator-transition stop
       - name: Record human semantic review
         # Website judgments are only transport until this step restores SQLite.
         # The adapter binds the supplied run+digest to the exact authoritative
@@ -106,10 +94,7 @@ jobs:
           SEMANTIC_REVIEW: ${{ inputs.review }}
         run: PYTHONPATH=src python scripts/github_sudofx.py --record-semantic-review
       - name: Record manual handoff evaluation
-        # The Shortcut transports untrusted vendor text to the browser only. The
-        # existing Cloudflare operator session authorizes this dispatch; the
-        # returned work_id binds the response to its governed packet and an
-        # optional key must match.
+        # GitHub authorizes this manual dispatch. The returned work_id binds the response to its governed packet.
         if: github.event_name == 'workflow_dispatch' && inputs.action == 'handoff-evaluate'
         env:
           HANDOFF_RESPONSE: ${{ inputs.response }}
@@ -151,7 +136,7 @@ jobs:
         # snapshots SQLite before Actions is allowed to retain the artifact.
         if: github.event_name == 'workflow_dispatch' && inputs.action == 'backup'
         run: PYTHONPATH=src python scripts/github_sudofx.py --backup recovery/sudofx.sqlite
-      - name: Retain authenticated recovery backup
+      - name: Retain recovery backup
         # Workflow artifacts require authenticated repository access and are
         # never uploaded to Pages. Thirty days provides rollback depth without
         # turning every historical snapshot into permanent duplicate authority.
@@ -166,11 +151,11 @@ jobs:
         # Once that work succeeds, restore liveness only when the workflow is
         # still enabled (an explicit Stop disables it) and no runtime cycle is
         # already queued or running. Historical master queues are ignored.
-        if: success() && inputs.action != 'operator-stop'
+        if: success()
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          state="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/prove-model.yml" --jq '.state')"
+          state="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/sudofx-runner.yml" --jq '.state')"
           if [[ "$state" != "active" ]]; then
             echo "Continuity is disabled; preserving operator Stop."
             exit 0

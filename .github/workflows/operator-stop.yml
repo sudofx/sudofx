@@ -1,0 +1,37 @@
+name: sudofx - Stop
+run-name: "Stop sudofx"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: sudofx-operator-stop
+  cancel-in-progress: false
+
+jobs:
+  stop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Close the continuation latch first
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api --method PUT "repos/$GITHUB_REPOSITORY/actions/workflows/sudofx-runner.yml/disable" >/dev/null
+
+      - name: Cancel any active continuity cycle
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mapfile -t runs < <(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/prove-model.yml/runs?branch=sudofx-runtime&per_page=50" --jq '.workflow_runs[] | select(.head_branch=="sudofx-runtime" and .status!="completed") | .id')
+          for run_id in "${runs[@]}"; do
+            gh api --method POST "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/cancel" >/dev/null || true
+          done
+          echo "Cancelled ${#runs[@]} active sudofx cycle(s)." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Explain the result
+        run: echo "sudofx is stopped. No successor cycle will be dispatched until Start is run." >> "$GITHUB_STEP_SUMMARY"

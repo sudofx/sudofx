@@ -20,8 +20,6 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    env:
-      SUDOFX_CONTROL_URL: ${{ vars.SUDOFX_CONTROL_URL }}
     steps:
       - uses: actions/checkout@v7
         with:

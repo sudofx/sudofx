@@ -43,7 +43,7 @@ Implemented and exercised:
 - sequential workflow concurrency
 - visible stop-on-failure behavior
 - local recovery runner
-- owner-authenticated Start/Stop controls through a separate remote operator plugin
+- GitHub-native Start/Stop controls modeled after WAKE
 - phone-first observer UI
 - handoff export artifacts for bounded continuity experiments
 
@@ -73,9 +73,6 @@ Gemini / other provider
 
 GitHub Pages
   └─ derived observer projection
-
-remote operator plugin
-  └─ narrow authenticated remote operator capabilities
 ```
 
 Only the SQLite record is operational truth.
@@ -157,24 +154,16 @@ It exposes:
 - the governed interpretation
 - accepted/rejected receipt history
 - exact workflow/run provenance
-- owner-only Start/Stop controls after authentication
+- direct access to the repository's GitHub Actions operator surface
 
-Signed-in owner status is sourced from the confidential control service and outranks anonymous GitHub telemetry or an older published HTML snapshot.
+## Operator control boundary
 
-## Owner control boundary
+GitHub Actions is the operator surface.
 
-The public Pages artifact never receives GitHub credentials.
+The public Pages artifact contains no GitHub credentials, OAuth flow, control backend, or operator session. The status light links directly to this repository's Actions page. **Start** opens the GitHub-native continuation latch and dispatches one runtime cycle; **Stop** closes the latch before cancelling active cycles.
 
-A separate remote operator plugin:
+`sudofx-runtime` remains the live-code branch, so development changes on `master` do not alter an already-running experiment until explicitly promoted.
 
-- performs GitHub OAuth
-- verifies the configured owner identity
-- stores no authoritative sudofx work state
-- can only invoke an explicit allowlist of operator/proof capabilities
-- disables the workflow before cancelling active runs so Stop closes the successor race
-- enables the workflow before dispatching one bootstrap so Start creates one chain
-
-See [plugins/remote_operator/README.md](plugins/remote_operator/README.md).
 
 ## Database-first storage
 
@@ -187,7 +176,7 @@ The storage contract should remain backend-independent so SQLite can later be re
 **One authoritative database → everything else is a view, query, or export.**
 
 The current `sudofx-state` branch is public because the repository is public.
-Authentication protects owner controls and retained recovery artifacts, not Git
+GitHub authentication protects repository Actions and retained recovery artifacts, not Git
 branch visibility. Until state moves to private persistence, durable proposal
 content must be treated as public data.
 
@@ -197,7 +186,6 @@ content must be treated as public data.
 src/sudofx/             kernel, record, governance, continuity, reporting
 scripts/                provider adapters, GitHub runtime, recovery runner
 .github/workflows/      governed cloud execution and continuation
-plugins/remote_operator/         confidential owner-authenticated control boundary
 tests/                  invariant and failure-boundary proofs
 plugins/                optional development and application extensions
 site/                   generated public projection

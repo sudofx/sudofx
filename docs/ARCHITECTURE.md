@@ -86,7 +86,7 @@ only a bounded recent window and exports content-free health evidence such as
 database bytes, event count, replay duration, and integrity status. This bounds
 browser growth without deleting the history needed for replay or audit.
 
-An authenticated owner may request a verified recovery snapshot. GitHub Actions
+An operator may request a verified recovery snapshot through GitHub Actions. GitHub Actions
 retains that artifact for 30 days outside Pages. It is a recovery copy, not
 authority, and does not replace the need for private independent storage as the
 record becomes sensitive or operationally valuable.
@@ -97,11 +97,11 @@ Owns presentation only.
 
 HTML, JSON proof artifacts, runner disposition files, and telemetry are generated views. They are never read back as authoritative work state.
 
-### Cloudflare owner-control worker
+### GitHub Actions operator boundary
 
-Owns a narrow authenticated control capability.
+GitHub Actions owns manual runtime control. Pages remains public and unauthenticated.
 
-It can inspect, enable, disable, dispatch, and cancel the continuation workflow. It cannot edit work items, receipts, source, secrets, or SQLite state.
+A dedicated internal latch workflow provides durable enabled/disabled state. Start enables the latch and dispatches one runtime cycle. Stop disables the latch before cancelling active cycles. The latch cannot edit work items, receipts, source, secrets, or SQLite state.
 
 ## Continuous chain
 
@@ -133,7 +133,7 @@ This gives the project continuous experimentation without turning the provider i
 
 Stop:
 
-1. disable `prove-model.yml`
+1. disable `sudofx-runner.yml`
 2. inspect active runs
 3. cancel active runs
 
@@ -141,7 +141,7 @@ Disabling first prevents a concurrently finishing run from successfully dispatch
 
 Start:
 
-1. enable `prove-model.yml`
+1. enable `sudofx-runner.yml`
 2. dispatch exactly one bootstrap
 
 This recreates one chain rather than many competing loops.

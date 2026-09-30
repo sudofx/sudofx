@@ -571,7 +571,6 @@ def main() -> int:
     parser.add_argument("--backup")
     parser.add_argument("--prove-vacuum-recovery", action="store_true")
     parser.add_argument("--auto", action="store_true")
-    parser.add_argument("--operator-transition", choices=("start", "stop"))
     parser.add_argument("--record-handoff-evaluation", action="store_true")
     parser.add_argument("--record-semantic-review", action="store_true")
     parser.add_argument("--record-chatgpt-semantic-review")
@@ -597,7 +596,7 @@ def main() -> int:
         kernel = Kernel(record)
     if args.record_semantic_review or args.record_chatgpt_semantic_review:
         # Human review is intentionally stricter than generic record-assessment.
-        # Website reviews come from the authenticated operator path. ChatGPT
+        # Human reviews arrive through GitHub-controlled operator paths. ChatGPT
         # reviews arrive through the dedicated GitHub transport branch and have
         # their reviewer identity forced here rather than trusted from payload.
         if args.record_chatgpt_semantic_review:
@@ -764,42 +763,6 @@ def main() -> int:
             checkpoint()
             kernel = Kernel(Record(DATA))
         auto_handoff_id = AUTO_HANDOFF_ID
-    if args.operator_transition:
-        # Operator intent is durable work context, not UI-only control state.
-        # Start is recorded before the first fresh intelligence is invoked; Stop
-        # is recorded after the control service has disabled/cancelled the chain.
-        # This closes the boundary bug where a model could be asked to wait for
-        # authorization that the operator had already granted in the browser.
-        context = kernel.context()
-        work_key = f"work:{AUTO_HANDOFF_ID}"
-        if work_key not in context.state:
-            raise RuntimeError("operator transition requires existing handoff-v1 work")
-        if args.operator_transition == "start":
-            result = "Operator explicitly authorized the sustained Gemini continuity trial."
-            obligations = [
-                "Evaluate whether fresh Gemini invocations preserve semantic continuity across repeated governed cycles; stop and inspect if fidelity degrades."
-            ]
-        else:
-            result = "Operator explicitly stopped the sustained Gemini continuity trial."
-            obligations = ["Await explicit operator Start before invoking another intelligence."]
-        receipt = kernel.submit(
-            Proposal(
-                str(uuid.uuid4()),
-                context.revision,
-                (
-                    Operation(
-                        "advance_work",
-                        AUTO_HANDOFF_ID,
-                        {"result": result, "open_obligations": obligations},
-                    ),
-                ),
-                f"Authenticated operator {args.operator_transition} transition",
-            )
-        )
-        if receipt.status != "accepted":
-            raise RuntimeError(f"operator {args.operator_transition} transition was {receipt.status}")
-        checkpoint()
-        kernel = Kernel(Record(DATA))
     if args.record_handoff_evaluation:
         raw_response = os.environ.get("HANDOFF_RESPONSE", "")
         response_work_id = handoff_work_id(raw_response)
@@ -817,10 +780,8 @@ def main() -> int:
         receipt = kernel.submit(Proposal(
             str(uuid.uuid4()), context.revision,
             (Operation("record_handoff_evaluation", selected_work_id, result),),
-            # The Shortcut carries bytes only. The Cloudflare session established
-            # operator identity before dispatch, while this workflow and the
-            # kernel remain the only path that can record the untrusted result.
-            "Authenticated operator submitted one human-transported handoff evaluation",
+            # GitHub Actions supplies the authenticated operator boundary; the kernel remains the only path that can record the untrusted result.
+            "GitHub operator submitted one human-transported handoff evaluation",
         ))
         if receipt.status != "accepted":
             raise RuntimeError(f"handoff evaluation was {receipt.status}: {receipt.reasons}")
@@ -844,7 +805,7 @@ def main() -> int:
                 ),
                 file=sys.stderr,
             )
-    if not args.publish_only and not args.prove_work and not args.prove_model and not args.prove_model_uncompressed and not args.prove_model_compressed and not args.prove_anthropic and not args.export_handoff and not args.prove_vacuum_recovery and not args.auto and not args.operator_transition and not args.record_handoff_evaluation and not args.record_semantic_review and not args.record_chatgpt_semantic_review:
+    if not args.publish_only and not args.prove_work and not args.prove_model and not args.prove_model_uncompressed and not args.prove_model_compressed and not args.prove_anthropic and not args.export_handoff and not args.prove_vacuum_recovery and not args.auto and not args.record_handoff_evaluation and not args.record_semantic_review and not args.record_chatgpt_semantic_review:
         if not args.action or not args.key:
             parser.error("--action and --key are required for a mutation")
         context = kernel.context()
@@ -1032,9 +993,6 @@ def main() -> int:
         repository=repository,
         verification=verification,
         continuity_proof=continuity_proof,
-        # Public configuration only. The GitHub App client secret and encrypted
-        # session key remain exclusively in the control service environment.
-        control_url=os.environ.get("SUDOFX_CONTROL_URL", ""),
     )
     # Explicit one-shot probes are diagnostic evidence. Emit their bounded
     # proof to the Actions log so the result survives the disposable runner

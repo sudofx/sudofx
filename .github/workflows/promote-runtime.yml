@@ -36,11 +36,15 @@ jobs:
       - name: Verify candidate
         run: |
           PYTHONPATH=src python -m unittest discover -s tests -v
-          node --test plugins/remote_operator/worker.test.mjs
-      - name: Refuse to change a live experiment
+      - name: Refuse to change a live or enabled experiment
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          latch_state="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/sudofx-runner.yml" --jq '.state' 2>/dev/null || true)"
+          if [[ "$latch_state" == "active" ]]; then
+            echo "::error::Continuity is enabled. Run Stop before promoting a new runtime."
+            exit 1
+          fi
           runtime_head="$(gh api "repos/$GITHUB_REPOSITORY/branches/sudofx-runtime" --jq '.commit.sha')"
           active="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/prove-model.yml/runs?per_page=100" \
             --jq --arg sha "$runtime_head" '[.workflow_runs[] | select(.head_branch == "sudofx-runtime" and .head_sha == $sha and .status != "completed")] | length')"

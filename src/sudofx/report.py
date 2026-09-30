@@ -404,7 +404,6 @@ def render(
     repository: str = "sudofx/sudofx",
     verification: dict[str, str] | None = None,
     continuity_proof: dict[str, object] | None = None,
-    control_url: str = "",
 ) -> str:
     """
     Produce one complete HTML document from a verified kernel snapshot.
@@ -426,10 +425,6 @@ def render(
     open_work = sum(isinstance(item, dict) and item.get("status") == "open" for item in work_items)
     verification = verification or {}
     continuity_proof = continuity_proof or {}
-    # The control service URL is public configuration, not a credential. An
-    # absent URL removes the authentication affordance entirely so local exports
-    # and partially configured deployments never imply controls are available.
-    control_url = control_url.rstrip("/")
     semantic_review = continuity_proof.get("semantic_review", {})
     if not isinstance(semantic_review, dict):
         semantic_review = {}
@@ -513,32 +508,15 @@ def render(
         if observer_continuous
         else "No Gemini test is running right now."
     )
-    # Authentication remains a presentation-layer gateway to the separate
-    # control service; moving it into the masthead must not make Pages an
-    # authority or expose authenticated actions before session verification.
-    # This structure intentionally matches WAKE's compact operator popover so
-    # both related tools keep the same location and interaction vocabulary.
-    owner_access_html = (
-        f'''<div class="owner-access" data-owner-access data-light-state="unknown">
-      <a class="owner-login" data-owner-login href="{_escape(control_url)}/auth/login" aria-label="Open Settings" title="Settings">
-        <span class="owner-status-track" aria-hidden="true"><i class="owner-status-light"></i></span><span class="sr-only">Settings</span>
-      </a>
-      <button class="owner-menu-toggle" data-owner-menu-toggle type="button" aria-label="Open Settings" title="Settings" aria-expanded="false" aria-haspopup="true" hidden>
-        <span class="owner-status-track" aria-hidden="true"><i class="owner-status-light"></i></span><span class="sr-only" data-owner-menu-label>Settings</span>
-      </button>
-      <div class="owner-controls" data-owner-controls hidden aria-live="polite">
-        <div class="owner-control-heading"><strong>Settings</strong><span data-owner-identity></span><span data-owner-control-status>Checking controls…</span></div>
-        <div class="owner-control-actions"><button type="button" data-owner-start>Start</button><button type="button" data-owner-stop>Stop</button><button type="button" data-owner-backup hidden>Backup</button></div>
-        <button class="owner-handoff" type="button" data-owner-handoff {'disabled' if not manual_prompt else ''}>Manual AI handoff</button>
-        <button class="owner-signout" type="button" data-owner-signout>Sign out</button>
-      </div>
-    </div>'''
-        if control_url
-        else ""
-    )
+    # GitHub Actions is the operator surface. Pages stays public and unauthenticated.
+    owner_access_html = f'''<a class="owner-access actions-light" data-owner-access data-light-state="unknown"
+      href="https://github.com/{_escape(repository)}/actions" aria-label="Open sudofx GitHub Actions" title="GitHub Actions">
+      <span class="owner-status-track" aria-hidden="true"><i class="owner-status-light"></i></span>
+      <span class="sr-only">GitHub Actions</span>
+    </a>'''
     observer_console_html = f"""
         <section class="observer-console checking observer-compact" aria-label="Live status"
-                 data-repository="{_escape(repository)}" data-workflow="prove-model.yml"
+                 data-repository="{_escape(repository)}" data-workflow="prove-model.yml" data-runner="sudofx-runner.yml"
                  data-fallback-state="{observer_static_state}"
                  data-fallback-activity="{_escape(observer_static_activity)}"
                  data-fallback-detail="{_escape(observer_static_detail)}">
@@ -609,9 +587,7 @@ def render(
     .observer-cell strong {{ display:block; margin-top:7px; font-size:13px; line-height:1.25; overflow-wrap:anywhere }}
     .observer-detail {{ display:flex; justify-content:space-between; gap:14px; margin-top:12px; color:var(--muted); font:11px var(--mono) }}
     .observer-detail a {{ color:var(--accent); text-decoration:none; white-space:nowrap }}
-    /* Operator access is a masthead popover, not durable report content. Its
-       elevated layer and mobile fixed panel mirror WAKE while keeping every
-       authenticated action hidden until the control service accepts a session. */
+    /* GitHub Actions is the operator surface. The masthead light is only a link and status indicator. */
     .sr-only {{ position:absolute!important; width:1px!important; height:1px!important; padding:0!important; margin:-1px!important; overflow:hidden!important; clip:rect(0,0,0,0)!important; white-space:nowrap!important; border:0!important }}
     .owner-access {{ position:relative; z-index:2000; font:10px var(--mono); display:flex; align-items:center }}
     .owner-login,.owner-menu-toggle {{ width:30px; height:30px; display:inline-flex; align-items:center; justify-content:center; position:relative; color:var(--muted); padding:0; border:0; background:transparent; text-decoration:none; cursor:pointer }}
@@ -887,7 +863,6 @@ const machineActivity=document.querySelector('[data-machine-activity]');
 const machineText=document.querySelector('[data-machine-text]');
 const exchangeStatus=document.querySelector('[data-exchange-status]');
 const recordRevision=document.querySelector('[data-record-revision]');
-const controlUrl={json.dumps(control_url)};
 const ownerLogin=document.querySelector('[data-owner-login]');
 const ownerMenuToggle=document.querySelector('[data-owner-menu-toggle]');
 const ownerMenuLabel=document.querySelector('[data-owner-menu-label]');
@@ -910,298 +885,9 @@ const semanticReviewSubmit=document.querySelector('[data-semantic-review-submit]
 const semanticReviewMessage=document.querySelector('[data-semantic-review-message]');
 const handoffBasePrompt=handoffPrompt?.value||'';
 let handoffProvider='';
-const ownerSessionKey='sudofx-owner-session';
-const ownerFragment='#sudofx-control=';
-const handoffReturnFragment='#handoff-evaluate';
-const handoffReturnKey='sudofx-pending-handoff-evaluation';
-try{{
-  if(!localStorage.getItem(ownerSessionKey)){{
-    const legacy=sessionStorage.getItem(ownerSessionKey);
-    if(legacy)localStorage.setItem(ownerSessionKey,legacy);
-  }}
-  sessionStorage.removeItem(ownerSessionKey);
-}}catch{{}}
-// OAuth returns encrypted session ciphertext in the fragment. Fragments never
-// reach Pages or referrer headers; move it to origin-persistent localStorage and immediately
-// remove it from the address bar before making an authenticated request.
-if(controlUrl && location.hash.startsWith(ownerFragment)){{
-  try{{
-    localStorage.setItem(ownerSessionKey,decodeURIComponent(location.hash.slice(ownerFragment.length)));
-    history.replaceState(null,'',location.pathname+location.search);
-  }}catch{{}}
-}}
-const ownerSession=()=>{{try{{return localStorage.getItem(ownerSessionKey)||''}}catch{{return ''}}}};
-const setOwnerLight=(state)=>{{if(ownerLogin?.closest('[data-owner-access]'))ownerLogin.closest('[data-owner-access]').dataset.lightState=state;}};
+const actionsLight=document.querySelector('.actions-light');
+const setOwnerLight=(state)=>{{if(actionsLight)actionsLight.dataset.lightState=state;}};
 const ownerLightForVisualState=(state)=>state==='working'?'running':((state==='idle'||state==='failed')?'stopped':'unknown');
-// The Shortcut transports no credential and no model response in its URL. Its
-// fragment is only a same-browser intent marker; the response remains on the
-// clipboard until an authenticated, user-initiated paste submits it.
-if(location.hash===handoffReturnFragment){{
-  try{{sessionStorage.setItem(handoffReturnKey,'1')}}catch{{}}
-  history.replaceState(null,'',location.pathname+location.search);
-}}
-const pendingHandoffReturn=()=>{{try{{return sessionStorage.getItem(handoffReturnKey)==='1'}}catch{{return false}}}};
-if(controlUrl&&pendingHandoffReturn()&&!ownerSession())location.assign(controlUrl+'/auth/login');
-const formatBytes=(value)=>{{
-  // This is the browser equivalent of the server renderer's presentation-only
-  // formatter. The Worker still returns the exact integer byte count; no display
-  // rounding becomes storage or governance truth.
-  const units=['B','KB','MB','GB'];
-  let amount=Math.max(0,Number(value)||0),unit=0;
-  while(amount>=1024&&unit<units.length-1){{amount/=1024;unit+=1;}}
-  if(unit===0)return Math.trunc(amount)+' B';
-  const precision=amount>=100?0:1;
-  return Number(amount.toFixed(precision))+' '+units[unit];
-}};
-const ownerRequest=async(path,method='GET',payload=null)=>{{
-  const headers={{Authorization:'Bearer '+ownerSession()}};
-  if(payload!==null)headers['Content-Type']='application/json';
-  const response=await fetch(controlUrl+path,{{method,headers,body:payload===null?undefined:JSON.stringify(payload)}});
-  const body=await response.json().catch(()=>({{}}));
-  if(!response.ok)throw new Error(body.error||'Owner control request failed');
-  return body;
-}};
-// The popover is presentational state only. Closing it never changes workflow
-// authority, while signing out explicitly removes the origin-persistent session.
-const setOwnerMenu=(open)=>{{
-  if(!ownerMenuToggle||!ownerControls)return;
-  ownerControls.hidden=!open;
-  ownerMenuToggle.setAttribute('aria-expanded',String(open));
-}};
-const showOwnerSignedOut=()=>{{
-  if(handoffDialog?.open)handoffDialog.close();
-  if(handoffResponse)handoffResponse.value='';
-  setOwnerMenu(false);
-  if(ownerMenuToggle)ownerMenuToggle.hidden=true;
-  if(ownerLogin)ownerLogin.hidden=false;
-  if(ownerTechnical)ownerTechnical.hidden=true;
-  setOwnerLight('unknown');
-}};
-const applyOwnerWorkflowState=(state)=>{{
-  // The authenticated control service reads the workflow's enabled flag and
-  // active runs with the owner's GitHub token. When available, that evidence
-  // outranks both anonymous API telemetry and the last published HTML snapshot.
-  const running=state.enabled&&state.activeRuns.length>0;
-  const visualState=running?'working':(state.enabled?'continuous':'idle');
-  setOwnerLight(ownerLightForVisualState(visualState));
-  observer.className='observer-console '+visualState;
-  observerState.className='observer-state '+visualState;
-  observerState.textContent=running?'Live':(state.enabled?'Running':'Stopped');
-  currentActivity.textContent=running
-    ?'Waiting for Gemini and governing its response'
-    :(state.enabled?'Continuous runner enabled; next cycle is starting':'Continuous tests stopped by owner');
-  currentStep.textContent=running?'GitHub Actions cycle in progress':(state.enabled?'Starting next cycle':'No Gemini request in progress');
-  updateNextCheck(visualState);
-  observerDetail.textContent=state.enabled
-    ?'Authenticated owner control confirms continuous operation is enabled.'
-    :'Authenticated owner control confirms the workflow is disabled and no new cycle can start.';
-  if(statusLed)statusLed.className='status-led '+visualState;
-  if(machineActivity){{machineActivity.hidden=true;machineActivity.classList.remove('working');}}
-  if(exchangeStatus){{exchangeStatus.textContent=running?'WAITING ON GEMINI':'LAST EXCHANGE';exchangeStatus.className='exchange-status '+(running?'working':'');}}
-}};
-const refreshOwnerControls=async()=>{{
-  if(!controlUrl||!ownerControls||!ownerSession())return null;
-  try{{
-    const state=await ownerRequest('/api/session');
-    // Older deployed control workers may not yet include latestRun. Hydrate it
-    // from the same public GitHub workflow feed used by signed-out observers so
-    // authenticated and incognito views cannot disagree during rollout.
-    if(!state.latestRun&&observer){{
-      try{{
-        const repo=observer.dataset.repository, workflow=observer.dataset.workflow;
-        const latestResponse=await fetch('https://api.github.com/repos/'+repo+'/actions/workflows/'+workflow+'/runs?per_page=1',{{cache:'no-store'}});
-        if(latestResponse.ok){{
-          const latestData=await latestResponse.json();
-          const latest=Array.isArray(latestData.workflow_runs)?latestData.workflow_runs[0]:null;
-          if(latest)state.latestRun={{id:latest.id,status:latest.status,conclusion:latest.conclusion||null,url:latest.html_url}};
-        }}
-      }}catch{{}}
-    }}
-    ownerLogin.hidden=true;
-    ownerMenuToggle.hidden=false;
-    if(ownerTechnical)ownerTechnical.hidden=false;
-    ownerIdentity.textContent='Signed in as '+state.login;
-    const maintenance=state.maintenance||{{}};
-    const databaseSize=Number(maintenance.databaseBytes||0);
-    const storageRisk=maintenance.repositoryVisibility==='public'?'public state':maintenance.repositoryVisibility||'unknown visibility';
-    const protection=maintenance.stateBranchProtected?'protected':'unprotected';
-    const latest=state.latestRun||null;
-    const failed=Boolean(state.enabled&&!state.activeRuns.length&&latest&&latest.status==='completed'&&latest.conclusion==='failure');
-    const workflowLabel=state.enabled?(state.activeRuns.length?'Running now':(failed?'Paused · last cycle failed':'Enabled · next cycle starting')):'Stopped';
-    ownerMenuLabel.textContent='Settings';
-    ownerControlStatus.textContent=workflowLabel+' · DB '+formatBytes(databaseSize)+' · '+storageRisk+' · '+protection;
-    ownerStart.disabled=state.enabled;
-    ownerStop.disabled=!state.enabled;
-    if(ownerBackup){{ownerBackup.hidden=!Array.isArray(state.capabilities)||!state.capabilities.includes('backup');ownerBackup.disabled=false;}}
-    const handoffEvaluateEnabled=Array.isArray(state.capabilities)&&state.capabilities.includes('handoff-evaluate');
-    if(handoffSubmit)handoffSubmit.disabled=!handoffEvaluateEnabled;
-    const semanticReviewEnabled=Array.isArray(state.capabilities)&&state.capabilities.includes('semantic-review');
-    if(semanticReviewSubmit)semanticReviewSubmit.disabled=!semanticReviewEnabled;
-    if(pendingHandoffReturn()&&handoffEvaluateEnabled&&handoffDialog){{
-      try{{sessionStorage.removeItem(handoffReturnKey)}}catch{{}}
-      if(!handoffDialog.open)handoffDialog.showModal();
-      handoffStatus.textContent='Claude result ready. Tap Paste & submit result.';
-    }}
-    applyOwnerWorkflowState(state);
-    return state;
-  }}catch{{
-    try{{localStorage.removeItem(ownerSessionKey)}}catch{{}}
-    showOwnerSignedOut();
-    // A Shortcut return may find an expired encrypted session. Preserve only
-    // the intent marker and re-enter the same OAuth gateway; the clipboard text
-    // never leaves the device until the replacement session is verified.
-    if(pendingHandoffReturn()&&controlUrl)location.assign(controlUrl+'/auth/login');
-    return null;
-  }}
-}};
-const operateOwnerControl=async(path,event,refresh=true)=>{{
-  // iOS may deliver the same tap through the document-level dismissal handler.
-  // Keep the operator panel open until this request has a visible outcome; a
-  // control action must never look like an unexplained navigation or dismissal.
-  event?.stopPropagation();
-  setOwnerMenu(true);
-  const label=path==='/api/backup'?'backup':(path==='/api/start'?'start':'stop');
-  const disabledBefore={{start:ownerStart.disabled,stop:ownerStop.disabled,backup:ownerBackup?.disabled||false}};
-  ownerStart.disabled=true;ownerStop.disabled=true;if(ownerBackup)ownerBackup.disabled=true;
-  ownerControlStatus.textContent='Requesting '+label+'…';
-  try{{
-    const result=await ownerRequest(path,'POST');
-    // Backup does not change workflow state, so refreshing would only replace
-    // its acceptance message with generic status. Start and Stop do refresh,
-    // but their action result is restored afterward as the visible outcome.
-    if(refresh)await refreshOwnerControls();
-    setOwnerMenu(true);
-    ownerControlStatus.textContent=result.message||'Request accepted.';
-    if(!refresh){{
-      ownerStart.disabled=disabledBefore.start;
-      ownerStop.disabled=disabledBefore.stop;
-      if(ownerBackup)ownerBackup.disabled=disabledBefore.backup;
-    }}
-  }}catch(error){{
-    setOwnerMenu(true);
-    ownerControlStatus.textContent='Request failed: '+error.message;
-    ownerStart.disabled=disabledBefore.start;
-    ownerStop.disabled=disabledBefore.stop;
-    if(ownerBackup)ownerBackup.disabled=disabledBefore.backup;
-  }}
-}};
-if(ownerStart)ownerStart.addEventListener('click',(event)=>operateOwnerControl('/api/start',event));
-if(ownerStop)ownerStop.addEventListener('click',(event)=>operateOwnerControl('/api/stop',event));
-if(ownerBackup)ownerBackup.addEventListener('click',(event)=>operateOwnerControl('/api/backup',event,false));
-const copyText=async(value)=>{{
-  await navigator.clipboard.writeText(value);
-}};
-const freshHandoffId=()=>{{
-  const words=new Uint32Array(1);
-  crypto.getRandomValues(words);
-  return 'UUID-'+String(words[0]%1000000).padStart(6,'0');
-}};
-const selectHandoffProvider=(link)=>{{
-  handoffProvider=link.dataset.handoffProvider||'';
-  const testId=freshHandoffId();
-  const nonce='HANDOFF-'+testId;
-  const transportPrompt=handoffBasePrompt
-    .replaceAll('__SUDOFX_VENDOR__',handoffProvider)
-    .replaceAll('__SUDOFX_TEST_ID__',testId)
-    .replaceAll('__SUDOFX_NONCE__',nonce);
-  // Selecting a destination is a fresh authenticated operator action. Carry
-  // that narrow authority with the human-transported packet so a prior durable
-  // Stop still blocks automation but does not make this one requested response
-  // look unauthorized to the receiving intelligence.
-  handoffPrompt.value='CURRENT OPERATOR AUTHORIZATION\\nThe authenticated operator explicitly selected '+handoffProvider+' for exactly one manual response to this packet. This authorizes the response only; it does not authorize durable mutation, continuous execution, or another model invocation. A prior Stop in the durable packet remains authoritative for those other actions. Do not use this authorization paragraph as evidence; evidence must quote only the COMPLETE JSON PACKET.\\n\\n'+transportPrompt;
-  // ChatGPT currently accepts an undocumented prompt parameter that can fill
-  // the composer, but it does not submit the message. Keep clipboard transport
-  // as the durable fallback and never infer equivalent parameters for vendors
-  // that publish only bare app handlers.
-  if(handoffProvider==='ChatGPT'){{
-    link.href='com.openai.chat://chatgpt.com/?temporary-chat=true&prompt='+encodeURIComponent(handoffPrompt.value);
-  }}
-  document.querySelectorAll('[data-handoff-provider]').forEach(candidate=>candidate.setAttribute('aria-pressed',String(candidate===link)));
-  // Start the clipboard write during the trusted tap that follows the app URI.
-  // Awaiting it first can consume Safari's user activation and prevent iOS from
-  // opening the destination. The visible prompt remains the manual fallback.
-  copyText(handoffPrompt.value).catch(()=>{{handoffPrompt.focus();handoffPrompt.select();}});
-  handoffStatus.textContent=handoffProvider==='ChatGPT'
-    ?'ChatGPT opening with a draft when supported. Tap Send; if the draft is empty, paste the copied prompt.'
-    :handoffProvider+' opening. Paste the copied prompt into a new chat and send it.';
-}};
-if(ownerHandoff)ownerHandoff.addEventListener('click',()=>{{
-  setOwnerMenu(false);
-  if(handoffDialog&&!ownerHandoff.disabled)handoffDialog.showModal();
-}});
-document.querySelectorAll('[data-handoff-provider]').forEach(link=>link.addEventListener('click',()=>selectHandoffProvider(link)));
-document.querySelector('[data-handoff-copy]')?.addEventListener('click',async()=>{{
-  try{{await copyText(handoffPrompt.value);handoffStatus.textContent='Prompt copied.';}}
-  catch{{handoffPrompt.focus();handoffPrompt.select();handoffStatus.textContent='Clipboard access was blocked; the prompt is selected.';}}
-}});
-handoffSubmit?.addEventListener('click',async()=>{{
-  // Clipboard reads require this trusted tap on iOS. The Shortcut therefore
-  // carries only transient text and a page URL; the browser session remains the
-  // sole authority that can ask the Worker to spend GitHub Actions permission.
-  let response=handoffResponse.value.trim();
-  if(!response){{
-    try{{response=(await navigator.clipboard.readText()).trim();handoffResponse.value=response;}}
-    catch{{handoffStatus.textContent='Clipboard access was blocked. Paste the returned JSON above, then tap submit again.';handoffResponse.focus();return;}}
-  }}
-  if(!response){{handoffStatus.textContent='The clipboard does not contain a handoff response.';return;}}
-  handoffSubmit.disabled=true;
-  handoffStatus.textContent='Submitting through the authenticated operator…';
-  try{{
-    const result=await ownerRequest('/api/operate','POST',{{action:'handoff-evaluate',response}});
-    handoffResponse.value='';
-    handoffStatus.textContent=result.message||'Handoff evaluation accepted for governed recording.';
-  }}catch(error){{
-    handoffStatus.textContent='Submission failed: '+error.message;
-  }}finally{{handoffSubmit.disabled=false;}}
-}});
-if(semanticReviewSubmit)semanticReviewSubmit.addEventListener('click',async(event)=>{{
-  event.stopPropagation();
-  if(!semanticReviewForm)return;
-  const criteria={{}};
-  semanticReviewForm.querySelectorAll('[data-review-criterion]').forEach(select=>{{criteria[select.dataset.reviewCriterion]=select.value;}});
-  const review={{
-    artifact_run_id:String(semanticReviewForm.dataset.runId||''),
-    context_digest:String(semanticReviewForm.dataset.contextDigest||''),
-    criteria,
-  }};
-  semanticReviewSubmit.disabled=true;
-  if(semanticReviewMessage)semanticReviewMessage.textContent='Binding review to authoritative SQLite evidence…';
-  const originalLabel=semanticReviewSubmit.textContent;
-  try{{
-    await ownerRequest('/api/operate','POST',{{action:'semantic-review',review}});
-    semanticReviewSubmit.textContent='Recording…';
-    if(semanticReviewMessage)semanticReviewMessage.textContent='Request accepted. Waiting for SQLite confirmation…';
-    let confirmed=false;
-    for(let attempt=0;attempt<15;attempt+=1){{
-      await new Promise(resolve=>setTimeout(resolve,2000));
-      const proof=await refreshExchange();
-      const operatorReview=proof&&proof.semantic_review&&proof.semantic_review.reviewers&&proof.semantic_review.reviewers.operator;
-      if(operatorReview&&String(operatorReview.status||'pending')!=='pending'){{
-        confirmed=true;
-        break;
-      }}
-    }}
-    if(confirmed){{
-      semanticReviewSubmit.textContent='Recorded ✓';
-      if(semanticReviewMessage)semanticReviewMessage.textContent='Recorded in authoritative SQLite.';
-      setTimeout(()=>{{semanticReviewSubmit.textContent=originalLabel;semanticReviewSubmit.disabled=false;}},1200);
-    }}else{{
-      semanticReviewSubmit.textContent=originalLabel;
-      semanticReviewSubmit.disabled=false;
-      if(semanticReviewMessage)semanticReviewMessage.textContent='Submitted, but SQLite confirmation is still pending. Live status will keep refreshing.';
-    }}
-  }}catch(error){{
-    if(semanticReviewMessage)semanticReviewMessage.textContent='Review failed: '+error.message;
-    semanticReviewSubmit.textContent=originalLabel;
-    semanticReviewSubmit.disabled=false;
-  }}
-}});
-document.querySelector('[data-handoff-close]')?.addEventListener('click',()=>handoffDialog?.close());
-if(ownerMenuToggle)ownerMenuToggle.addEventListener('click',(event)=>{{event.stopPropagation();setOwnerMenu(ownerControls.hidden);}});
-if(ownerControls)ownerControls.addEventListener('click',(event)=>event.stopPropagation());
-if(ownerSignout)ownerSignout.addEventListener('click',()=>{{try{{localStorage.removeItem(ownerSessionKey)}}catch{{}}showOwnerSignedOut();}});
-document.addEventListener('click',()=>setOwnerMenu(false));
-document.addEventListener('keydown',(event)=>{{if(event.key==='Escape')setOwnerMenu(false);}});
 // The workflow owns a success-only successor chain. This field describes that
 // lifecycle rather than estimating a wall-clock time that no longer exists.
 const updateNextCheck=(state)=>{{
@@ -1212,15 +898,11 @@ const updateNextCheck=(state)=>{{
 }};
 const refreshObserver=async()=>{{
   if(!observer)return;
-  // Signed-in owners already have a narrower, authenticated status source.
-  // Avoid letting an anonymous rate limit or stale published artifact overwrite
-  // a successful Stop with the opposite message.
-  if(ownerSession()&&await refreshOwnerControls())return;
-  const repo=observer.dataset.repository, workflow=observer.dataset.workflow;
+  const repo=observer.dataset.repository, workflow=observer.dataset.workflow, runner=observer.dataset.runner;
   try{{
     const [workflowResponse,response]=await Promise.all([
-      fetch('https://api.github.com/repos/'+repo+'/actions/workflows/'+workflow,{{cache:'no-store'}}),
-      fetch('https://api.github.com/repos/'+repo+'/actions/workflows/'+workflow+'/runs?per_page=1',{{cache:'no-store'}})
+      fetch('https://api.github.com/repos/'+repo+'/actions/workflows/'+runner,{{cache:'no-store'}}),
+      fetch('https://api.github.com/repos/'+repo+'/actions/workflows/'+workflow+'/runs?branch=sudofx-runtime&per_page=1',{{cache:'no-store'}})
     ]);
     if(!workflowResponse.ok||!response.ok)throw new Error('GitHub workflow status unavailable');
     const workflowMeta=await workflowResponse.json();
@@ -1231,12 +913,12 @@ const refreshObserver=async()=>{{
     const running=run.status!=='completed';
     const failed=enabled&&!running&&run.conclusion==='failure';
     const visualState=running?'working':(failed?'failed':(enabled?'continuous':'idle'));
-    if(!ownerSession())setOwnerLight(ownerLightForVisualState(visualState));
+    setOwnerLight(ownerLightForVisualState(visualState));
     observer.className='observer-console '+visualState;
     observerState.className='observer-state '+visualState;
     observerState.textContent=running?'Live':(failed?'Paused':(enabled?'Running':'Stopped'));
     if(statusLed)statusLed.className='status-led '+visualState;
-    currentActivity.textContent=running?'Gemini is answering now':(failed?'The last test stopped unexpectedly':(enabled?'Continuous runner enabled; next cycle is starting':'Continuous tests stopped by owner'));
+    currentActivity.textContent=running?'Gemini is answering now':(failed?'The last test stopped unexpectedly':(enabled?'Continuous runner enabled; next cycle is starting':'Continuous tests stopped'));
     updateNextCheck(visualState);
     if(exchangeStatus){{exchangeStatus.textContent=running?'Updating':'Latest';exchangeStatus.className='exchange-status '+(running?'working':'');}}
     const jobsResponse=await fetch(run.jobs_url,{{cache:'no-store'}});
@@ -1452,7 +1134,6 @@ def export_site(
     repository: str = "sudofx/sudofx",
     verification: dict[str, str] | None = None,
     continuity_proof: dict[str, object] | None = None,
-    control_url: str = "",
 ) -> Path:
     """
     Write the derived Pages artifact and disable Jekyll processing.
@@ -1469,7 +1150,6 @@ def export_site(
             repository=repository,
             verification=verification,
             continuity_proof=continuity_proof,
-            control_url=control_url,
         ),
         encoding="utf-8",
     )

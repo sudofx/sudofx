@@ -1,0 +1,19 @@
+name: "sudofx — Internal only: keep-running switch"
+run-name: "sudofx continuation latch"
+
+# This workflow exists only because GitHub gives workflows a durable enabled/disabled state.
+# Start enables it. Stop disables it. prove-model.yml reads that state before dispatching a successor.
+# This workflow is not an operator control. Use Start or Stop.
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  explain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Explain this internal latch
+        run: echo "This workflow is only the continuity on/off latch. Use Start to run sudofx."

@@ -36,35 +36,12 @@ checks the seven grounding dimensions, then asks the normal sudofx governance
 path to record the evaluation. The score measures literal packet grounding,
 not semantic truth.
 
-The iOS Shortcut is transport only. After Claude returns the JSON, **Send
-handoff** posts the raw response to the remote operator's dedicated background
-route and finishes with a local notification. Its bearer is scoped to this one
-route; it is not a GitHub token and cannot select another capability. The
-Worker holds dispatch authority, while the workflow and governed SQLite record
-remain the only durable acceptance path.
+Manual handoff transport is no longer coupled to a separate control backend. GitHub Actions is the authenticated operator surface.
 
-The authenticated browser fallback opens:
+To record a returned response, use the manual `sudofx — operator` workflow with `handoff-evaluate` and supply the exact returned JSON. The workflow restores authoritative SQLite state, binds the response to its frozen packet, evaluates it, and records the governed result.
 
-```text
-https://sudofx.github.io/sudofx/#handoff-evaluate
-```
+The Pages view remains public and credential-free. It may help copy or inspect a packet, but it does not authenticate, dispatch, or record operator actions.
 
-The fragment contains no result or credential. The page restores or requests the
-existing operator login, opens the handoff panel, and requires one user tap on
-**Paste & submit result**. That tap reads the transient clipboard and submits the
-response through `remote_operator`.
-
-The primary iOS Shortcut tail is:
-
-1. **Get Contents of URL** — POST the `response_text` file to
-   `https://sudofx-control.rob-71e.workers.dev/api/shortcut/handoff` with the
-   dedicated bearer stored in the Shortcut.
-2. **Show Notification** — `Response sent to sudofx.`
-
-It must not call `api.github.com`, store a GitHub token, or dispatch
-`sudofx.yml` directly. Keep the earlier response/share-sheet handling unchanged.
-The copy-and-open actions above remain the non-iOS/browser fallback, not the
-preferred iPhone development loop.
 
 ## Boundary
 
