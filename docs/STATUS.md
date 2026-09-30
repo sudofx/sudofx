@@ -23,7 +23,7 @@ The success condition is not that one model remembers. The success condition is 
 | Live external model continuity | Achieved for bounded experiment | Gemini receives reconstructed context and returns governed proposals without direct state authority. |
 | Continuous unattended testing | Achieved | Success-only GitHub Actions chain dispatches exactly one successor after successful publication. |
 | Fail visibly instead of looping blindly | Achieved | Test, provider, governance, or deployment failure ends the continuation chain. |
-| Phone-first observation and control | Achieved | Pages observer plus separate owner-authenticated Start/Stop service. |
+| Phone-first observation and control | Achieved | Pages observer plus GitHub-native Start/Stop workflows. |
 | Bounded operational maintenance | Achieved at current scale | Schema identity/versioning, fail-closed restore, bounded public history, verified 30-day backup artifacts, and authenticated storage diagnostics are live. |
 | Human-readable auditability | Substantially achieved | Observer exposes context, response, outcome, receipts, run identity, and status. |
 | Durable continuity over long time/model/vendor turnover | Not yet proven | This is the current experiment, not an established result. |
@@ -38,16 +38,16 @@ The project crossed several implementation boundaries in one day:
 - made observer updates refresh from current workflow evidence
 - moved to continuous success-only cloud cycles
 - isolated continuous Gemini tests from authoritative SQLite mutation
-- added authenticated owner Start/Stop controls
-- added an authenticated, capability-gated recovery backup control
+- replaced remote owner controls with GitHub-native Start/Stop workflows
+- kept bounded recovery operations in GitHub Actions
 - added SQLite application identity, ordered schema migrations, and fail-closed restore checks
 - bounded the public activity projection while preserving the complete authoritative event chain
-- exposed owner-only database size, repository visibility, and state-branch protection diagnostics
-- granted the repository-limited GitHub App read-only Contents access for those diagnostics
+- 
+- 
 - refreshed GitHub Actions to current Node.js 24-compatible major versions
-- contained provider/OAuth failures inside the control-service boundary
-- separated Cloudflare execution context from GitHub transport injection
-- made authenticated owner workflow state override weaker observer telemetry
+- 
+- 
+- made the Pages status light link directly to GitHub Actions
 - opened the WAKE✳︎ inspiration link in a separate tab
 
 These changes increase operational capability without changing the core authority model.
@@ -75,9 +75,9 @@ Deterministic authority
 Presentation
   generated GitHub Pages observer
 
-Authenticated operator control
-  Cloudflare Worker + GitHub OAuth
-  Start / Stop / Backup / storage diagnostics
+Operator control
+  GitHub Actions
+  Start / Stop / bounded maintenance
 
 Recovery / inspection
   local runner + CLI + tests
