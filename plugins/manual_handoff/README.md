@@ -36,11 +36,11 @@ checks the seven grounding dimensions, then asks the normal sudofx governance
 path to record the evaluation. The score measures literal packet grounding,
 not semantic truth.
 
-Manual handoff transport is no longer coupled to a separate control backend. GitHub Actions is the authenticated operator surface.
+Manual handoff transport is no longer coupled to a separate control backend. GitHub Actions remains the authenticated authority surface.
 
-To record a returned response, use the manual `sudofx — operator` workflow with `handoff-evaluate` and supply the exact returned JSON. The workflow restores authoritative SQLite state, binds the response to its frozen packet, evaluates it, and records the governed result.
+The public Pages view now contains the manual continuity workbench. Anyone can choose a provider, copy the bounded packet prompt, paste the returned JSON, and run the deterministic scorer locally. A browser score is evidence only; it does not mutate SQLite.
 
-The Pages view remains public and credential-free. It may help copy or inspect a packet, but it does not authenticate, dispatch, or record operator actions.
+A public tester may preserve useful work through a GitHub issue contribution. An authorized operator may record the exact response with the manual `sudofx — operator` workflow using `handoff-evaluate`. That workflow restores authoritative SQLite state, binds the response to its frozen packet, evaluates it again, and records the governed result.
 
 
 ## Boundary
