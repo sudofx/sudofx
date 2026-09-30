@@ -900,6 +900,8 @@ json.dump({
             encoding="utf-8"
         )
         self.assertIn("Verify candidate", promotion)
+        self.assertIn("actions/workflows/sudofx-runner.yml", promotion)
+        self.assertIn("Continuity is enabled. Run Stop before promoting", promotion)
         self.assertIn("Continuity is active; stop it before promoting", promotion)
         self.assertIn("git/refs/heads/sudofx-runtime", promotion)
         self.assertNotIn("cron:", workflow)
