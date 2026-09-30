@@ -26,11 +26,6 @@ on:
         description: Optional correlation token for the local continuous runner
         type: string
         required: false
-      operator_start:
-        description: Record authenticated operator Start before invoking Gemini
-        type: boolean
-        default: false
-        required: false
       runtime_ref:
         description: Deprecated compatibility input; runtime is pinned by sudofx-runtime
         type: string
@@ -66,16 +61,9 @@ jobs:
         # production write records what the model said as untrusted experiment
         # evidence; it never advances authoritative work from provider prose.
         env:
-          OPERATOR_START: ${{ inputs.operator_start }}
           GEMINI_MODEL: gemini-3.5-flash-lite
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          SUDOFX_CONTROL_URL: ${{ vars.SUDOFX_CONTROL_URL }}
-        run: |
-          args=()
-          if [[ "$OPERATOR_START" == "true" ]]; then
-            args+=(--operator-start)
-          fi
-          PYTHONPATH=src python scripts/overnight_sudofx.py "${args[@]}"
+        run: PYTHONPATH=src python scripts/overnight_sudofx.py
   continue-again:
     # A successor depends only on the completed governed continuity cycle.
     # No Pages job exists in this runtime path; the browser reads live projection
@@ -89,6 +77,11 @@ jobs:
           PREVIOUS_RUN_ID: ${{ github.run_id }}
           RUNTIME_REF: ${{ github.sha }}
         run: |
+          latch_state="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/sudofx-runner.yml" --jq '.state' 2>/dev/null || true)"
+          if [[ "$latch_state" != "active" ]]; then
+            echo "Continuous runner is disabled; no successor will be dispatched."
+            exit 0
+          fi
           # GitHub concurrency keeps one running and one pending member, but a
           # newly dispatched successor replaces that pending member even when
           # cancel-in-progress is false. Yielding here prevents the continuous
