@@ -597,7 +597,7 @@ def main() -> int:
         kernel = Kernel(record)
     if args.record_semantic_review or args.record_chatgpt_semantic_review:
         # Human review is intentionally stricter than generic record-assessment.
-        # Website reviews come from the authenticated operator path. ChatGPT
+        # Human reviews arrive through GitHub-controlled operator paths. ChatGPT
         # reviews arrive through the dedicated GitHub transport branch and have
         # their reviewer identity forced here rather than trusted from payload.
         if args.record_chatgpt_semantic_review:
@@ -817,9 +817,7 @@ def main() -> int:
         receipt = kernel.submit(Proposal(
             str(uuid.uuid4()), context.revision,
             (Operation("record_handoff_evaluation", selected_work_id, result),),
-            # The Shortcut carries bytes only. The Cloudflare session established
-            # operator identity before dispatch, while this workflow and the
-            # kernel remain the only path that can record the untrusted result.
+            # GitHub Actions supplies the authenticated operator boundary; the kernel remains the only path that can record the untrusted result.
             "Authenticated operator submitted one human-transported handoff evaluation",
         ))
         if receipt.status != "accepted":
@@ -1032,9 +1030,6 @@ def main() -> int:
         repository=repository,
         verification=verification,
         continuity_proof=continuity_proof,
-        # Public configuration only. The GitHub App client secret and encrypted
-        # session key remain exclusively in the control service environment.
-        control_url=os.environ.get("SUDOFX_CONTROL_URL", ""),
     )
     # Explicit one-shot probes are diagnostic evidence. Emit their bounded
     # proof to the Actions log so the result survives the disposable runner
