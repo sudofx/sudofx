@@ -763,10 +763,10 @@ def render(
       <div class="quality-head"><b>Manual AI continuity test</b><span class="quality-verdict quality-pass">PUBLIC</span></div>
       <p class="manual-test-intro">Anyone can run this test. Choose an AI, send the generated bounded prompt, paste its JSON response back here, and sudofx will score packet grounding locally. Local scoring is evidence, not database authority.</p>
       <div class="provider-buttons" aria-label="Choose AI provider">
-        <button type="button" data-manual-vendor="ChatGPT" data-manual-url="com.openai.chat://">ChatGPT</button>
-        <button type="button" data-manual-vendor="Claude" data-manual-url="claude://">Claude</button>
-        <button type="button" data-manual-vendor="Gemini" data-manual-url="https://gemini.google.com/app">Gemini</button>
-        <button type="button" data-manual-vendor="DeepSeek" data-manual-url="deepseek://">DeepSeek</button>
+        <button type="button" data-manual-vendor="ChatGPT" data-manual-url="chatgpt://" data-manual-fallback="https://chatgpt.com/">ChatGPT</button>
+        <button type="button" data-manual-vendor="Claude" data-manual-url="claude://" data-manual-fallback="https://claude.ai/new">Claude</button>
+        <button type="button" data-manual-vendor="Gemini" data-manual-url="googleapp://robin" data-manual-fallback="https://gemini.google.com/app">Gemini</button>
+        <button type="button" data-manual-vendor="DeepSeek" data-manual-url="deepseek://" data-manual-fallback="https://chat.deepseek.com/">DeepSeek</button>
       </div>
       <label class="manual-field">Prompt to send<textarea data-manual-prompt readonly>{_escape(manual_prompt)}</textarea></label>
       <div class="manual-actions"><button type="button" data-manual-copy>Copy prompt</button></div>
@@ -949,11 +949,45 @@ const manualPacketText=()=>{{
   return index>=0?source.slice(index+packetMarker.length).trim():'';
 }};
 const setManualStatus=(message)=>{{if(manualStatus)manualStatus.textContent=message;}};
+// iOS WebKit treats clipboard access and external-app navigation as competing
+// user-activation consumers. Keep a synchronous copy path for provider taps so
+// the original tap is still eligible to launch the native app.
+const copyManualFromField=()=>{{
+  if(!manualPrompt?.value)return false;
+  try{{
+    manualPrompt.focus({{preventScroll:true}});
+    manualPrompt.select();
+    manualPrompt.setSelectionRange(0,manualPrompt.value.length);
+    return Boolean(document.execCommand('copy'));
+  }}catch{{return false;}}
+}};
+// The explicit Copy button can use the modern API because it does not also need
+// to spend the same user gesture on an app launch. Fall back to selection copy
+// for Safari versions that deny navigator.clipboard despite HTTPS.
 const copyManual=async(value)=>{{
   if(!value)return false;
-  try{{await navigator.clipboard.writeText(value);return true;}}catch{{return false;}}
+  try{{
+    if(navigator.clipboard?.writeText){{
+      await navigator.clipboard.writeText(value);
+      return true;
+    }}
+  }}catch{{}}
+  return copyManualFromField();
 }};
-const prepareManualProvider=async(button)=>{{
+const launchManualProvider=(button)=>{{
+  const url=button.dataset.manualUrl||'';
+  if(!url)return;
+  const fallback=button.dataset.manualFallback||'';
+  // Assigning location synchronously preserves the physical tap on iPhone.
+  // If the native scheme is unavailable, return to the vendor's web app after
+  // a short grace period; a successful app switch hides the document and
+  // suppresses the fallback.
+  location.href=url;
+  if(fallback&&!url.startsWith('http')){{
+    setTimeout(()=>{{if(!document.hidden)location.href=fallback;}},900);
+  }}
+}};
+const prepareManualProvider=(button)=>{{
   if(!manualPrompt||!manualBasePrompt){{setManualStatus('No manual packet is available yet.');return;}}
   const vendor=button.dataset.manualVendor||'';
   const testId=freshManualId();
@@ -963,13 +997,9 @@ const prepareManualProvider=async(button)=>{{
     .replaceAll('__SUDOFX_TEST_ID__',testId)
     .replaceAll('__SUDOFX_NONCE__',nonce);
   document.querySelectorAll('[data-manual-vendor]').forEach(node=>node.setAttribute('aria-pressed',String(node===button)));
-  const copied=await copyManual(manualPrompt.value);
+  const copied=copyManualFromField();
   setManualStatus((copied?'Prompt copied. ':'Prompt ready. ')+'Send it to '+vendor+', then paste the returned JSON below.');
-  const url=button.dataset.manualUrl||'';
-  if(url){{
-    if(url.startsWith('http'))window.open(url,'_blank','noopener,noreferrer');
-    else location.href=url;
-  }}
+  launchManualProvider(button);
 }};
 document.querySelectorAll('[data-manual-vendor]').forEach(button=>button.addEventListener('click',()=>prepareManualProvider(button)));
 if(manualCopy)manualCopy.addEventListener('click',async()=>{{
