@@ -509,9 +509,9 @@ def render(
         else "No Gemini test is running right now."
     )
     # GitHub Actions is the operator surface. Pages stays public and unauthenticated.
-    owner_access_html = f'''<a class="owner-access actions-light" data-owner-access data-light-state="unknown"
+    actions_light_html = f'''<a class="actions-light" data-light-state="unknown"
       href="https://github.com/{_escape(repository)}/actions" aria-label="Open sudofx GitHub Actions" title="GitHub Actions">
-      <span class="owner-status-track" aria-hidden="true"><i class="owner-status-light"></i></span>
+      <span class="actions-light-track" aria-hidden="true"><i class="actions-light-dot"></i></span>
       <span class="sr-only">GitHub Actions</span>
     </a>'''
     observer_console_html = f"""
@@ -589,43 +589,14 @@ def render(
     .observer-detail a {{ color:var(--accent); text-decoration:none; white-space:nowrap }}
     /* GitHub Actions is the operator surface. The masthead light is only a link and status indicator. */
     .sr-only {{ position:absolute!important; width:1px!important; height:1px!important; padding:0!important; margin:-1px!important; overflow:hidden!important; clip:rect(0,0,0,0)!important; white-space:nowrap!important; border:0!important }}
-    .owner-access {{ position:relative; z-index:2000; font:10px var(--mono); display:flex; align-items:center }}
-    .owner-login,.owner-menu-toggle {{ width:30px; height:30px; display:inline-flex; align-items:center; justify-content:center; position:relative; color:var(--muted); padding:0; border:0; background:transparent; text-decoration:none; cursor:pointer }}
-    .owner-status-track {{ width:18px; height:18px; box-sizing:border-box; flex:0 0 18px; padding:2px; border:1px solid var(--line); border-radius:20px; background:var(--surface); display:inline-flex; align-items:center; justify-content:center }}
-    .owner-status-light {{ display:block; width:12px; height:12px; flex:0 0 12px; border-radius:50%; background:#e7c35a; transition:none }}
-    .owner-access[data-light-state="running"] .owner-status-light {{ background:#307444; animation:owner-light-pulse 3.2s ease-in-out infinite }}
-    .owner-access[data-light-state="stopped"] .owner-status-light {{ background:#d65e6c; animation:owner-light-blink 2.4s step-end infinite }}
+    .actions-light {{ position:relative; z-index:2; width:30px; height:30px; display:inline-flex; align-items:center; justify-content:center; text-decoration:none; cursor:default }}
+    .actions-light-track {{ width:18px; height:18px; box-sizing:border-box; flex:0 0 18px; padding:2px; border:1px solid var(--line); border-radius:20px; background:var(--surface); display:inline-flex; align-items:center; justify-content:center }}
+    .actions-light-dot {{ display:block; width:12px; height:12px; flex:0 0 12px; border-radius:50%; background:#e7c35a }}
+    .actions-light[data-light-state="running"] .actions-light-dot {{ background:#307444; animation:owner-light-pulse 3.2s ease-in-out infinite }}
+    .actions-light[data-light-state="stopped"] .actions-light-dot {{ background:#d65e6c; animation:owner-light-blink 2.4s step-end infinite }}
     @keyframes owner-light-pulse {{ 0%,100% {{ opacity:.3 }} 50% {{ opacity:1 }} }}
     @keyframes owner-light-blink {{ 0%,49% {{ opacity:1 }} 50%,100% {{ opacity:.18 }} }}
-    .owner-menu-toggle:hover,.owner-menu-toggle:focus-visible,.owner-login:hover,.owner-login:focus-visible {{ color:var(--ink) }}
-    @media (prefers-reduced-motion: reduce) {{ .owner-status-light,.status-led {{ animation:none!important; opacity:1!important }} }}
-    .owner-controls {{ position:absolute; top:calc(100% + 8px); right:0; width:250px; padding:14px; background:var(--surface); border:1px solid var(--line); box-shadow:0 14px 36px #0003; display:grid; gap:12px }}
-    .owner-controls[hidden],.owner-menu-toggle[hidden],.owner-login[hidden] {{ display:none!important }}
-    .owner-control-heading {{ display:grid; gap:3px; padding-bottom:10px; border-bottom:1px solid var(--line) }}
-    .owner-control-heading strong {{ font:800 10px var(--mono); letter-spacing:.6px; text-transform:uppercase }}
-    .owner-control-heading span {{ min-width:0; color:var(--muted); white-space:normal; font:10px/1.45 var(--mono); overflow-wrap:anywhere }}
-    .owner-control-actions {{ display:grid; grid-template-columns:repeat(3,1fr); gap:6px }}
-    .owner-controls button {{ border:1px solid var(--line); border-radius:4px; background:var(--surface); color:var(--ink); padding:7px 8px; font:800 10px var(--mono); cursor:pointer }}
-    .owner-controls [data-owner-start] {{ border-color:var(--green); color:var(--green) }}
-    .owner-controls [data-owner-stop] {{ border-color:#f7768e; color:#f7768e }}
-    .owner-controls button:disabled {{ opacity:.45; cursor:wait }}
-    .owner-controls button[hidden] {{ display:none }}
-    .owner-controls .owner-signout {{ width:100%; border-color:var(--line); color:var(--muted); background:transparent }}
-    .owner-controls .owner-handoff {{ width:100%; border-color:var(--accent); color:var(--accent) }}
-    .handoff-dialog {{ width:min(720px,calc(100vw - 24px)); max-height:calc(100vh - 24px); padding:0; border:1px solid var(--line); background:var(--surface); color:var(--ink); box-shadow:0 22px 70px #0007 }}
-    .handoff-dialog::backdrop {{ background:#111a }}
-    .handoff-shell {{ display:grid; gap:14px; padding:18px }}
-    .handoff-head {{ display:flex; justify-content:space-between; align-items:start; gap:16px }}
-    .handoff-head h2 {{ margin:4px 0 0 }}
-    .handoff-head button,.handoff-actions button,.provider-buttons a {{ border:1px solid var(--line); border-radius:4px; background:var(--surface); color:var(--ink); padding:9px 11px; font:800 11px var(--mono); cursor:pointer }}
-    .provider-buttons {{ display:grid; grid-template-columns:repeat(4,1fr); gap:7px }}
-    .provider-buttons a {{ text-align:center; text-decoration:none }}
-    .provider-buttons a[aria-pressed=true] {{ color:var(--green); border-color:var(--green) }}
-    .handoff-field {{ display:grid; gap:6px; color:var(--muted); font:700 10px var(--mono); letter-spacing:.05em; text-transform:uppercase }}
-    .handoff-field textarea {{ width:100%; min-height:170px; resize:vertical; border:1px solid var(--line); background:var(--paper); color:var(--ink); padding:12px; font:12px/1.45 var(--mono); text-transform:none; letter-spacing:normal }}
-    .handoff-actions {{ display:flex; flex-wrap:wrap; gap:8px }}
-    .handoff-actions [data-handoff-copy],.handoff-actions [data-handoff-analyze] {{ border-color:var(--accent); color:var(--accent) }}
-    .handoff-note {{ min-height:1.5em; margin:0; color:var(--muted); font:11px/1.45 var(--mono) }}
+    @media (prefers-reduced-motion: reduce) {{ .actions-light-dot,.status-led {{ animation:none!important; opacity:1!important }} }}
     .machine-activity {{ margin-top:12px; border:1px solid var(--line); background:var(--paper); overflow:hidden }}
     .machine-activity[hidden] {{ display:none }}
     .machine-lights {{ display:grid; grid-template-columns:repeat(8,1fr); gap:6px; padding:10px 12px 8px }}
@@ -666,8 +637,7 @@ def render(
     .observer-compact .observer-signal {{ justify-content:flex-start; flex-wrap:wrap; gap:12px }}
     .observer-compact [data-current-activity] {{ color:var(--ink); font-size:14px; font-weight:650 }}
     .quiet-footer {{ margin-top:34px; padding-top:18px; border-top:1px solid var(--line); color:var(--muted); font:11px/1.5 var(--mono) }}
-    .owner-technical[hidden] {{ display:none!important }}
-    .owner-technical {{ margin-top:42px; padding-top:28px; border-top:2px solid var(--accent) }}
+    .technical-view {{ margin-top:42px; padding-top:28px; border-top:2px solid var(--accent) }}
     .technical-head {{ display:flex; align-items:flex-start; justify-content:space-between; gap:14px; margin-bottom:18px }}
     .technical-head h2 {{ margin-top:6px }}
     .technical-badge {{ padding:5px 8px; border:1px solid var(--accent); color:var(--accent); font:800 9px var(--mono); letter-spacing:.08em }}
@@ -772,27 +742,14 @@ def render(
     <a class="inspired" href="https://sudofx.github.io/wake/" target="_blank" rel="noopener noreferrer">Inspired by WAKE<b>✳︎</b></a></div>
     <div class="masthead-actions">
       <label class="theme-switch" title="Follow system theme"><input id="theme-toggle" type="checkbox" role="switch" aria-label="Use dark theme"><span class="data-switch-track" aria-hidden="true"><i></i></span></label>
-      {owner_access_html}
+      {actions_light_html}
     </div></header>
-  <dialog class="handoff-dialog" data-handoff-dialog>
-    <div class="handoff-shell">
-      <div class="handoff-head"><div><span class="eyebrow">Owner-only transport</span><h2>Manual AI handoff</h2></div><button type="button" data-handoff-close aria-label="Close manual handoff">Close</button></div>
-      <div class="provider-buttons" aria-label="Choose destination">
-        <a href="com.openai.chat://" data-handoff-provider="ChatGPT">ChatGPT</a><a href="claude://" data-handoff-provider="Claude">Claude</a><a href="https://gemini.google.com/app" target="_blank" rel="noopener noreferrer" data-handoff-provider="Gemini">Gemini</a><a href="deepseek://" data-handoff-provider="DeepSeek">DeepSeek</a>
-      </div>
-      <label class="handoff-field">Prompt to paste<textarea data-handoff-prompt readonly>{_escape(manual_prompt)}</textarea></label>
-      <div class="handoff-actions"><button type="button" data-handoff-copy>Copy prompt</button></div>
-      <label class="handoff-field">Returned JSON<textarea data-handoff-response spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="Paste the complete response here. It remains only in this browser page."></textarea></label>
-      <div class="handoff-actions"><button type="button" data-handoff-submit disabled>Paste &amp; submit result</button></div>
-      <p class="handoff-note" data-handoff-status>Select a destination. The prompt will be copied automatically when the browser permits it.</p>
-    </div>
-  </dialog>
   {observer_console_html}
   {_exchange_panel(continuity_proof)}
   <section class="owner-technical" data-owner-technical hidden aria-label="Operator technical view">
     <div class="technical-head">
-      <div><span class="eyebrow">Operator only</span><h2>Technical view</h2></div>
-      <span class="technical-badge">AUTHENTICATED VIEW</span>
+      <div><span class="eyebrow">Public record</span><h2>Technical view</h2></div>
+      <span class="technical-badge">DERIVED VIEW</span>
     </div>
     <div class="technical-stats">
       <div><span>Record revision</span><strong data-record-revision>{context.revision}</strong></div>
@@ -820,18 +777,6 @@ def render(
         <span>Context digest <b data-semantic-review-digest>{_escape((semantic_digest[:12] + "…") if semantic_digest else "—")}</b></span>
       </div>
       <div class="quality-provenance">Human judgment is recorded separately from protocol success and is bound to this exact run + digest.</div>
-      <div data-semantic-review-form data-run-id="{_escape(semantic_run)}" data-context-digest="{_escape(semantic_digest)}">
-        <div class="quality-grid">
-          <label><span>Objective fidelity</span><select data-review-criterion="objective_fidelity"><option value="pass" selected>PASS</option><option value="uncertain">UNCERTAIN</option><option value="fail">FAIL</option></select></label>
-          <label><span>History fidelity</span><select data-review-criterion="history_fidelity"><option value="pass" selected>PASS</option><option value="uncertain">UNCERTAIN</option><option value="fail">FAIL</option></select></label>
-          <label><span>Frontier fidelity</span><select data-review-criterion="frontier_fidelity"><option value="pass" selected>PASS</option><option value="uncertain">UNCERTAIN</option><option value="fail">FAIL</option></select></label>
-          <label><span>Compression awareness</span><select data-review-criterion="compression_awareness"><option value="pass" selected>PASS</option><option value="uncertain">UNCERTAIN</option><option value="fail">FAIL</option></select></label>
-          <label><span>Unsupported claims</span><select data-review-criterion="unsupported_claims"><option value="pass" selected>PASS</option><option value="uncertain">UNCERTAIN</option><option value="fail">FAIL</option></select></label>
-          <label><span>Actionability</span><select data-review-criterion="actionability"><option value="pass" selected>PASS</option><option value="uncertain">UNCERTAIN</option><option value="fail">FAIL</option></select></label>
-        </div>
-        <div class="handoff-actions"><button type="button" data-semantic-review-submit>Record review</button></div>
-        <div class="quality-provenance" data-semantic-review-message>Review writes only one bounded assessment event.</div>
-      </div>
     </div>
     <section>
       <div class="toolbar"><div><span class="eyebrow">{open_work} open</span><h2>Current work</h2></div></div>
@@ -849,7 +794,7 @@ def render(
       <span>Schema</span><code>{_escape(health.get("schema_version", "unknown"))}</code>
     </div>
   </section>
-  <footer class="quiet-footer">Public view shows the experiment. Authenticated operator sessions unlock the technical record and controls.</footer>
+  <footer class="quiet-footer">This page is a derived public view. SQLite remains the authoritative record; operator actions live in GitHub Actions.</footer>
 </main><script>
 const observer=document.querySelector('.observer-console');
 const observerState=document.querySelector('[data-observer-state]');
@@ -863,28 +808,6 @@ const machineActivity=document.querySelector('[data-machine-activity]');
 const machineText=document.querySelector('[data-machine-text]');
 const exchangeStatus=document.querySelector('[data-exchange-status]');
 const recordRevision=document.querySelector('[data-record-revision]');
-const ownerLogin=document.querySelector('[data-owner-login]');
-const ownerMenuToggle=document.querySelector('[data-owner-menu-toggle]');
-const ownerMenuLabel=document.querySelector('[data-owner-menu-label]');
-const ownerControls=document.querySelector('[data-owner-controls]');
-const ownerIdentity=document.querySelector('[data-owner-identity]');
-const ownerControlStatus=document.querySelector('[data-owner-control-status]');
-const ownerStart=document.querySelector('[data-owner-start]');
-const ownerStop=document.querySelector('[data-owner-stop]');
-const ownerBackup=document.querySelector('[data-owner-backup]');
-const ownerHandoff=document.querySelector('[data-owner-handoff]');
-const ownerSignout=document.querySelector('[data-owner-signout]');
-const ownerTechnical=document.querySelector('[data-owner-technical]');
-const handoffDialog=document.querySelector('[data-handoff-dialog]');
-const handoffPrompt=document.querySelector('[data-handoff-prompt]');
-const handoffResponse=document.querySelector('[data-handoff-response]');
-const handoffStatus=document.querySelector('[data-handoff-status]');
-const handoffSubmit=document.querySelector('[data-handoff-submit]');
-const semanticReviewForm=document.querySelector('[data-semantic-review-form]');
-const semanticReviewSubmit=document.querySelector('[data-semantic-review-submit]');
-const semanticReviewMessage=document.querySelector('[data-semantic-review-message]');
-const handoffBasePrompt=handoffPrompt?.value||'';
-let handoffProvider='';
 const actionsLight=document.querySelector('.actions-light');
 const setOwnerLight=(state)=>{{if(actionsLight)actionsLight.dataset.lightState=state;}};
 const ownerLightForVisualState=(state)=>state==='working'?'running':((state==='idle'||state==='failed')?'stopped':'unknown');
@@ -1083,12 +1006,6 @@ const refreshExchange=async()=>{{
     const semanticReviewDigest=document.querySelector('[data-semantic-review-digest]');
     const reviewDigest=String(proof.context_digest||'');
     if(semanticReviewDigest)semanticReviewDigest.textContent=reviewDigest?reviewDigest.slice(0,12)+'…':'—';
-    if(semanticReviewForm){{
-      const targetChanged=semanticReviewForm.dataset.runId!==reviewRunId||semanticReviewForm.dataset.contextDigest!==reviewDigest;
-      semanticReviewForm.dataset.runId=reviewRunId;
-      semanticReviewForm.dataset.contextDigest=reviewDigest;
-      if(targetChanged&&semanticReviewMessage)semanticReviewMessage.textContent='Review target updated. Submission is bound to this exact run + digest.';
-    }}
     const semanticReviewCriteria=document.querySelector('[data-semantic-review-criteria]');
     if(semanticReviewCriteria){{
       const review=proof.semantic_review||{{}};
