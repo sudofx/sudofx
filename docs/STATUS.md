@@ -163,7 +163,7 @@ The architecture is directionally aligned, but several risks remain open:
 2. **Provider breadth:** Gemini success does not prove interchangeable behavior across materially different providers.
 3. **Long-horizon drift:** repeated summaries/derivations can preserve syntax while losing meaning.
 4. **Governance growth:** deterministic policy must remain understandable as operations become richer.
-5. **Operational coupling:** GitHub and Cloudflare currently provide execution/control infrastructure even though neither owns sudofx state.
+5. **Operational coupling:** GitHub currently provides execution/control infrastructure even though it does not own sudofx state.
 6. **Storage evolution:** SQLite is correct for the current scale; migration to another backend must not leak storage specifics into kernel contracts.
 7. **Projection trust:** the observer must continue clearly distinguishing live telemetry, generated artifacts, and authoritative state.
 8. **State confidentiality:** `sudofx-state` is currently a public Git ref; no private or identifying durable material may enter it before migration to private storage.
