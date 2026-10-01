@@ -36,7 +36,9 @@ updated together.
 
 from __future__ import annotations
 
+from .applications import APPLICATION_PREFIX, ApplicationRegistry, application_key
 from .models import GovernanceDecision, JsonValue, Proposal
+from .storage import canonical_json
 
 WORK_ACTIONS = {"create_work", "advance_work", "record_assessment", "record_handoff_evaluation", "complete_work"}
 
@@ -60,11 +62,18 @@ class Governance:
     durable history or future bounded context indefinitely.
     """
 
-    def __init__(self, *, max_operations: int = 100, max_key_length: int = 200) -> None:
+    def __init__(
+        self,
+        *,
+        max_operations: int = 100,
+        max_key_length: int = 200,
+        application_registry: ApplicationRegistry | None = None,
+    ) -> None:
         # Store limits on the authority object so deployments can tighten them
         # deliberately without teaching providers a second policy language.
         self.max_operations = max_operations
         self.max_key_length = max_key_length
+        self.application_registry = application_registry or ApplicationRegistry()
 
     def evaluate(
         self,
@@ -112,7 +121,7 @@ class Governance:
         for operation in proposal.operations:
             # Literal annotations help callers, but runtime input may originate
             # outside Python. Governance therefore checks the action explicitly.
-            if operation.action not in {"set", "delete", *WORK_ACTIONS}:
+            if operation.action not in {"set", "delete", "apply_application", *WORK_ACTIONS}:
                 reasons.append(f"unsupported action: {operation.action}")
             if not operation.key or len(operation.key) > self.max_key_length:
                 reasons.append(f"invalid key: {operation.key!r}")
@@ -120,16 +129,91 @@ class Governance:
                 reasons.append(f"duplicate key in proposal: {operation.key}")
             seen.add(operation.key)
 
+            # Application namespaces are sealed from generic set/delete. Domain
+            # state can move only through apply_application, where current policy
+            # is independently recomputed before acceptance.
+            if (
+                operation.action in {"set", "delete"}
+                and operation.key.startswith(APPLICATION_PREFIX)
+            ):
+                reasons.append("application namespace requires apply_application")
+
             # Multiple operations targeting one key are rejected above because
             # their internal ordering would become an additional mini-language.
             # One durable action per key keeps proposals reviewable and replay
             # semantics unsurprising.
-            if operation.action == "create_work":
+            if operation.action == "apply_application":
+                self._validate_application(operation.key, operation.value, current_state, reasons)
+            elif operation.action == "create_work":
                 self._validate_create(operation.key, operation.value, current_state, reasons)
             elif operation.action in {"advance_work", "record_assessment", "record_handoff_evaluation", "complete_work"}:
                 self._validate_transition(operation.action, operation.key, operation.value, current_state, reasons)
 
         return GovernanceDecision(accepted=not reasons, reasons=tuple(reasons))
+
+    def _validate_application(
+        self,
+        application_id: str,
+        value: JsonValue,
+        state: dict[str, JsonValue],
+        reasons: list[str],
+    ) -> None:
+        """Recompute one registered application transition before accepting it."""
+        if not isinstance(value, dict):
+            reasons.append("apply_application requires an object")
+            return
+        if value.get("application_id") != application_id:
+            reasons.append("application identity does not match operation key")
+            return
+        version = value.get("application_version")
+        action_name = value.get("action")
+        if not isinstance(version, str) or not version.strip():
+            reasons.append("application version is required")
+            return
+        if not isinstance(action_name, str) or not action_name.strip():
+            reasons.append("application action is required")
+            return
+
+        definition = self.application_registry.get(application_id)
+        if definition is None:
+            reasons.append(f"application is not registered: {application_id}")
+            return
+        if definition.version != version:
+            reasons.append(
+                f"application version mismatch: registered {definition.version}, proposed {version}"
+            )
+            return
+
+        envelope = state.get(application_key(application_id))
+        current_state: JsonValue = None
+        if envelope is not None:
+            if not isinstance(envelope, dict):
+                reasons.append(f"application state envelope is invalid: {application_id}")
+                return
+            prior_version = envelope.get("application_version")
+            if prior_version != definition.version:
+                reasons.append(
+                    f"application migration required: stored {prior_version}, registered {definition.version}"
+                )
+                return
+            current_state = envelope.get("state")
+
+        action = definition.action(action_name)
+        if action is None:
+            reasons.append(f"unknown application action: {action_name}")
+            return
+        try:
+            decision = action.evaluate(current_state, value.get("input"))
+        except Exception:
+            reasons.append(f"application policy could not evaluate action: {action_name}")
+            return
+        if not decision.accepted:
+            reasons.extend(
+                decision.reasons or (f"application action rejected: {action_name}",)
+            )
+            return
+        if canonical_json(decision.next_state) != canonical_json(value.get("next_state")):
+            reasons.append("application next_state does not match deterministic policy result")
 
     @staticmethod
     def _validate_create(
