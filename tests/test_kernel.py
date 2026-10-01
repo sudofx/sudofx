@@ -851,8 +851,12 @@ json.dump({
             changed_registry,
             "drift",
         )
+        # Normal operational context uses the verified materialized projection.
+        self.assertEqual(changed_host.context().state, "expected")
+        # Explicit audit still replays every historical application event under
+        # the installed policy and must detect an unversioned behavior change.
         with self.assertRaisesRegex(ValueError, "replay drift detected"):
-            changed_host.context()
+            changed_host.audit_context()
     def test_application_version_change_requires_explicit_migration(self) -> None:
         """Installing newer app code must not silently reinterpret older durable state."""
         v1 = ApplicationDefinition(
