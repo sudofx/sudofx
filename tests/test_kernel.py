@@ -764,7 +764,7 @@ json.dump({
             self.kernel.context()
 
     def test_v1_record_without_provenance_column_migrates_without_rehashing_history(self) -> None:
-        """Schema v2 adds attribution support without invalidating legacy event identity."""
+        """Current schema adds attribution/lifecycle evidence without rehashing legacy events."""
         legacy_path = Path(self.tempdir.name) / "legacy-v1.sqlite"
         proposal = Proposal("legacy", 0, (Operation("set", "carried", True),)).to_dict()
         material = {
@@ -808,6 +808,13 @@ json.dump({
         with closing(sqlite3.connect(legacy_path)) as connection:
             columns = {row[1] for row in connection.execute("PRAGMA table_info(events)")}
             self.assertIn("provenance", columns)
+            invocation_tables = {
+                row[0]
+                for row in connection.execute(
+                    "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'invocation_events'"
+                )
+            }
+            self.assertEqual(invocation_tables, {"invocation_events"})
             self.assertEqual(connection.execute("PRAGMA user_version").fetchone()[0], SCHEMA_VERSION)
 
     def test_static_report_exposes_state_and_receipt_provenance(self) -> None:
