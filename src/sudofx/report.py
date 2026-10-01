@@ -508,24 +508,6 @@ def render(
       <span class="actions-light-track" aria-hidden="true"><i class="actions-light-dot"></i></span>
       <span class="sr-only">GitHub Actions</span>
     </a>'''
-    observer_console_html = f"""
-        <section class="observer-console checking observer-compact" aria-label="Live status"
-                 data-repository="{_escape(repository)}" data-workflow="prove-model.yml" data-runner="sudofx-runner.yml"
-                 data-fallback-state="{observer_static_state}"
-                 data-fallback-activity="{_escape(observer_static_activity)}"
-                 data-fallback-detail="{_escape(observer_static_detail)}">
-          <div class="observer-signal" aria-live="polite">
-            <span class="status-led checking" data-status-led aria-hidden="true"></span>
-            <span class="observer-state checking" data-observer-state>CHECKING…</span>
-            <strong data-current-activity>Loading current status…</strong>
-          </div>
-          <span data-current-step hidden>Checking GitHub…</span>
-          <span data-latest-run hidden>{_escape(verification.get("run_id", "unknown"))}</span>
-          <span data-next-check hidden>Checking chain…</span>
-          <span data-observer-detail hidden>Connecting to GitHub…</span>
-          <div data-machine-activity hidden><span data-machine-text>PROCESSING</span></div>
-        </section>
-        """
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -783,7 +765,6 @@ def render(
         </div>
       </div>
     </dialog>
-  {observer_console_html}
   {_exchange_panel(continuity_proof)}
   <section class="technical-view" aria-label="Public technical record">
     <div class="technical-head">
