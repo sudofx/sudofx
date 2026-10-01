@@ -592,9 +592,9 @@ def render(
     .manual-test-panel .quality-head {{ margin-bottom:12px }}
     .manual-test-intro {{ margin:0 0 14px; color:var(--muted); font:11px/1.5 var(--mono) }}
     .provider-buttons {{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:7px; margin-bottom:14px }}
-    .provider-buttons button,.manual-actions button,.manual-actions a {{ border:1px solid var(--line); border-radius:4px; background:var(--surface); color:var(--ink); padding:9px 11px; font:800 11px var(--mono); cursor:pointer; text-align:center; text-decoration:none }}
-    .provider-buttons button:hover,.provider-buttons button:focus-visible,.manual-actions button:hover,.manual-actions a:hover {{ border-color:var(--accent); color:var(--accent) }}
-    .provider-buttons button[aria-pressed="true"] {{ color:var(--green); border-color:var(--green) }}
+    .provider-buttons a,.manual-actions button,.manual-actions a {{ border:1px solid var(--line); border-radius:4px; background:var(--surface); color:var(--ink); padding:9px 11px; font:800 11px var(--mono); cursor:pointer; text-align:center; text-decoration:none }}
+    .provider-buttons a:hover,.provider-buttons a:focus-visible,.manual-actions button:hover,.manual-actions a:hover {{ border-color:var(--accent); color:var(--accent) }}
+    .provider-buttons a[aria-pressed="true"] {{ color:var(--green); border-color:var(--green) }}
     .manual-field {{ display:grid; gap:6px; margin-top:12px; color:var(--muted); font:700 10px var(--mono); letter-spacing:.05em; text-transform:uppercase }}
     .manual-field textarea {{ width:100%; min-height:180px; resize:vertical; border:1px solid var(--line); background:var(--paper); color:var(--ink); padding:12px; font:12px/1.45 var(--mono); text-transform:none; letter-spacing:normal }}
     .manual-actions {{ display:flex; flex-wrap:wrap; gap:8px; margin-top:10px }}
@@ -763,10 +763,10 @@ def render(
       <div class="quality-head"><b>Manual AI continuity test</b><span class="quality-verdict quality-pass">PUBLIC</span></div>
       <p class="manual-test-intro">Anyone can run this test. Choose an AI, send the generated bounded prompt, paste its JSON response back here, and sudofx will score packet grounding locally. Local scoring is evidence, not database authority.</p>
       <div class="provider-buttons" aria-label="Choose AI provider">
-        <button type="button" data-manual-vendor="ChatGPT" data-manual-url="chatgpt://" data-manual-fallback="https://chatgpt.com/">ChatGPT</button>
-        <button type="button" data-manual-vendor="Claude" data-manual-url="claude://" data-manual-fallback="https://claude.ai/new">Claude</button>
-        <button type="button" data-manual-vendor="Gemini" data-manual-url="googleapp://robin" data-manual-fallback="https://gemini.google.com/app">Gemini</button>
-        <button type="button" data-manual-vendor="DeepSeek" data-manual-url="deepseek://" data-manual-fallback="https://chat.deepseek.com/">DeepSeek</button>
+        <a data-manual-vendor="ChatGPT" href="com.openai.chat://" data-manual-fallback="https://chatgpt.com/">ChatGPT</a>
+        <a data-manual-vendor="Claude" href="claude://" data-manual-fallback="https://claude.ai/new">Claude</a>
+        <a data-manual-vendor="Gemini" href="googlegemini://" data-manual-fallback="https://gemini.google.com/app">Gemini</a>
+        <a data-manual-vendor="DeepSeek" href="deepseek://" data-manual-fallback="https://chat.deepseek.com/">DeepSeek</a>
       </div>
       <label class="manual-field">Prompt to send<textarea data-manual-prompt readonly>{_escape(manual_prompt)}</textarea></label>
       <div class="manual-actions"><button type="button" data-manual-copy>Copy prompt</button></div>
@@ -949,21 +949,23 @@ const manualPacketText=()=>{{
   return index>=0?source.slice(index+packetMarker.length).trim():'';
 }};
 const setManualStatus=(message)=>{{if(manualStatus)manualStatus.textContent=message;}};
-// iOS WebKit treats clipboard access and external-app navigation as competing
-// user-activation consumers. Keep a synchronous copy path for provider taps so
-// the original tap is still eligible to launch the native app.
+// Keep copying and app launching as separate browser primitives. iOS is most
+// reliable when the provider control is a real link that the OS can hand to the
+// installed app. Copy remains best-effort on the same tap and is always
+// available as an explicit second tap if WebKit denies clipboard access.
 const copyManualFromField=()=>{{
   if(!manualPrompt?.value)return false;
   try{{
+    const wasReadonly=manualPrompt.hasAttribute('readonly');
+    if(wasReadonly)manualPrompt.removeAttribute('readonly');
     manualPrompt.focus({{preventScroll:true}});
     manualPrompt.select();
     manualPrompt.setSelectionRange(0,manualPrompt.value.length);
-    return Boolean(document.execCommand('copy'));
+    const copied=Boolean(document.execCommand('copy'));
+    if(wasReadonly)manualPrompt.setAttribute('readonly','');
+    return copied;
   }}catch{{return false;}}
 }};
-// The explicit Copy button can use the modern API because it does not also need
-// to spend the same user gesture on an app launch. Fall back to selection copy
-// for Safari versions that deny navigator.clipboard despite HTTPS.
 const copyManual=async(value)=>{{
   if(!value)return false;
   try{{
@@ -974,37 +976,38 @@ const copyManual=async(value)=>{{
   }}catch{{}}
   return copyManualFromField();
 }};
-const launchManualProvider=(button)=>{{
-  const url=button.dataset.manualUrl||'';
-  if(!url)return;
-  const fallback=button.dataset.manualFallback||'';
-  // Assigning location synchronously preserves the physical tap on iPhone.
-  // If the native scheme is unavailable, return to the vendor's web app after
-  // a short grace period; a successful app switch hides the document and
-  // suppresses the fallback.
-  location.href=url;
-  if(fallback&&!url.startsWith('http')){{
-    setTimeout(()=>{{if(!document.hidden)location.href=fallback;}},900);
-  }}
-}};
-const prepareManualProvider=(button)=>{{
-  if(!manualPrompt||!manualBasePrompt){{setManualStatus('No manual packet is available yet.');return;}}
-  const vendor=button.dataset.manualVendor||'';
+const prepareManualProvider=(link)=>{{
+  if(!manualPrompt||!manualBasePrompt){{setManualStatus('No manual packet is available yet.');return false;}}
+  const vendor=link.dataset.manualVendor||'';
   const testId=freshManualId();
   const nonce='HANDOFF-'+testId;
   manualPrompt.value=manualBasePrompt
     .replaceAll('__SUDOFX_VENDOR__',vendor)
     .replaceAll('__SUDOFX_TEST_ID__',testId)
     .replaceAll('__SUDOFX_NONCE__',nonce);
-  document.querySelectorAll('[data-manual-vendor]').forEach(node=>node.setAttribute('aria-pressed',String(node===button)));
-  const copied=copyManualFromField();
-  setManualStatus((copied?'Prompt copied. ':'Prompt ready. ')+'Send it to '+vendor+', then paste the returned JSON below.');
-  launchManualProvider(button);
+  document.querySelectorAll('[data-manual-vendor]').forEach(node=>node.setAttribute('aria-pressed',String(node===link)));
+  // Start the modern clipboard write without awaiting it so the anchor's native
+  // navigation keeps the original user gesture. The explicit Copy button below
+  // remains the deterministic fallback.
+  let copyStarted=false;
+  try{{
+    if(navigator.clipboard?.writeText){{
+      navigator.clipboard.writeText(manualPrompt.value).catch(()=>{{}});
+      copyStarted=true;
+    }}
+  }}catch{{}}
+  if(!copyStarted)copyStarted=copyManualFromField();
+  setManualStatus((copyStarted?'Prompt copy started. ':'Prompt ready. ')+'Opening '+vendor+'. If paste is empty, return and tap Copy prompt once.');
+  const fallback=link.dataset.manualFallback||'';
+  if(fallback){{
+    setTimeout(()=>{{if(!document.hidden)location.href=fallback;}},1200);
+  }}
+  return true;
 }};
-document.querySelectorAll('[data-manual-vendor]').forEach(button=>button.addEventListener('click',()=>prepareManualProvider(button)));
+document.querySelectorAll('[data-manual-vendor]').forEach(link=>link.addEventListener('click',()=>prepareManualProvider(link)));
 if(manualCopy)manualCopy.addEventListener('click',async()=>{{
   const copied=await copyManual(manualPrompt?.value||'');
-  setManualStatus(copied?'Prompt copied.':'Copy was blocked by the browser; select the prompt manually.');
+  setManualStatus(copied?'Prompt copied. You can now open any provider and paste it.':'Copy was blocked by the browser; press and hold the prompt, then choose Copy.');
 }});
 const parseManualResponse=(raw)=>{{
   let candidate=String(raw||'').trim();
