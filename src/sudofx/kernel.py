@@ -173,6 +173,7 @@ class Kernel:
                     provenance=provenance_payload,
                     previous_hash=previous_hash,
                     event_hash=event_hash,
+                    application_states=decision.application_states,
                 )
             )
 
