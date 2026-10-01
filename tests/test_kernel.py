@@ -1061,6 +1061,8 @@ json.dump({
         self.assertIn("copyText(manualPrompt.value).catch", page)
         self.assertIn("temporary-chat=true&prompt=", page)
         self.assertIn("manualDialog.showModal()", page)
+        self.assertIn('id="manual-handoff-dialog"', page)
+        self.assertIn("getElementById('manual-handoff-dialog').showModal()", page)
         self.assertIn("data-manual-analyze", page)
         self.assertIn("Local grounding score", page)
         self.assertIn("/issues/new", page)
