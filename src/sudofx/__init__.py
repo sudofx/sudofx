@@ -17,6 +17,7 @@ governance semantics rather than an implicit dependency on this string.
 """
 
 from .kernel import Kernel, RunResult
+from .runtime import InvocationResult, Runtime
 from .models import Context, Operation, Proposal, Receipt, SubmissionProvenance
 from .providers import (
     CommandIntelligence,
