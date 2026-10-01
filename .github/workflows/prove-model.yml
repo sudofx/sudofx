@@ -30,6 +30,11 @@ on:
         description: Deprecated compatibility input; runtime is pinned by sudofx-runtime
         type: string
         required: false
+      operator_start:
+        description: Internal explicit-Start marker for the first continuity cycle
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: write
@@ -78,7 +83,12 @@ jobs:
         env:
           GEMINI_MODEL: gemini-3.5-flash-lite
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: PYTHONPATH=src python scripts/overnight_sudofx.py
+        run: |
+          if [[ "${{ inputs.operator_start }}" == "true" ]]; then
+            PYTHONPATH=src python scripts/overnight_sudofx.py --operator-start
+          else
+            PYTHONPATH=src python scripts/overnight_sudofx.py
+          fi
   continue-again:
     # A successor depends only on the completed governed continuity cycle.
     # No Pages job exists in this runtime path; the browser reads live projection
