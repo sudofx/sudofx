@@ -15,6 +15,7 @@ from sudofx import (
     ApplicationDefinition,
     ApplicationHost,
     ApplicationIntent,
+    ApplicationPermissions,
     ApplicationRegistry,
     CommandIntelligence,
     FakeIntelligence,
@@ -731,7 +732,12 @@ json.dump({
         registry = ApplicationRegistry((definition,))
         kernel = Kernel(self.kernel.record, Governance(application_registry=registry))
         kernel.submit(Proposal("unrelated-state", 0, (Operation("set", "secret", "outside-app"),)))
-        host = ApplicationHost(kernel, registry, "bounded")
+        host = ApplicationHost(
+            kernel,
+            registry,
+            "bounded",
+            permissions=ApplicationPermissions(frozenset({"notify"})),
+        )
         accepted = host.submit(ApplicationIntent("bounded-state", 1, "replace", {"visible": True}))
         self.assertEqual(accepted.status, "accepted")
         self.assertEqual(host.context().state, {"visible": True})
@@ -741,8 +747,36 @@ json.dump({
         self.assertEqual(request.capability, "notify")
         self.assertEqual(request.application_id, "bounded")
         with self.assertRaises(PermissionError):
+            ApplicationHost(kernel, registry, "bounded").request_effect("notify", {})
+        with self.assertRaises(PermissionError):
             host.request_effect("network-admin", {})
 
+    def test_second_application_uses_same_kernel_contract_without_core_changes(self) -> None:
+        """A materially different app must fit the same generic authority seam."""
+        def append_entry(current, payload):
+            entries = list(current) if isinstance(current, list) else []
+            if not isinstance(payload, str) or not payload.strip():
+                return ApplicationDecision(False, reasons=("entry must be non-empty text",))
+            return ApplicationDecision(True, [*entries, payload])
+
+        notes = ApplicationDefinition(
+            "notes",
+            "1",
+            (ApplicationAction("append", append_entry),),
+        )
+        registry = ApplicationRegistry((notes,))
+        kernel = Kernel(self.kernel.record, Governance(application_registry=registry))
+        host = ApplicationHost(kernel, registry, "notes")
+
+        first = host.submit(ApplicationIntent("notes-1", 0, "append", "alpha"))
+        second = host.submit(ApplicationIntent("notes-2", 1, "append", "beta"))
+        self.assertEqual(first.status, "accepted")
+        self.assertEqual(second.status, "accepted")
+        self.assertEqual(host.context().state, ["alpha", "beta"])
+        self.assertEqual(
+            Kernel(Record(self.path)).context().state["app:notes"]["state"],
+            ["alpha", "beta"],
+        )
     def test_application_version_change_requires_explicit_migration(self) -> None:
         """Installing newer app code must not silently reinterpret older durable state."""
         v1 = ApplicationDefinition(
