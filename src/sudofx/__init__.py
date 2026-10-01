@@ -18,6 +18,7 @@ governance semantics rather than an implicit dependency on this string.
 
 from .kernel import Kernel, RunResult
 from .models import Context, Operation, Proposal, Receipt, SubmissionProvenance
+from .runtime import Runtime
 from .providers import (
     CommandIntelligence,
     FakeIntelligence,
@@ -42,6 +43,8 @@ __all__ = [
     "ProviderTemporaryError",
     "Receipt",
     "RunResult",
+    "Runtime",
+    "SubmissionProvenance",
 ]
 
 __version__ = "0.1.0"
