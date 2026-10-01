@@ -69,7 +69,7 @@ jobs:
       - name: Verify the kernel
         # Tests run before any stateful action. A broken implementation must not
         # be allowed to append history merely because the workflow was dispatched.
-        run: PYTHONPATH=src python -m unittest discover -s tests -v
+        run: PYTHONPATH=src:. python -m unittest discover -s tests -v
       - name: Continue current milestone automatically
         # Observer mode: one stable command handles the next safe milestone step.
         # The operator should not have to carry work IDs or long context between devices.
@@ -78,7 +78,7 @@ jobs:
       - name: Apply governed operation
         # Only a manual dispatch enters the mutation path. The adapter restores
         # and verifies sudofx-state, appends one receipt, checkpoints, and renders.
-        if: github.event_name == 'workflow_dispatch' && inputs.action != 'auto' && inputs.action != 'verify' && inputs.action != 'backup' && inputs.action != 'prove-work' && inputs.action != 'prove-model' && inputs.action != 'export-handoff' && inputs.action != 'handoff-evaluate' && inputs.action != 'semantic-review' && inputs.action != 'conversation' && inputs.action != 'conversation'
+        if: github.event_name == 'workflow_dispatch' && inputs.action != 'auto' && inputs.action != 'verify' && inputs.action != 'backup' && inputs.action != 'prove-work' && inputs.action != 'prove-model' && inputs.action != 'export-handoff' && inputs.action != 'handoff-evaluate' && inputs.action != 'semantic-review' && inputs.action != 'conversation'
         env:
           ACTION: ${{ inputs.action }}
           KEY: ${{ inputs.key }}
@@ -94,18 +94,7 @@ jobs:
           GEMINI_MODEL: ${{ inputs.model }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           MESSAGE: ${{ inputs.value }}
-        run: PYTHONPATH=src python scripts/conversation_sudofx.py --message "$MESSAGE" --summary-file "$GITHUB_STEP_SUMMARY" --summary-file "$GITHUB_STEP_SUMMARY"
-      - name: Run governed conversation turn
-        # GitHub's authenticated workflow form is the browser/mobile input surface.
-        # The runner commits the human turn before invoking Gemini, then records
-        # the bounded provider lifecycle and governed assistant reply in SQLite.
-        if: github.event_name == 'workflow_dispatch' && inputs.action == 'conversation'
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GEMINI_MODEL: ${{ inputs.model }}
-          MESSAGE: ${{ inputs.value }}
-        run: PYTHONPATH=src python scripts/conversation_sudofx.py --message "$MESSAGE"
-
+        run: PYTHONPATH=src python scripts/conversation_sudofx.py --message "$MESSAGE" --summary-file "$GITHUB_STEP_SUMMARY"
       - name: Record human semantic review
         # Website judgments are only transport until this step restores SQLite.
         # The adapter binds the supplied run+digest to the exact authoritative
