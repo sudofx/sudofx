@@ -761,10 +761,10 @@ def render(
       <div class="quality-head"><b>Manual AI continuity test</b><span class="quality-verdict quality-pass">PUBLIC</span></div>
       <p class="manual-test-intro">Anyone can run this test. Choose an AI, send the generated bounded prompt, paste its JSON response back here, and sudofx will score packet grounding locally. Local scoring is evidence, not database authority.</p>
       <div class="provider-buttons" aria-label="Choose AI provider">
-        <a href="com.openai.chat://" data-manual-vendor="ChatGPT">ChatGPT</a>
-        <a href="claude://" data-manual-vendor="Claude">Claude</a>
-        <a href="https://gemini.google.com/app" data-manual-vendor="Gemini">Gemini</a>
-        <a href="deepseek://" data-manual-vendor="DeepSeek">DeepSeek</a>
+        <button type="button" data-manual-vendor="ChatGPT" data-manual-url="com.openai.chat://" data-manual-fallback="https://chatgpt.com/">ChatGPT</button>
+        <button type="button" data-manual-vendor="Claude" data-manual-url="claude://" data-manual-fallback="https://claude.ai/new">Claude</button>
+        <button type="button" data-manual-vendor="Gemini" data-manual-url="googlegemini://" data-manual-fallback="https://gemini.google.com/app">Gemini</button>
+        <button type="button" data-manual-vendor="DeepSeek" data-manual-url="deepseek://" data-manual-fallback="https://chat.deepseek.com/">DeepSeek</button>
       </div>
       <label class="manual-field">Prompt to send<textarea data-manual-prompt readonly>{_escape(manual_prompt)}</textarea></label>
       <div class="manual-actions"><button type="button" data-manual-copy>Copy prompt</button></div>
@@ -964,31 +964,57 @@ const manualPacketText=()=>{{
   return index>=0?source.slice(index+packetMarker.length).trim():'';
 }};
 const setManualStatus=(message)=>{{if(manualStatus)manualStatus.textContent=message;}};
+const copyManualFromField=()=>{{
+  if(!manualPrompt?.value)return false;
+  try{{
+    manualPrompt.focus({{preventScroll:true}});
+    manualPrompt.select();
+    manualPrompt.setSelectionRange(0,manualPrompt.value.length);
+    return Boolean(document.execCommand('copy'));
+  }}catch{{return false;}}
+}};
 const copyText=async(value)=>{{
-  await navigator.clipboard.writeText(value);
+  if(!value)return false;
+  try{{
+    if(navigator.clipboard?.writeText){{
+      await navigator.clipboard.writeText(value);
+      return true;
+    }}
+  }}catch{{}}
+  return copyManualFromField();
+}};
+const launchManualProvider=(button)=>{{
+  const url=button.dataset.manualUrl||'';
+  if(!url)return;
+  const fallback=button.dataset.manualFallback||'';
+  location.href=url;
+  if(fallback&&!url.startsWith('http')){{
+    setTimeout(()=>{{if(!document.hidden)location.href=fallback;}},900);
+  }}
 }};
 const manualDialog=document.querySelector('[data-manual-dialog]');
 const manualOpen=document.querySelector('[data-manual-open]');
 const manualClose=document.querySelector('[data-manual-close]');
-const prepareManualProvider=(link)=>{{
+const prepareManualProvider=(button)=>{{
   if(!manualPrompt||!manualBasePrompt){{setManualStatus('No manual packet is available yet.');return;}}
-  const vendor=link.dataset.manualVendor||'';
+  const vendor=button.dataset.manualVendor||'';
   const testId=freshManualId();
   const nonce='HANDOFF-'+testId;
   manualPrompt.value=manualBasePrompt.replaceAll('__SUDOFX_VENDOR__',vendor).replaceAll('__SUDOFX_TEST_ID__',testId).replaceAll('__SUDOFX_NONCE__',nonce);
-  document.querySelectorAll('[data-manual-vendor]').forEach(candidate=>candidate.setAttribute('aria-pressed',String(candidate===link)));
-  // Keep the native app link as the navigation action. Start clipboard work
-  // inside the same trusted tap without awaiting it: awaiting can consume
-  // Safari's user activation before iOS follows the app URI.
-  copyText(manualPrompt.value).catch(()=>{{manualPrompt.focus();manualPrompt.select();}});
-  setManualStatus(vendor+' selected · prompt copying and app opening. Paste into a new chat, then return with the complete response.');
+  document.querySelectorAll('[data-manual-vendor]').forEach(candidate=>candidate.setAttribute('aria-pressed',String(candidate===button)));
+  // Proven iOS path: synchronously select/copy while the physical tap is active,
+  // then synchronously launch the provider. Do not race an async clipboard write
+  // against the app switch.
+  const copied=copyManualFromField();
+  setManualStatus((copied?'Prompt copied. ':'Prompt ready. ')+'Opening '+vendor+'.');
+  launchManualProvider(button);
 }};
 if(manualOpen)manualOpen.addEventListener('click',()=>{{if(manualDialog)manualDialog.showModal();}});
 if(manualClose)manualClose.addEventListener('click',()=>manualDialog?.close());
-document.querySelectorAll('[data-manual-vendor]').forEach(link=>link.addEventListener('click',()=>prepareManualProvider(link)));
+document.querySelectorAll('[data-manual-vendor]').forEach(button=>button.addEventListener('click',()=>prepareManualProvider(button)));
 if(manualCopy)manualCopy.addEventListener('click',async()=>{{
-  try{{await copyText(manualPrompt?.value||'');setManualStatus('Prompt copied.');}}
-  catch{{manualPrompt?.focus();manualPrompt?.select();setManualStatus('Clipboard access was blocked; the prompt is selected.');}}
+  const copied=await copyText(manualPrompt?.value||'');
+  setManualStatus(copied?'Prompt copied.':'Clipboard access was blocked; the prompt is selected.');
 }});
 const parseManualResponse=(raw)=>{{
   let candidate=String(raw||'').trim();
