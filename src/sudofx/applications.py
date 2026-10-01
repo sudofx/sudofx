@@ -124,6 +124,16 @@ class ApplicationIntent:
 
 
 @dataclass(frozen=True)
+class ApplicationPermissions:
+    """Deployment-granted capabilities that may only narrow app declarations."""
+
+    effect_capabilities: frozenset[str] = frozenset()
+
+    def __post_init__(self) -> None:
+        if any(not capability.strip() for capability in self.effect_capabilities):
+            raise ValueError("granted effect capability names must not be empty")
+
+@dataclass(frozen=True)
 class EffectRequest:
     """Describe an application-requested external effect without executing it."""
 
@@ -141,6 +151,8 @@ class ApplicationHost:
         kernel: Kernel,
         registry: ApplicationRegistry,
         application_id: str,
+        *,
+        permissions: ApplicationPermissions | None = None,
     ) -> None:
         definition = registry.get(application_id)
         if definition is None:
@@ -148,6 +160,7 @@ class ApplicationHost:
         self.kernel = kernel
         self.registry = registry
         self.application_id = application_id
+        self.permissions = permissions or ApplicationPermissions()
 
     @property
     def definition(self) -> ApplicationDefinition:
@@ -212,6 +225,10 @@ class ApplicationHost:
         if capability not in self.definition.effect_capabilities:
             raise PermissionError(
                 f"application {self.application_id} did not declare effect capability: {capability}"
+            )
+        if capability not in self.permissions.effect_capabilities:
+            raise PermissionError(
+                f"deployment did not grant effect capability to {self.application_id}: {capability}"
             )
         return EffectRequest(
             application_id=self.application_id,
