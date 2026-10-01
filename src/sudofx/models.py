@@ -182,7 +182,7 @@ class GovernanceDecision:
 
     Governance returns all mechanically discoverable rejection reasons so a
     fresh invocation can correct its proposal. The decision contains no mutated
-    state. application_states carries deterministic application results already\n    recomputed during validation for derived database projection only; replay\n    remains the semantic owner of historical reconstruction.\n    """
+    state; replay remains the sole owner of accepted transition semantics.
+    """
     accepted: bool
     reasons: tuple[str, ...] = ()
-    application_states: tuple[tuple[str, JsonValue], ...] = ()
