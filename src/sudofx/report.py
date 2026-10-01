@@ -754,23 +754,9 @@ def render(
       <label class="theme-switch" title="Follow system theme"><input id="theme-toggle" type="checkbox" role="switch" aria-label="Use dark theme"><span class="data-switch-track" aria-hidden="true"><i></i></span></label>
       {actions_light_html}
     </div></header>
-  {observer_console_html}
-  {_exchange_panel(continuity_proof)}
-  <section class="technical-view" aria-label="Public technical record">
-    <div class="technical-head">
-      <div><span class="eyebrow">Public record</span><h2>Technical view</h2></div>
-      <span class="technical-badge">DERIVED VIEW</span>
-    </div>
-    <div class="technical-stats">
-      <div><span>Record revision</span><strong data-record-revision>{context.revision}</strong></div>
-      <div><span>Database</span><strong>{_format_bytes(health['database_bytes'])}</strong></div>
-      <div><span>Replay</span><strong>{health['replay_ms']} ms</strong></div>
-      <div><span>Receipts</span><strong>{total_receipts}</strong></div>
-    </div>
-    <div class="manual-launch"><button type="button" data-manual-open>Manual AI handoff</button></div>
-    <dialog class="manual-test-dialog" data-manual-dialog>
+    <dialog id="manual-handoff-dialog" class="manual-test-dialog" data-manual-dialog>
       <div class="manual-dialog-shell">
-        <div class="manual-dialog-head"><div><span class="eyebrow">Manual transport</span><h2>Manual AI handoff</h2></div><button type="button" data-manual-close aria-label="Close manual handoff">Close</button></div>
+        <div class="manual-dialog-head"><div><span class="eyebrow">Manual transport</span><h2>Manual AI handoff</h2></div><button type="button" data-manual-close aria-label="Close manual handoff" onclick="document.getElementById('manual-handoff-dialog').close()">Close</button></div>
         <div class="manual-test-panel" data-manual-test>
       <div class="quality-head"><b>Manual AI continuity test</b><span class="quality-verdict quality-pass">PUBLIC</span></div>
       <p class="manual-test-intro">Anyone can run this test. Choose an AI, send the generated bounded prompt, paste its JSON response back here, and sudofx will score packet grounding locally. Local scoring is evidence, not database authority.</p>
@@ -796,6 +782,21 @@ def render(
         </div>
       </div>
     </dialog>
+  {observer_console_html}
+  {_exchange_panel(continuity_proof)}
+  <section class="technical-view" aria-label="Public technical record">
+    <div class="technical-head">
+      <div><span class="eyebrow">Public record</span><h2>Technical view</h2></div>
+      <span class="technical-badge">DERIVED VIEW</span>
+    </div>
+    <div class="technical-stats">
+      <div><span>Record revision</span><strong data-record-revision>{context.revision}</strong></div>
+      <div><span>Database</span><strong>{_format_bytes(health['database_bytes'])}</strong></div>
+      <div><span>Replay</span><strong>{health['replay_ms']} ms</strong></div>
+      <div><span>Receipts</span><strong>{total_receipts}</strong></div>
+    </div>
+    <div class="manual-launch"><button type="button" data-manual-open onclick="document.getElementById('manual-handoff-dialog').showModal()">Manual AI handoff</button></div>
+
     <div class="quality-block" data-manual-live>
       <div class="quality-head"><b>Live manual grounding evidence</b><span class="quality-verdict" data-manual-latest>—</span></div>
       <div class="quality-metrics">
