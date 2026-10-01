@@ -35,11 +35,13 @@ mechanically interpret it.
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 import sqlite3
 import time
 import uuid
+import zlib
 from contextlib import closing, contextmanager
 from pathlib import Path
 from typing import Any, Iterator
@@ -55,7 +57,27 @@ from .storage import EventAppend, GENESIS_HASH, InvocationEvent, canonical_json,
 # sudofx record; user_version gives storage evolution one ordered owner instead
 # of scattering opportunistic CREATE/ALTER statements through runtime paths.
 APPLICATION_ID = 0x53444658  # "SDFX"
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8
+
+
+_PROJECTION_CODEC_PREFIX = "zlib:"
+
+
+def _encode_projection_state(state_json: str) -> str:
+    """Compress derived projection bytes without changing semantic state."""
+    compressed = zlib.compress(state_json.encode(), level=9)
+    return _PROJECTION_CODEC_PREFIX + base64.b64encode(compressed).decode("ascii")
+
+
+def _decode_projection_state(stored: str) -> str:
+    """Decode current or legacy projection storage into canonical JSON text."""
+    if not stored.startswith(_PROJECTION_CODEC_PREFIX):
+        return stored
+    try:
+        payload = base64.b64decode(stored[len(_PROJECTION_CODEC_PREFIX):], validate=True)
+        return zlib.decompress(payload).decode()
+    except (ValueError, zlib.error, UnicodeDecodeError) as error:
+        raise IntegrityError("record projection compression is invalid") from error
 
 
 def apply_operation(state: dict[str, JsonValue], operation: dict[str, Any]) -> None:
@@ -286,7 +308,7 @@ class _SQLiteTransaction:
                 state = excluded.state,
                 state_digest = excluded.state_digest
             """,
-            (cursor.lastrowid, event.revision_after, event.event_hash, state_json, state_digest),
+            (cursor.lastrowid, event.revision_after, event.event_hash, _encode_projection_state(state_json), state_digest),
         )
         self._replayed_revision = event.revision_after
 
@@ -519,8 +541,16 @@ class Record:
                 """
             )
             projection = connection.execute(
-                "SELECT 1 FROM record_projection WHERE singleton = 1"
+                "SELECT state, state_digest FROM record_projection WHERE singleton = 1"
             ).fetchone()
+            if projection is not None and version < 8:
+                state_json = _decode_projection_state(projection["state"])
+                if hashlib.sha256(state_json.encode()).hexdigest() != projection["state_digest"]:
+                    raise IntegrityError("record projection state digest is invalid")
+                connection.execute(
+                    "UPDATE record_projection SET state = ? WHERE singleton = 1",
+                    (_encode_projection_state(state_json),),
+                )
             if projection is None:
                 revision, state, sequence, event_hash = self._full_replay(connection)
                 state_json = canonical_json(state)
@@ -534,7 +564,7 @@ class Record:
                         sequence,
                         revision,
                         event_hash,
-                        state_json,
+                        _encode_projection_state(state_json),
                         hashlib.sha256(state_json.encode()).hexdigest(),
                     ),
                 )
@@ -1053,7 +1083,7 @@ class Record:
             full_revision, state, _, _ = self._full_replay(connection)
             return full_revision, state
 
-        state_json = row["state"]
+        state_json = _decode_projection_state(row["state"])
         if hashlib.sha256(state_json.encode()).hexdigest() != row["state_digest"]:
             raise IntegrityError("record projection state digest is invalid")
         state = json.loads(state_json)
