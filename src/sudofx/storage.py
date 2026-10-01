@@ -116,6 +116,26 @@ class RecordStore(Protocol):
 
     def history(self) -> tuple[dict[str, Any], ...]: ...
 
+    def append_invocation_event(
+        self,
+        invocation_id: str,
+        phase: Literal["started", "proposal_received", "completed", "failed", "interrupted"],
+        payload: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Append one non-state invocation lifecycle event to durable evidence."""
+        ...
+
+    def invocation_history(
+        self,
+        invocation_id: str | None = None,
+    ) -> tuple[dict[str, Any], ...]:
+        """Return verified invocation evidence, optionally for one invocation."""
+        ...
+
+    def incomplete_invocations(self) -> tuple[dict[str, Any], ...]:
+        """Return the latest non-terminal event for each unfinished invocation."""
+        ...
+
     def projection_snapshot(
         self, history_limit: int = 50
     ) -> tuple[
