@@ -35,6 +35,7 @@ mechanically interpret it.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import sqlite3
 import time
@@ -54,7 +55,7 @@ from .storage import EventAppend, GENESIS_HASH, InvocationEvent, canonical_json,
 # sudofx record; user_version gives storage evolution one ordered owner instead
 # of scattering opportunistic CREATE/ALTER statements through runtime paths.
 APPLICATION_ID = 0x53444658  # "SDFX"
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 
 
 def apply_operation(state: dict[str, JsonValue], operation: dict[str, Any]) -> None:
@@ -109,17 +110,21 @@ def apply_operation(state: dict[str, JsonValue], operation: dict[str, Any]) -> N
                 events = prior["events"]
             else:
                 raise IntegrityError(f"invalid application event-log envelope: {application_id}")
+            checkpoint = prior.get("checkpoint") if isinstance(prior, dict) else None
             events.append({
                 "action": value["action"],
                 "input": value.get("input"),
                 "result_digest": value["result_digest"],
             })
-            state[key_name] = {
+            envelope = {
                 "application_id": application_id,
                 "application_version": value["application_version"],
                 "storage": "event_log",
                 "events": events,
             }
+            if checkpoint is not None:
+                envelope["checkpoint"] = checkpoint
+            state[key_name] = envelope
         else:
             raise IntegrityError(f"unsupported application storage mode: {storage}")
     elif action == "create_work":
@@ -207,10 +212,15 @@ class _SQLiteTransaction:
     def __init__(self, record: "Record", connection: sqlite3.Connection) -> None:
         self._record = record
         self._connection = connection
+        self._replayed_revision: int | None = None
+        self._replayed_state: dict[str, JsonValue] | None = None
 
     def replay(self) -> tuple[int, dict[str, JsonValue]]:
-        """Verify and reconstruct state inside this transaction snapshot."""
-        return self._record.replay(self._connection)
+        """Verify history and return the database-resident current projection."""
+        revision, state = self._record.replay(self._connection)
+        self._replayed_revision = revision
+        self._replayed_state = state
+        return revision, state
 
     def recent(self, limit: int = 10) -> tuple[dict[str, Any], ...]:
         """Return bounded receipt evidence from the same transaction snapshot."""
@@ -238,7 +248,7 @@ class _SQLiteTransaction:
         Commit/rollback belongs to Record.write_transaction, so no partial
         publication can occur between event fields.
         """
-        self._connection.execute(
+        cursor = self._connection.execute(
             """
             INSERT INTO events (
                 receipt_id, proposal_id, status, revision_before, revision_after,
@@ -258,6 +268,65 @@ class _SQLiteTransaction:
                 event.event_hash,
             ),
         )
+        if self._replayed_state is None or self._replayed_revision != event.revision_before:
+            raise IntegrityError("append requires the verified transaction projection")
+
+        state = self._replayed_state
+        if event.status == "accepted":
+            for operation in event.payload["operations"]:
+                apply_operation(state, operation)
+
+            # Event-log applications keep full semantic history in events while
+            # the SQLite projection stores only the verified current domain state.
+            # This derived checkpoint is never included in event hash material.
+            for application_id, application_state_value in event.application_states:
+                key_name = application_key(application_id)
+                envelope = state.get(key_name)
+                if not isinstance(envelope, dict) or envelope.get("storage") != "event_log":
+                    continue
+                events = envelope.get("events")
+                if not isinstance(events, list):
+                    raise IntegrityError("application projection event log is invalid")
+                prior_checkpoint = envelope.get("checkpoint")
+                prior_count = (
+                    prior_checkpoint.get("event_count", 0)
+                    if isinstance(prior_checkpoint, dict)
+                    else 0
+                )
+                result_digest = hashlib.sha256(
+                    canonical_json(application_state_value).encode()
+                ).hexdigest()
+                if events and events[-1].get("result_digest") != result_digest:
+                    raise IntegrityError("application projection digest mismatch")
+                state[key_name] = {
+                    "application_id": envelope["application_id"],
+                    "application_version": envelope["application_version"],
+                    "storage": "event_log",
+                    "events": [],
+                    "checkpoint": {
+                        "event_count": prior_count + len(events),
+                        "result_digest": result_digest,
+                        "state": application_state_value,
+                    },
+                }
+
+        state_json = canonical_json(state)
+        state_digest = hashlib.sha256(state_json.encode()).hexdigest()
+        self._connection.execute(
+            """
+            INSERT INTO record_projection (
+                singleton, sequence, revision, event_hash, state, state_digest
+            ) VALUES (1, ?, ?, ?, ?, ?)
+            ON CONFLICT(singleton) DO UPDATE SET
+                sequence = excluded.sequence,
+                revision = excluded.revision,
+                event_hash = excluded.event_hash,
+                state = excluded.state,
+                state_digest = excluded.state_digest
+            """,
+            (cursor.lastrowid, event.revision_after, event.event_hash, state_json, state_digest),
+        )
+        self._replayed_revision = event.revision_after
 
 
 class Record:
@@ -470,6 +539,44 @@ class Record:
                 "CREATE UNIQUE INDEX IF NOT EXISTS invocation_events_event_hash "
                 "ON invocation_events(event_hash)"
             )
+
+            # v7 stores one derived current projection in the same authoritative
+            # database. The append-only event chain remains reconstructable
+            # evidence; this row removes repeated state reconstruction from
+            # normal fresh-process reads.
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS record_projection (
+                    singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+                    sequence INTEGER NOT NULL,
+                    revision INTEGER NOT NULL,
+                    event_hash TEXT NOT NULL,
+                    state TEXT NOT NULL,
+                    state_digest TEXT NOT NULL
+                )
+                """
+            )
+            projection = connection.execute(
+                "SELECT 1 FROM record_projection WHERE singleton = 1"
+            ).fetchone()
+            if projection is None:
+                revision, state, sequence, event_hash = self._full_replay(connection)
+                state_json = canonical_json(state)
+                connection.execute(
+                    """
+                    INSERT INTO record_projection (
+                        singleton, sequence, revision, event_hash, state, state_digest
+                    ) VALUES (1, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        sequence,
+                        revision,
+                        event_hash,
+                        state_json,
+                        hashlib.sha256(state_json.encode()).hexdigest(),
+                    ),
+                )
+
             connection.execute(f"PRAGMA application_id = {APPLICATION_ID}")
             connection.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
             connection.commit()
@@ -719,7 +826,7 @@ class Record:
             if result != "ok":
                 raise IntegrityError(f"snapshot failed SQLite quick_check: {result}")
         verified = Record(destination)
-        verified.replay()
+        verified.full_replay()
         verified.invocation_history()
 
     def vacuum_snapshot_to(self, destination: str | Path) -> None:
@@ -873,20 +980,14 @@ class Record:
         with self.connect() as own_connection:
             return list(own_connection.execute("SELECT * FROM events ORDER BY sequence"))
 
-    def replay(self, connection: sqlite3.Connection | None = None) -> tuple[int, dict[str, JsonValue]]:
-        """
-        Verify the complete chain and reconstruct authoritative current state.
-
-        Revision continuity is checked independently of hashes. That redundant
-        invariant catches logically impossible histories even if their bytes
-        were re-hashed consistently by a faulty writer.
-        """
-        state: dict[str, JsonValue] = {}
+    def _verified_chain(
+        self, connection: sqlite3.Connection
+    ) -> tuple[int, int, str]:
+        """Verify semantic hashes and revision continuity without rebuilding state."""
         revision = 0
         previous_hash = GENESIS_HASH
+        sequence = 0
         for row in self.rows(connection):
-            # Recreate exactly the material used at append time. Timestamps and
-            # SQLite sequence numbers are metadata, not semantic hash input.
             payload = json.loads(row["payload"])
             reasons = json.loads(row["reasons"])
             material = {
@@ -899,9 +1000,6 @@ class Record:
                 "reasons": reasons,
             }
             provenance = json.loads(row["provenance"]) if row["provenance"] else None
-            # Historical v0/v1 rows did not hash a provenance field at all.
-            # Omitting NULL here preserves their original semantic identity while
-            # every newly attributed v2 event binds provenance into its hash.
             if provenance is not None:
                 material["provenance"] = provenance
             expected_hash = self.hash_event(previous_hash, material)
@@ -910,14 +1008,95 @@ class Record:
             if row["revision_before"] != revision:
                 raise IntegrityError(f"revision discontinuity at sequence {row['sequence']}")
             if row["status"] == "accepted":
-                # All operations in an accepted proposal are applied together.
-                # Rejected payloads are retained for evidence but never executed.
+                revision += 1
+            if row["revision_after"] != revision:
+                raise IntegrityError(f"invalid resulting revision at sequence {row['sequence']}")
+            sequence = row["sequence"]
+            previous_hash = row["event_hash"]
+        return revision, sequence, previous_hash
+
+    def _full_replay(
+        self, connection: sqlite3.Connection
+    ) -> tuple[int, dict[str, JsonValue], int, str]:
+        """Verify and reconstruct state solely from append-only semantic events."""
+        state: dict[str, JsonValue] = {}
+        revision = 0
+        previous_hash = GENESIS_HASH
+        sequence = 0
+        for row in self.rows(connection):
+            payload = json.loads(row["payload"])
+            reasons = json.loads(row["reasons"])
+            material = {
+                "receipt_id": row["receipt_id"],
+                "proposal_id": row["proposal_id"],
+                "status": row["status"],
+                "revision_before": row["revision_before"],
+                "revision_after": row["revision_after"],
+                "payload": payload,
+                "reasons": reasons,
+            }
+            provenance = json.loads(row["provenance"]) if row["provenance"] else None
+            if provenance is not None:
+                material["provenance"] = provenance
+            expected_hash = self.hash_event(previous_hash, material)
+            if row["previous_hash"] != previous_hash or row["event_hash"] != expected_hash:
+                raise IntegrityError(f"event chain is invalid at sequence {row['sequence']}")
+            if row["revision_before"] != revision:
+                raise IntegrityError(f"revision discontinuity at sequence {row['sequence']}")
+            if row["status"] == "accepted":
                 for operation in payload["operations"]:
                     apply_operation(state, operation)
                 revision += 1
             if row["revision_after"] != revision:
                 raise IntegrityError(f"invalid resulting revision at sequence {row['sequence']}")
+            sequence = row["sequence"]
             previous_hash = row["event_hash"]
+        return revision, state, sequence, previous_hash
+
+    def full_replay(
+        self, connection: sqlite3.Connection | None = None
+    ) -> tuple[int, dict[str, JsonValue]]:
+        """Explicitly reconstruct state from genesis for audit/recovery paths."""
+        if connection is not None:
+            revision, state, _, _ = self._full_replay(connection)
+            return revision, state
+        with self.connect() as own_connection:
+            own_connection.execute("BEGIN")
+            revision, state, _, _ = self._full_replay(own_connection)
+            return revision, state
+
+    def replay(self, connection: sqlite3.Connection | None = None) -> tuple[int, dict[str, JsonValue]]:
+        """
+        Verify the complete chain, then load the hash-bound current projection.
+
+        Normal reads still verify every semantic event and revision edge. They do
+        not repeatedly execute every historical transition. If the projection is
+        unavailable or stale, replay falls back to full reconstruction.
+        """
+        if connection is None:
+            with self.connect() as own_connection:
+                own_connection.execute("BEGIN")
+                return self.replay(own_connection)
+
+        revision, sequence, event_hash = self._verified_chain(connection)
+        row = connection.execute(
+            "SELECT * FROM record_projection WHERE singleton = 1"
+        ).fetchone()
+        if (
+            row is None
+            or row["sequence"] != sequence
+            or row["revision"] != revision
+            or row["event_hash"] != event_hash
+        ):
+            full_revision, state, _, _ = self._full_replay(connection)
+            return full_revision, state
+
+        state_json = row["state"]
+        if hashlib.sha256(state_json.encode()).hexdigest() != row["state_digest"]:
+            raise IntegrityError("record projection state digest is invalid")
+        state = json.loads(state_json)
+        if not isinstance(state, dict):
+            raise IntegrityError("record projection state is invalid")
         return revision, state
 
     def recent(
