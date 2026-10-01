@@ -116,7 +116,7 @@ The namespace is semantic, not a separate database.
 
 Applications may define domain action names, but registration alone never makes an action legal.
 
-The v1 implementation uses one generic kernel action, `apply_application`. The application host supplies identity, version, action input, and a candidate next state; kernel governance independently reruns the registered deterministic policy before acceptance. Accepted events persist the verified resulting JSON state, so historical replay does not require the application code to remain installed.
+The v1 implementation uses one generic kernel action, `apply_application`. The application host supplies identity, version, action input, and a candidate next state; kernel governance independently reruns the registered deterministic policy before acceptance. Small applications may persist the verified resulting JSON state directly. Large applications may instead choose compact event-log storage: accepted events persist only the governed action input plus a digest of the deterministic result. Generic sudofx replay remains possible without the application installed; reconstructing that application's domain state requires the matching application version, which replays the compact inputs and verifies every stored result digest. This prevents whole-state duplication while making same-version policy drift visible.
 
 For each application action, all of the following must exist together:
 
@@ -185,6 +185,8 @@ Removing an optional extension should leave the owning application semantically 
 Removing an application may make that application's domain state uninterpretable until the application is restored, but it must not corrupt the generic sudofx record or redefine kernel replay semantics.
 
 Application-specific historical payloads therefore need explicit identity/version provenance.
+
+For compact event-log applications, removal leaves the generic event envelope replayable and auditable, while domain materialization is intentionally unavailable until the matching application code is restored.
 
 ## Why this boundary is intentionally small
 
