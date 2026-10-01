@@ -996,11 +996,9 @@ const prepareManualProvider=(button)=>{{
 }};
 if(manualOpen)manualOpen.addEventListener('click',()=>{{if(manualDialog)manualDialog.showModal();}});
 if(manualClose)manualClose.addEventListener('click',()=>manualDialog?.close());
-document.querySelectorAll('[data-manual-vendor]').forEach(button=>button.addEventListener('click',async()=>{{
+document.querySelectorAll('[data-manual-vendor]').forEach(button=>button.addEventListener('click',()=>{{
   if(!prepareManualProvider(button))return;
-  const value=manualPrompt?.value||'';
-  let copied=await copyText(value);
-  if(!copied)copied=copyManualFromField();
+  const copied=copyManualFromField();
   if(!copied){{
     setManualStatus('Clipboard copy failed. Prompt is visible below; AI was not opened.');
     return;
