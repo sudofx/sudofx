@@ -1048,13 +1048,15 @@ json.dump({
         self.assertIn('data-manual-vendor="Claude"', page)
         self.assertIn('data-manual-vendor="Gemini"', page)
         self.assertIn('data-manual-vendor="DeepSeek"', page)
-        # Provider taps must preserve the physical mobile gesture: copy is
-        # synchronous and native-app launch happens before any awaited work.
-        self.assertIn('data-manual-url="chatgpt://"', page)
-        self.assertIn('data-manual-url="googleapp://robin"', page)
+        # Provider controls are real links so iOS can dispatch installed apps
+        # directly; clipboard work must not replace the anchor navigation.
+        self.assertIn('href="com.openai.chat://"', page)
+        self.assertIn('href="claude://"', page)
+        self.assertIn('href="googlegemini://"', page)
+        self.assertIn('href="deepseek://"', page)
         self.assertIn('data-manual-fallback="https://chatgpt.com/"', page)
-        self.assertIn("document.execCommand('copy')", page)
-        self.assertIn("launchManualProvider(button);", page)
+        self.assertIn("navigator.clipboard.writeText(manualPrompt.value)", page)
+        self.assertIn("manualPrompt.removeAttribute('readonly')", page)
         self.assertIn("if(!document.hidden)location.href=fallback", page)
         self.assertIn("data-manual-analyze", page)
         self.assertIn("Local grounding score", page)
