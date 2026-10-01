@@ -33,11 +33,11 @@ from contextlib import closing
 from pathlib import Path
 from typing import Any
 
-from .kernel import Kernel
-from .models import Context, Operation, Proposal, SubmissionProvenance
-from .providers import CommandIntelligence
-from .record import Record
-from .storage import GENESIS_HASH, canonical_json
+from sudofx.kernel import Kernel
+from sudofx.models import Context, Operation, Proposal, SubmissionProvenance
+from sudofx.providers import CommandIntelligence
+from sudofx.record import Record
+from sudofx.storage import GENESIS_HASH, canonical_json
 
 WORK_ID = "continuity-proof"
 RESULT = "Fresh process reconstructed bounded work and continued it."

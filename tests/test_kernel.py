@@ -22,7 +22,7 @@ from sudofx import (
     SubmissionProvenance,
 )
 from sudofx.record import APPLICATION_ID, SCHEMA_VERSION, IntegrityError, Record, StorageVersionError
-from sudofx.continuity import (
+from experiments.continuity import (
     run_compressed_model_continuity_probe,
     run_continuity_proof,
     run_default_model_continuity_probe,
