@@ -98,6 +98,7 @@ class InvocationEvent:
     proposal_id: str | None = None
     receipt_id: str | None = None
     detail: str = ""
+    metadata: dict[str, JsonValue] | None = None
 
 
 class InvocationJournal(Protocol):
