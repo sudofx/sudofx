@@ -52,7 +52,7 @@ from .storage import EventAppend, GENESIS_HASH, InvocationEvent, canonical_json,
 # sudofx record; user_version gives storage evolution one ordered owner instead
 # of scattering opportunistic CREATE/ALTER statements through runtime paths.
 APPLICATION_ID = 0x53444658  # "SDFX"
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 
 def apply_operation(state: dict[str, JsonValue], operation: dict[str, Any]) -> None:
@@ -350,6 +350,11 @@ class Record:
                     context_digest TEXT NOT NULL,
                     provenance TEXT,
                     context_receipt TEXT,
+                    outcome TEXT CHECK (
+                        outcome IS NULL OR outcome IN (
+                            'success', 'temporary_failure', 'quota_exhausted', 'provider_failure'
+                        )
+                    ),
                     proposal_id TEXT,
                     receipt_id TEXT,
                     detail TEXT NOT NULL DEFAULT '',
@@ -367,6 +372,10 @@ class Record:
                 connection.execute(
                     "ALTER TABLE invocation_events ADD COLUMN context_receipt TEXT"
                 )
+            if "outcome" not in invocation_columns:
+                # v5 makes provider/runtime outcomes queryable without parsing
+                # diagnostic strings. NULL remains truthful for older rows.
+                connection.execute("ALTER TABLE invocation_events ADD COLUMN outcome TEXT")
             connection.execute(
                 "CREATE INDEX IF NOT EXISTS invocation_events_id_sequence "
                 "ON invocation_events(invocation_id, sequence)"
@@ -411,8 +420,8 @@ class Record:
                 """
                 INSERT INTO invocation_events (
                     invocation_id, stage, source_revision, context_digest,
-                    provenance, context_receipt, proposal_id, receipt_id, detail
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    provenance, context_receipt, outcome, proposal_id, receipt_id, detail
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     event.invocation_id,
@@ -421,6 +430,7 @@ class Record:
                     event.context_digest,
                     provenance,
                     context_receipt,
+                    event.outcome,
                     event.proposal_id,
                     event.receipt_id,
                     event.detail,
@@ -460,6 +470,7 @@ class Record:
                 "context_receipt": (
                     json.loads(row["context_receipt"]) if row["context_receipt"] else None
                 ),
+                "outcome": row["outcome"],
                 "proposal_id": row["proposal_id"],
                 "receipt_id": row["receipt_id"],
                 "detail": row["detail"],
@@ -484,6 +495,25 @@ class Record:
             for event in latest.values()
             if event["stage"] not in {"completed", "failed"}
         )
+
+    def invocation_accounting(self) -> dict[str, int]:
+        """
+        Derive provider/runtime resource counts from durable lifecycle evidence.
+
+        Counts are a projection, not a second ledger. Vendor-specific quota
+        arithmetic remains outside this storage contract; the database records
+        only generic outcomes that can be compared across adapters.
+        """
+        history = self.invocation_history()
+        return {
+            "invocations": len({event["invocation_id"] for event in history}),
+            "attempts": sum(event["stage"] == "attempt_started" for event in history),
+            "completed": sum(event["stage"] == "completed" for event in history),
+            "failed": sum(event["stage"] == "failed" for event in history),
+            "quota_exhausted": sum(event["outcome"] == "quota_exhausted" for event in history),
+            "temporary_failures": sum(event["outcome"] == "temporary_failure" for event in history),
+            "provider_failures": sum(event["outcome"] == "provider_failure" for event in history),
+        }
 
     def backup_to(self, destination: str | Path) -> None:
         """
