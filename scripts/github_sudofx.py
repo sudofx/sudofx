@@ -62,9 +62,8 @@ from experiments.manual_handoff.scoring import (
     handoff_work_id,
 )
 from experiments.overnight import EXPERIMENT_STATE_KEY
+from scripts.github_state import DATA, STATE_BRANCH, checkpoint, git, restore
 
-DATA = ROOT / "data" / "sudofx.sqlite"
-STATE_BRANCH = "sudofx-state"
 LIVE_BRANCH = "sudofx-live"
 AUTO_HANDOFF_ID = "handoff-v1"
 AUTO_HANDOFF_OBJECTIVE = (
@@ -206,112 +205,6 @@ def latest_overnight_proof(kernel: Kernel) -> dict[str, object] | None:
             },
         },
     }
-
-
-def git(*args: str, capture: bool = False, check: bool = True) -> subprocess.CompletedProcess[str]:
-    """Run one explicit Git operation from the source repository."""
-    return subprocess.run(
-        ["git", *args], cwd=ROOT, check=check, text=True,
-        stdout=subprocess.PIPE if capture else None,
-        stderr=subprocess.PIPE if capture else None,
-    )
-
-
-def restore() -> tuple[bool, bool]:
-    """
-    Restore the remote durable database when the state branch exists.
-
-    Missing state is valid only before the first mutation and returns
-    ``(False, False)``. The second result reports a storage migration that must
-    be checkpointed before projections can claim the new schema is durable.
-    Other fetch or extraction failures remain exceptions; silently initializing
-    after a damaged/unreadable branch would erase continuity.
-    """
-    # Absence is a valid first-run state; provider, permission, and transport
-    # failures are not. Conflating them would let a temporary GitHub outage
-    # silently replace durable continuity with a new empty record.
-    remote = git("ls-remote", "--exit-code", "--heads", "origin", STATE_BRANCH, check=False, capture=True)
-    if remote.returncode == 2:
-        return False, False
-    if remote.returncode != 0:
-        raise RuntimeError(f"could not inspect durable state branch: {remote.stderr.strip()}")
-    git("fetch", "origin", f"refs/heads/{STATE_BRANCH}:refs/remotes/origin/{STATE_BRANCH}")
-
-    DATA.parent.mkdir(parents=True, exist_ok=True)
-    # Restore into the destination directory so os.replace is atomic on the same
-    # filesystem. The live path remains untouched unless both SQLite structure
-    # and sudofx event replay verify successfully.
-    with tempfile.NamedTemporaryFile(dir=DATA.parent, prefix="restore-", suffix=".sqlite", delete=False) as candidate:
-        candidate_path = Path(candidate.name)
-        shown = subprocess.run(
-            ["git", "show", f"origin/{STATE_BRANCH}:sudofx.sqlite"],
-            cwd=ROOT, check=False, stdout=candidate, stderr=subprocess.DEVNULL,
-        )
-    if shown.returncode != 0:
-        candidate_path.unlink(missing_ok=True)
-        return False, False
-    try:
-        with closing(sqlite3.connect(candidate_path)) as connection:
-            result = connection.execute("PRAGMA quick_check").fetchone()[0]
-            if result != "ok":
-                raise RuntimeError(f"restored database failed SQLite quick_check: {result}")
-        candidate_record = Record(candidate_path)
-        candidate_record.replay()
-        schema_changed = candidate_record.schema_changed
-        # A stale WAL belongs to the replaced database identity and must never be
-        # replayed against the new main file. This adapter is the sole process in
-        # its Actions workspace, so sidecar removal is an owned recovery action.
-        for suffix in ("-wal", "-shm"):
-            Path(f"{DATA}{suffix}").unlink(missing_ok=True)
-        os.replace(candidate_path, DATA)
-    finally:
-        candidate_path.unlink(missing_ok=True)
-    return True, schema_changed
-
-
-def checkpoint() -> None:
-    """
-    Commit the exact verified database to ``sudofx-state`` without rewriting history.
-
-    An existing branch is checked out detached at its remote head. The first
-    checkpoint starts an orphan branch so implementation files never become part
-    of durable state. No-change checkpoints return without empty commits.
-    """
-    with tempfile.TemporaryDirectory() as temporary:
-        snapshot = Path(temporary) / "verified.sqlite"
-        # Snapshot through SQLite rather than copying the main file. This keeps
-        # WAL-resident committed pages inside the checkpoint and verifies both
-        # file structure and semantic replay before Git can publish new authority.
-        Record(DATA).backup_to(snapshot)
-        checkout = Path(temporary) / "state"
-        branch_exists = git("rev-parse", "--verify", f"origin/{STATE_BRANCH}", check=False, capture=True).returncode == 0
-        if branch_exists:
-            # Detached checkout makes the eventual push target explicit and
-            # avoids teaching the temporary worktree a misleading local branch.
-            git("worktree", "add", "--detach", str(checkout), f"origin/{STATE_BRANCH}")
-        else:
-            # The first checkpoint starts from source only as a Git worktree
-            # bootstrap. The orphan ref prevents that source ancestry from
-            # becoming state history.
-            git("worktree", "add", "--detach", str(checkout), "HEAD")
-            git("-C", str(checkout), "checkout", "--orphan", STATE_BRANCH)
-        try:
-            # The state branch has exactly one current-tree authority artifact:
-            # the SQLite database. Removing every tracked path before re-adding
-            # it also repairs older contaminated state heads without rewriting
-            # history or changing the database bytes.
-            git("-C", str(checkout), "rm", "-rf", "--ignore-unmatch", ".")
-            (checkout / "sudofx.sqlite").write_bytes(snapshot.read_bytes())
-            git("-C", str(checkout), "add", "sudofx.sqlite")
-            if git("-C", str(checkout), "diff", "--cached", "--quiet", check=False).returncode == 0:
-                return
-
-            # The bot identity labels provenance; it does not establish trust.
-            # Trust comes from verified replay and protected repository access.
-            git("-C", str(checkout), "-c", "user.name=sudofx-bot", "-c", "user.email=sudofx-bot@users.noreply.github.com", "commit", "-m", "Checkpoint durable record")
-            git("-C", str(checkout), "push", "origin", f"HEAD:{STATE_BRANCH}")
-        finally:
-            git("worktree", "remove", "--force", str(checkout), check=False)
 
 
 def frozen_overnight_proof(
