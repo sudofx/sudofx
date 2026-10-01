@@ -135,8 +135,27 @@ def application_state(
     events = envelope.get("events")
     if not isinstance(events, list):
         raise ValueError("application event log is invalid")
-    state: JsonValue = None
-    for index, event in enumerate(events):
+    checkpoint = envelope.get("checkpoint")
+    if checkpoint is None:
+        state: JsonValue = None
+        offset = 0
+    else:
+        if not isinstance(checkpoint, dict):
+            raise ValueError("application checkpoint is invalid")
+        event_count = checkpoint.get("event_count")
+        result_digest = checkpoint.get("result_digest")
+        if (
+            not isinstance(event_count, int)
+            or event_count < 0
+            or not isinstance(result_digest, str)
+        ):
+            raise ValueError("application checkpoint metadata is invalid")
+        state = checkpoint.get("state")
+        expected_checkpoint = hashlib.sha256(canonical_json(state).encode()).hexdigest()
+        if expected_checkpoint != result_digest:
+            raise ValueError("application checkpoint digest does not match state")
+        offset = event_count
+    for index, event in enumerate(events, start=offset):
         if not isinstance(event, dict):
             raise ValueError(f"application event {index} is invalid")
         action_name = event.get("action")
