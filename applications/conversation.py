@@ -1,101 +1,102 @@
-"""
-MINIMAL CONVERSATION APPLICATION
-================================
-
-This is the first human interaction proof for the sudofx application contract.
-It owns conversation-domain meaning while the kernel continues to own durable
-authority, governance, replay, provenance, and receipts.
-"""
+"""Minimal governed conversation application used by the Phase D proof."""
 
 from __future__ import annotations
 
 import hashlib
+import json
 
 from sudofx import ApplicationAction, ApplicationDecision, ApplicationDefinition
 from sudofx.models import JsonValue
-from sudofx.storage import canonical_json
 
 
 APPLICATION_ID = "conversation"
 APPLICATION_VERSION = "1"
+MAX_MESSAGE_CHARS = 4000
+DEFAULT_CONTEXT_TURNS = 8
 
 
-def _messages(current: JsonValue) -> list[dict[str, JsonValue]]:
+def _turns(current: JsonValue) -> list[dict[str, str]]:
     if current is None:
         return []
     if not isinstance(current, dict):
         raise ValueError("conversation state must be an object")
-    messages = current.get("messages", [])
-    if not isinstance(messages, list) or not all(isinstance(item, dict) for item in messages):
-        raise ValueError("conversation messages must be objects")
-    return [dict(item) for item in messages]
+    turns = current.get("turns", [])
+    if not isinstance(turns, list):
+        raise ValueError("conversation turns must be a list")
+    normalized: list[dict[str, str]] = []
+    for turn in turns:
+        if (
+            not isinstance(turn, dict)
+            or turn.get("role") not in {"human", "assistant"}
+            or not isinstance(turn.get("content"), str)
+        ):
+            raise ValueError("conversation contains an invalid turn")
+        normalized.append({"role": turn["role"], "content": turn["content"]})
+    return normalized
 
 
-def _human_message(current: JsonValue, payload: JsonValue) -> ApplicationDecision:
+def _message(current: JsonValue, payload: JsonValue, *, role: str) -> ApplicationDecision:
     if not isinstance(payload, str) or not payload.strip():
-        return ApplicationDecision(False, reasons=("human message must be non-empty text",))
-    try:
-        messages = _messages(current)
-    except ValueError as error:
-        return ApplicationDecision(False, reasons=(str(error),))
-    messages.append({"role": "human", "text": payload.strip()})
-    return ApplicationDecision(True, {"messages": messages})
-
-
-def _assistant_message(current: JsonValue, payload: JsonValue) -> ApplicationDecision:
-    if not isinstance(payload, dict):
-        return ApplicationDecision(False, reasons=("assistant message requires an object",))
-    required = ("text", "provider", "model", "context_digest")
-    if any(not isinstance(payload.get(key), str) or not payload[key].strip() for key in required):
+        return ApplicationDecision(False, reasons=(f"{role} message must be non-empty text",))
+    content = payload.strip()
+    if len(content) > MAX_MESSAGE_CHARS:
         return ApplicationDecision(
             False,
-            reasons=("assistant message requires text, provider, model, and context_digest",),
+            reasons=(f"{role} message exceeds {MAX_MESSAGE_CHARS} characters",),
         )
     try:
-        messages = _messages(current)
+        turns = _turns(current)
     except ValueError as error:
         return ApplicationDecision(False, reasons=(str(error),))
-    messages.append(
+    expected = "human" if not turns or turns[-1]["role"] == "assistant" else "assistant"
+    if role != expected:
+        return ApplicationDecision(
+            False,
+            reasons=(f"conversation expects {expected} message next",),
+        )
+    updated = [*turns, {"role": role, "content": content}]
+    return ApplicationDecision(
+        True,
         {
-            "role": "assistant",
-            "text": payload["text"].strip(),
-            "provider": payload["provider"].strip(),
-            "model": payload["model"].strip(),
-            "context_digest": payload["context_digest"].strip(),
-        }
-    )
-    return ApplicationDecision(True, {"messages": messages})
-
-
-def definition() -> ApplicationDefinition:
-    """Return one immutable application definition for registry installation."""
-    return ApplicationDefinition(
-        APPLICATION_ID,
-        APPLICATION_VERSION,
-        (
-            ApplicationAction("human_message", _human_message),
-            ApplicationAction("assistant_message", _assistant_message),
-        ),
+            "turns": updated,
+            "turn_count": len(updated),
+        },
     )
 
 
-def bounded_context(state: JsonValue, *, message_limit: int = 12) -> dict[str, JsonValue]:
-    """Build the exact bounded conversation view supplied to one fresh provider."""
-    if message_limit < 1:
-        raise ValueError("message_limit must be positive")
-    messages = _messages(state)
-    recent = messages[-message_limit:]
-    omitted = messages[:-message_limit]
+def human_message(current: JsonValue, payload: JsonValue) -> ApplicationDecision:
+    return _message(current, payload, role="human")
+
+
+def assistant_message(current: JsonValue, payload: JsonValue) -> ApplicationDecision:
+    return _message(current, payload, role="assistant")
+
+
+CONVERSATION_APPLICATION = ApplicationDefinition(
+    APPLICATION_ID,
+    APPLICATION_VERSION,
+    (
+        ApplicationAction("human_message", human_message),
+        ApplicationAction("assistant_message", assistant_message),
+    ),
+)
+
+
+def bounded_context(state: JsonValue, *, max_turns: int = DEFAULT_CONTEXT_TURNS) -> dict[str, JsonValue]:
+    """Return a bounded provider view with explicit omission evidence."""
+    if max_turns <= 0:
+        raise ValueError("max_turns must be positive")
+    turns = _turns(state)
+    omitted = turns[:-max_turns] if len(turns) > max_turns else []
+    recent = turns[-max_turns:]
+    digest = hashlib.sha256(
+        json.dumps(omitted, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
+    ).hexdigest()
     return {
         "application_id": APPLICATION_ID,
         "application_version": APPLICATION_VERSION,
-        "messages_recent": recent,
-        "message_count": len(messages),
-        "omitted_message_count": len(omitted),
-        "omitted_messages_digest": hashlib.sha256(canonical_json(omitted).encode()).hexdigest(),
+        "turns": recent,
+        "turn_count": len(turns),
+        "omitted_turn_count": len(omitted),
+        "omitted_turns_digest": digest,
     }
-
-
-def context_digest(context: dict[str, JsonValue]) -> str:
-    """Fingerprint the exact bounded context shown to one provider."""
-    return hashlib.sha256(canonical_json(context).encode()).hexdigest()
