@@ -1120,8 +1120,23 @@ class Record:
             "SELECT * FROM record_projection WHERE singleton = 1"
         ).fetchone()
         if head is None:
-            if row is not None:
+            if row is None:
+                return 0, {}
+            # Schema initialization materializes the canonical empty checkpoint.
+            # Accept only that exact revision-0/genesis shape; any other
+            # projection without semantic history is inconsistent.
+            if (
+                row["sequence"] != 0
+                or row["revision"] != 0
+                or row["event_hash"] != GENESIS_HASH
+            ):
                 raise IntegrityError("record projection exists without semantic history")
+            state_json = _decode_projection_state(row["state"])
+            if hashlib.sha256(state_json.encode()).hexdigest() != row["state_digest"]:
+                raise IntegrityError("record projection state digest is invalid")
+            state = json.loads(state_json)
+            if state != {}:
+                raise IntegrityError("empty record projection contains semantic state")
             return 0, {}
         if (
             row is None
