@@ -766,9 +766,9 @@ def render(
         <button type="button" data-manual-vendor="Gemini" data-manual-url="googlegemini://" data-manual-fallback="https://gemini.google.com/app">Gemini</button>
         <button type="button" data-manual-vendor="DeepSeek" data-manual-url="deepseek://" data-manual-fallback="https://chat.deepseek.com/">DeepSeek</button>
       </div>
-      <p class="muted">1. Choose an AI to generate its fresh packet. 2. Copy the prompt. 3. Open the AI.</p>
+      <p class="muted">Tap an AI to generate and copy its fresh packet, then open that app in the same tap.</p>
       <label class="manual-field">Prompt to send<textarea data-manual-prompt readonly>{_escape(manual_prompt)}</textarea></label>
-      <div class="manual-actions"><button type="button" data-manual-copy>Copy prompt</button><button type="button" data-manual-launch disabled>Open selected AI</button></div>
+      <div class="manual-actions"><button type="button" data-manual-copy>Copy prompt</button></div>
       <label class="manual-field">Returned JSON<textarea data-manual-response spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="Paste the complete JSON response here."></textarea></label>
       <div class="manual-actions">
         <button type="button" data-manual-analyze>Analyze response</button>
@@ -996,7 +996,7 @@ const manualClose=document.querySelector('[data-manual-close]');
 const manualLaunch=document.querySelector('[data-manual-launch]');
 let selectedManualProvider=null;
 const prepareManualProvider=(button)=>{{
-  if(!manualPrompt||!manualBasePrompt){{setManualStatus('No manual packet is available yet.');return;}}
+  if(!manualPrompt||!manualBasePrompt){{setManualStatus('No manual packet is available yet.');return false;}}
   const vendor=button.dataset.manualVendor||'';
   const testId=freshManualId();
   const nonce='HANDOFF-'+testId;
@@ -1006,19 +1006,26 @@ const prepareManualProvider=(button)=>{{
     .split('__SUDOFX_NONCE__').join(nonce);
   if(/__SUDOFX_(?:VENDOR|TEST_ID|NONCE)__/.test(generated)){{
     selectedManualProvider=null;
-    if(manualLaunch)manualLaunch.disabled=true;
     setManualStatus('Packet generation failed: unresolved transport metadata.');
-    return;
+    return false;
   }}
   manualPrompt.value=generated;
   selectedManualProvider=button;
-  if(manualLaunch){{manualLaunch.disabled=true;manualLaunch.textContent='Open '+vendor;}}
   document.querySelectorAll('[data-manual-vendor]').forEach(candidate=>candidate.setAttribute('aria-pressed',String(candidate===button)));
-  setManualStatus(vendor+' selected. Tap Copy prompt; Open '+vendor+' will unlock only after the clipboard write succeeds.');
+  return true;
 }};
 if(manualOpen)manualOpen.addEventListener('click',()=>{{if(manualDialog)manualDialog.showModal();}});
 if(manualClose)manualClose.addEventListener('click',()=>manualDialog?.close());
-document.querySelectorAll('[data-manual-vendor]').forEach(button=>button.addEventListener('click',()=>prepareManualProvider(button)));
+document.querySelectorAll('[data-manual-vendor]').forEach(button=>button.addEventListener('click',()=>{{
+  if(!prepareManualProvider(button))return;
+  const copied=copyManualFromField();
+  if(!copied){{
+    setManualStatus('Clipboard copy failed. Prompt is visible below; AI was not opened.');
+    return;
+  }}
+  setManualStatus('Prompt copied. Opening '+button.dataset.manualVendor+'…');
+  launchManualProvider(button);
+}}));
 if(manualCopy)manualCopy.addEventListener('click',async()=>{{
   const value=manualPrompt?.value||'';
   if(/__SUDOFX_(?:VENDOR|TEST_ID|NONCE)__/.test(value)){{
