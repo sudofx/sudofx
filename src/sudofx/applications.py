@@ -125,6 +125,10 @@ def application_state(
         )
 
     storage = envelope.get("storage", "snapshot")
+    if storage == "event_log" and "projection_state" in envelope:
+        if definition.state_storage != "event_log":
+            raise ValueError("application storage mode does not match registered definition")
+        return envelope.get("projection_state")
     if storage == "snapshot":
         if definition.state_storage != "snapshot":
             raise ValueError("application storage mode does not match registered definition")
@@ -234,6 +238,18 @@ class ApplicationHost:
             state=app_state,
         )
 
+    def audit_context(self) -> ApplicationContext:
+        """Rebuild this application's state from semantic history for explicit audit."""
+        revision, state = self.kernel.record.full_replay()
+        envelope = state.get(application_key(self.application_id))
+        app_state = application_state(self.definition, envelope)
+        return ApplicationContext(
+            application_id=self.application_id,
+            application_version=self.definition.version,
+            revision=revision,
+            state=app_state,
+        )
+
     def submit(
         self,
         intent: ApplicationIntent,
@@ -272,6 +288,11 @@ class ApplicationHost:
             value["result_digest"] = hashlib.sha256(
                 canonical_json(decision.next_state).encode()
             ).hexdigest()
+            # This derived state is validated by governance but stripped before
+            # semantic persistence. Storage may commit it only to the database
+            # projection so normal fresh-process reads avoid replaying the
+            # application's entire event history.
+            value["projection_state"] = decision.next_state
         else:
             value["next_state"] = decision.next_state
         operation = Operation("apply_application", self.application_id, value)
