@@ -38,6 +38,7 @@ from __future__ import annotations
 import json
 import sqlite3
 import time
+import uuid
 from contextlib import closing, contextmanager
 from pathlib import Path
 from typing import Any, Iterator
@@ -52,7 +53,7 @@ from .storage import EventAppend, GENESIS_HASH, InvocationEvent, canonical_json,
 # sudofx record; user_version gives storage evolution one ordered owner instead
 # of scattering opportunistic CREATE/ALTER statements through runtime paths.
 APPLICATION_ID = 0x53444658  # "SDFX"
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 
 def apply_operation(state: dict[str, JsonValue], operation: dict[str, Any]) -> None:
@@ -359,6 +360,76 @@ class Record:
             connection.execute(
                 "CREATE INDEX IF NOT EXISTS invocation_events_id_sequence "
                 "ON invocation_events(invocation_id, sequence)"
+            )
+
+            # v4 makes invocation evidence self-verifying and gives context
+            # delivery receipts room for bounded structured metadata. Existing
+            # v3 rows are deterministically backfilled in append order rather
+            # than treated as if they had always been hash-linked.
+            invocation_columns = {
+                row[1] for row in connection.execute("PRAGMA table_info(invocation_events)")
+            }
+            if "event_id" not in invocation_columns:
+                connection.execute("ALTER TABLE invocation_events ADD COLUMN event_id TEXT")
+            if "metadata" not in invocation_columns:
+                connection.execute(
+                    "ALTER TABLE invocation_events ADD COLUMN metadata TEXT NOT NULL DEFAULT '{}'"
+                )
+            if "previous_hash" not in invocation_columns:
+                connection.execute("ALTER TABLE invocation_events ADD COLUMN previous_hash TEXT")
+            if "event_hash" not in invocation_columns:
+                connection.execute("ALTER TABLE invocation_events ADD COLUMN event_hash TEXT")
+
+            previous_invocation_hash = GENESIS_HASH
+            invocation_rows = list(
+                connection.execute("SELECT * FROM invocation_events ORDER BY sequence")
+            )
+            for row in invocation_rows:
+                event_id = row["event_id"] or f"legacy-invocation-{row['sequence']}"
+                metadata = json.loads(row["metadata"]) if row["metadata"] else {}
+                provenance_value = (
+                    json.loads(row["provenance"]) if row["provenance"] else None
+                )
+                material = {
+                    "event_id": event_id,
+                    "invocation_id": row["invocation_id"],
+                    "stage": row["stage"],
+                    "source_revision": row["source_revision"],
+                    "context_digest": row["context_digest"],
+                    "provenance": provenance_value,
+                    "proposal_id": row["proposal_id"],
+                    "receipt_id": row["receipt_id"],
+                    "detail": row["detail"],
+                    "metadata": metadata,
+                }
+                event_hash = hash_event(previous_invocation_hash, material)
+                if (
+                    row["event_id"] is None
+                    or row["previous_hash"] is None
+                    or row["event_hash"] is None
+                ):
+                    connection.execute(
+                        """
+                        UPDATE invocation_events
+                        SET event_id = ?, metadata = ?, previous_hash = ?, event_hash = ?
+                        WHERE sequence = ?
+                        """,
+                        (
+                            event_id,
+                            canonical_json(metadata),
+                            previous_invocation_hash,
+                            event_hash,
+                            row["sequence"],
+                        ),
+                    )
+                previous_invocation_hash = event_hash
+            connection.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS invocation_events_event_id "
+                "ON invocation_events(event_id)"
+            )
+            connection.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS invocation_events_event_hash "
+                "ON invocation_events(event_hash)"
             )
             connection.execute(f"PRAGMA application_id = {APPLICATION_ID}")
             connection.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
