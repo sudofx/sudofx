@@ -914,9 +914,11 @@ json.dump({
         stop = (Path(__file__).parents[1] / ".github/workflows/operator-stop.yml").read_text(encoding="utf-8")
         self.assertIn("actions/workflows/prove-model.yml/enable", start)
         self.assertIn("actions/workflows/sudofx-runner.yml/enable", start)
-        self.assertIn("actions/workflows/sudofx-runner.yml/disable", stop)
-        self.assertIn("actions/workflows/prove-model.yml/disable", stop)
-        self.assertLess(stop.index("sudofx-runner.yml/disable"), stop.index("actions/runs/$run_id/cancel"))
+        self.assertIn("for workflow in sudofx-runner.yml prove-model.yml", stop)
+        self.assertIn('state="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$workflow" --jq \' .state\')"'.replace("\' .state\'", "\'.state\'"), stop)
+        self.assertIn('if [[ "$state" == "active" ]]', stop)
+        self.assertIn('actions/workflows/$workflow/disable', stop)
+        self.assertLess(stop.index("actions/workflows/$workflow/disable"), stop.index("actions/runs/$run_id/cancel"))
 
     def test_semantic_review_ui_defaults_to_pass_and_confirms_submission(self) -> None:
         """Semantic review remains visible evidence without a Pages authentication path."""
