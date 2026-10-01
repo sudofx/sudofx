@@ -967,6 +967,12 @@ const setManualStatus=(message)=>{{if(manualStatus)manualStatus.textContent=mess
 const copyText=async(value)=>{{
   await navigator.clipboard.writeText(value);
 }};
+const providerLaunchUrl=(vendor)=>({{
+  ChatGPT:'com.openai.chat://',
+  Claude:'claude://',
+  Gemini:'https://gemini.google.com/app',
+  DeepSeek:'deepseek://',
+}}[vendor]||'');
 const manualDialog=document.querySelector('[data-manual-dialog]');
 const manualOpen=document.querySelector('[data-manual-open]');
 const manualClose=document.querySelector('[data-manual-close]');
@@ -979,10 +985,12 @@ const prepareManualProvider=async(button)=>{{
   document.querySelectorAll('[data-manual-vendor]').forEach(candidate=>candidate.setAttribute('aria-pressed',String(candidate===button)));
   try{{
     await copyText(manualPrompt.value);
-    setManualStatus(vendor+' selected · prompt copied. Open '+vendor+', paste, then return with the complete response.');
+    setManualStatus(vendor+' selected · prompt copied. Opening '+vendor+'…');
+    const url=providerLaunchUrl(vendor);
+    if(url)window.location.href=url;
   }}catch{{
     manualPrompt.focus();manualPrompt.select();
-    setManualStatus('Automatic clipboard access was blocked. The prompt is selected for manual copying.');
+    setManualStatus('Automatic clipboard access was blocked. The prompt is selected; the provider was not opened.');
   }}
 }};
 if(manualOpen)manualOpen.addEventListener('click',()=>{{if(manualDialog)manualDialog.showModal();}});
