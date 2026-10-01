@@ -964,8 +964,29 @@ const manualPacketText=()=>{{
   return index>=0?source.slice(index+packetMarker.length).trim():'';
 }};
 const setManualStatus=(message)=>{{if(manualStatus)manualStatus.textContent=message;}};
+const legacyCopyText=(value)=>{{
+  const area=document.createElement('textarea');
+  area.value=String(value||'');
+  area.setAttribute('readonly','');
+  area.style.position='fixed';
+  area.style.opacity='0';
+  area.style.pointerEvents='none';
+  document.body.appendChild(area);
+  area.focus();
+  area.select();
+  area.setSelectionRange(0,area.value.length);
+  let copied=false;
+  try{{copied=document.execCommand('copy');}}finally{{area.remove();}}
+  return copied;
+}};
 const copyText=async(value)=>{{
-  await navigator.clipboard.writeText(value);
+  const text=String(value||'');
+  // Run the synchronous path while the iOS tap is still trusted. Some embedded
+  // browsers expose navigator.clipboard but reject or silently drop its write.
+  const legacyCopied=legacyCopyText(text);
+  if(legacyCopied)return;
+  if(!navigator.clipboard?.writeText)throw new Error('Clipboard API unavailable');
+  await navigator.clipboard.writeText(text);
 }};
 const manualDialog=document.querySelector('[data-manual-dialog]');
 const manualOpen=document.querySelector('[data-manual-open]');
