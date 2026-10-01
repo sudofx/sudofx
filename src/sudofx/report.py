@@ -975,14 +975,11 @@ const copyManualFromField=()=>{{
   }}catch{{return false;}}
 }};
 const copyText=async(value)=>{{
-  if(!value)return false;
+  if(!value||!navigator.clipboard?.writeText)return false;
   try{{
-    if(navigator.clipboard?.writeText){{
-      await navigator.clipboard.writeText(value);
-      return true;
-    }}
-  }}catch{{}}
-  return copyManualFromField();
+    await navigator.clipboard.writeText(value);
+    return true;
+  }}catch{{return false;}}
 }};
 const launchManualProvider=(button)=>{{
   const url=button.dataset.manualUrl||'';
@@ -1003,7 +1000,17 @@ const prepareManualProvider=(button)=>{{
   const vendor=button.dataset.manualVendor||'';
   const testId=freshManualId();
   const nonce='HANDOFF-'+testId;
-  manualPrompt.value=manualBasePrompt.replaceAll('__SUDOFX_VENDOR__',vendor).replaceAll('__SUDOFX_TEST_ID__',testId).replaceAll('__SUDOFX_NONCE__',nonce);
+  const generated=manualBasePrompt
+    .split('__SUDOFX_VENDOR__').join(vendor)
+    .split('__SUDOFX_TEST_ID__').join(testId)
+    .split('__SUDOFX_NONCE__').join(nonce);
+  if(/__SUDOFX_(?:VENDOR|TEST_ID|NONCE)__/.test(generated)){{
+    selectedManualProvider=null;
+    if(manualLaunch)manualLaunch.disabled=true;
+    setManualStatus('Packet generation failed: unresolved transport metadata.');
+    return;
+  }}
+  manualPrompt.value=generated;
   selectedManualProvider=button;
   if(manualLaunch){{manualLaunch.disabled=true;manualLaunch.textContent='Open '+vendor;}}
   document.querySelectorAll('[data-manual-vendor]').forEach(candidate=>candidate.setAttribute('aria-pressed',String(candidate===button)));
@@ -1013,13 +1020,19 @@ if(manualOpen)manualOpen.addEventListener('click',()=>{{if(manualDialog)manualDi
 if(manualClose)manualClose.addEventListener('click',()=>manualDialog?.close());
 document.querySelectorAll('[data-manual-vendor]').forEach(button=>button.addEventListener('click',()=>prepareManualProvider(button)));
 if(manualCopy)manualCopy.addEventListener('click',async()=>{{
-  const copied=await copyText(manualPrompt?.value||'');
+  const value=manualPrompt?.value||'';
+  if(/__SUDOFX_(?:VENDOR|TEST_ID|NONCE)__/.test(value)){{
+    if(manualLaunch)manualLaunch.disabled=true;
+    setManualStatus('Copy blocked: regenerate the packet; transport metadata is unresolved.');
+    return;
+  }}
+  const copied=await copyText(value);
   if(copied&&selectedManualProvider){{
     if(manualLaunch)manualLaunch.disabled=false;
     setManualStatus('Prompt copied. Now open '+selectedManualProvider.dataset.manualVendor+'.');
   }}else{{
     if(manualLaunch)manualLaunch.disabled=true;
-    setManualStatus('Clipboard access was blocked; the prompt is selected for manual copying.');
+    setManualStatus('Clipboard write failed. Open AI remains locked; use the visible prompt only as a manual fallback.');
   }}
 }});
 if(manualLaunch)manualLaunch.addEventListener('click',()=>{{
