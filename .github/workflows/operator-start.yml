@@ -60,6 +60,15 @@ jobs:
           test "$runtime_ref" = "$candidate_sha"
           echo "runtime_ref=$runtime_ref" >> "$GITHUB_OUTPUT"
 
+      - name: Ensure the cycle entry point is available
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          state="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/prove-model.yml" --jq '.state')"
+          if [[ "$state" != "active" ]]; then
+            gh api --method PUT "repos/$GITHUB_REPOSITORY/actions/workflows/prove-model.yml/enable" >/dev/null
+          fi
+
       - name: Open the continuation latch
         env:
           GH_TOKEN: ${{ github.token }}
