@@ -61,6 +61,7 @@ def context_delivery_receipt(
     context: object,
     *,
     work_id: str | None,
+    scope: dict[str, str] | None = None,
 ) -> ContextDeliveryReceipt:
     """
     Describe bounded context without durably copying the context itself.
@@ -70,12 +71,18 @@ def context_delivery_receipt(
     boundary while keeping authoritative state singular.
     """
     encoded = canonical_json(context_payload(context)).encode()
-    scope = {"kind": "work", "work_id": work_id} if work_id is not None else {"kind": "global"}
+    resolved_scope = (
+        scope
+        if scope is not None
+        else {"kind": "work", "work_id": work_id}
+        if work_id is not None
+        else {"kind": "global"}
+    )
     return ContextDeliveryReceipt(
         policy_version=CONTEXT_POLICY_VERSION,
         payload_bytes=len(encoded),
         included_categories=("state", "recent_receipts"),
-        scope=scope,
+        scope=resolved_scope,
     )
 
 
@@ -125,11 +132,16 @@ class Runtime:
         *,
         provenance: SubmissionProvenance,
         work_id: str | None = None,
+        context_scope: dict[str, str] | None = None,
     ) -> InvocationResult:
         """Execute one disposable intelligence with reconstructable lifecycle evidence."""
         context = self.kernel.context(work_id=work_id)
         digest = context_digest(context)
-        delivery_receipt = context_delivery_receipt(context, work_id=work_id)
+        delivery_receipt = context_delivery_receipt(
+            context,
+            work_id=work_id,
+            scope=context_scope,
+        )
         invocation_id = str(uuid.uuid4())
         provenance_payload = provenance.to_dict()
 
