@@ -767,7 +767,7 @@ def render(
         <a href="deepseek://" data-manual-vendor="DeepSeek">DeepSeek</a>
       </div>
       <label class="manual-field">Prompt to send<textarea data-manual-prompt readonly>{_escape(manual_prompt)}</textarea></label>
-      <div class="manual-actions"><button type="button" data-manual-copy>Copy prompt</button></div>
+      <div class="manual-actions"><button type="button" data-manual-copy>Share prompt</button></div>
       <label class="manual-field">Returned JSON<textarea data-manual-response spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="Paste the complete JSON response here."></textarea></label>
       <div class="manual-actions">
         <button type="button" data-manual-analyze>Analyze response</button>
@@ -964,60 +964,65 @@ const manualPacketText=()=>{{
   return index>=0?source.slice(index+packetMarker.length).trim():'';
 }};
 const setManualStatus=(message)=>{{if(manualStatus)manualStatus.textContent=message;}};
-const legacyCopyText=(value)=>{{
-  const area=document.createElement('textarea');
-  area.value=String(value||'');
-  area.setAttribute('readonly','');
-  area.style.position='fixed';
-  area.style.opacity='0';
-  area.style.pointerEvents='none';
-  document.body.appendChild(area);
-  area.focus();
-  area.select();
-  area.setSelectionRange(0,area.value.length);
-  let copied=false;
-  try{{copied=document.execCommand('copy');}}finally{{area.remove();}}
-  return copied;
+const copyManualFromField=()=>{{
+  if(!manualPrompt?.value)return false;
+  try{{
+    const helper=document.createElement('textarea');
+    helper.value=manualPrompt.value;
+    helper.setAttribute('aria-hidden','true');
+    helper.style.position='fixed';
+    helper.style.top='0';
+    helper.style.left='-9999px';
+    helper.style.opacity='0';
+    helper.style.fontSize='16px';
+    document.body.appendChild(helper);
+    helper.focus();
+    helper.select();
+    helper.setSelectionRange(0,helper.value.length);
+    const copied=Boolean(document.execCommand('copy'));
+    helper.remove();
+    return copied;
+  }}catch{{return false;}}
 }};
-const copyText=async(value)=>{{
-  const text=String(value||'');
-  // Run the synchronous path while the iOS tap is still trusted. Some embedded
-  // browsers expose navigator.clipboard but reject or silently drop its write.
-  const legacyCopied=legacyCopyText(text);
-  if(legacyCopied)return;
-  if(!navigator.clipboard?.writeText)throw new Error('Clipboard API unavailable');
-  await navigator.clipboard.writeText(text);
+const copyManual=async(value)=>{{
+  if(!value)return false;
+  try{{if(navigator.clipboard?.writeText){{await navigator.clipboard.writeText(value);return true;}}}}catch{{}}
+  return copyManualFromField();
+}};
+const providerPromptUrl=(vendor,prompt,fallback)=>{{
+  const encoded=encodeURIComponent(prompt);
+  if(vendor==='ChatGPT')return 'com.openai.chat://chatgpt.com/?temporary-chat=true&prompt='+encoded;
+  if(vendor==='Claude')return 'claude://claude.ai/new?q='+encoded;
+  return fallback||'';
 }};
 const manualDialog=document.querySelector('[data-manual-dialog]');
 const manualOpen=document.querySelector('[data-manual-open]');
 const manualClose=document.querySelector('[data-manual-close]');
 const prepareManualProvider=(link)=>{{
-  if(!manualPrompt||!manualBasePrompt){{setManualStatus('No manual packet is available yet.');return;}}
+  if(!manualPrompt||!manualBasePrompt){{setManualStatus('No manual packet is available yet.');return false;}}
   const vendor=link.dataset.manualVendor||'';
   const testId=freshManualId();
   const nonce='HANDOFF-'+testId;
-  manualPrompt.value=manualBasePrompt
-    .replaceAll('__SUDOFX_VENDOR__',vendor)
-    .replaceAll('__SUDOFX_TEST_ID__',testId)
-    .replaceAll('__SUDOFX_NONCE__',nonce);
-  if(vendor==='ChatGPT'){{
-    link.href='com.openai.chat://chatgpt.com/?temporary-chat=true&prompt='+encodeURIComponent(manualPrompt.value);
-  }}
-  document.querySelectorAll('[data-manual-vendor]').forEach(candidate=>candidate.setAttribute('aria-pressed',String(candidate===link)));
-  // Historical pre-Cloudflare-removal behavior: fire the clipboard write
-  // during the trusted tap without awaiting it, then let the anchor navigation
-  // continue naturally into the destination app.
-  copyText(manualPrompt.value).catch(()=>{{manualPrompt.focus();manualPrompt.select();}});
-  setManualStatus(vendor==='ChatGPT'
-    ?'ChatGPT opening with a draft when supported. Tap Send; if the draft is empty, paste the copied prompt.'
-    :vendor+' opening. Paste the copied prompt into a new chat and send it.');
+  manualPrompt.value=manualBasePrompt.replaceAll('__SUDOFX_VENDOR__',vendor).replaceAll('__SUDOFX_TEST_ID__',testId).replaceAll('__SUDOFX_NONCE__',nonce);
+  document.querySelectorAll('[data-manual-vendor]').forEach(node=>node.setAttribute('aria-pressed',String(node===link)));
+  const fallback=link.dataset.manualFallback||link.getAttribute('href')||'';
+  const promptUrl=providerPromptUrl(vendor,manualPrompt.value,fallback);
+  if(promptUrl)link.setAttribute('href',promptUrl);
+  setManualStatus((vendor==='ChatGPT'||vendor==='Claude')?'Opening '+vendor+' with the sudofx prompt already filled in. Review it, then tap Send.':'Opening '+vendor+'. Return and use Share prompt if the provider cannot receive the prompt directly.');
+  return true;
 }};
 if(manualOpen)manualOpen.addEventListener('click',()=>{{if(manualDialog)manualDialog.showModal();}});
 if(manualClose)manualClose.addEventListener('click',()=>manualDialog?.close());
 document.querySelectorAll('[data-manual-vendor]').forEach(link=>link.addEventListener('click',()=>prepareManualProvider(link)));
 if(manualCopy)manualCopy.addEventListener('click',async()=>{{
-  try{{await copyText(manualPrompt?.value||'');setManualStatus('Prompt copied.');}}
-  catch{{manualPrompt?.focus();manualPrompt?.select();setManualStatus('Clipboard access was blocked; the prompt is selected.');}}
+  const value=manualPrompt?.value||'';
+  if(!value)return;
+  if(navigator.share){{
+    try{{await navigator.share({{text:value}});setManualStatus('Prompt shared. Choose the AI app from the iOS share sheet.');return;}}
+    catch(error){{if(error?.name==='AbortError')return;}}
+  }}
+  const copied=await copyManual(value);
+  setManualStatus(copied?'Prompt copied.':'iOS blocked automatic copy. Press and hold the prompt text, then choose Copy.');
 }});
 const parseManualResponse=(raw)=>{{
   let candidate=String(raw||'').trim();
