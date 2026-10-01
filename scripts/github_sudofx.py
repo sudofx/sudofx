@@ -47,7 +47,7 @@ if str(ROOT) not in sys.path:
 
 from sudofx import Kernel, Operation, Proposal, SubmissionProvenance
 from sudofx.record import Record
-from sudofx.continuity import (
+from experiments.continuity import (
     run_compressed_model_continuity_probe,
     run_continuity_proof,
     run_default_model_continuity_probe,
