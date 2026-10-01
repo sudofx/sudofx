@@ -748,8 +748,8 @@ def render(
         <button type="button" data-manual-vendor="Gemini" data-manual-url="googlegemini://" data-manual-fallback="https://gemini.google.com/app">Gemini</button>
         <button type="button" data-manual-vendor="DeepSeek" data-manual-url="deepseek://" data-manual-fallback="https://chat.deepseek.com/">DeepSeek</button>
       </div>
-      <p class="muted">Tap an AI to generate and copy its fresh packet. After the copy succeeds, open that AI with the separate button.</p>
-      <label class="manual-field">Prompt to send<textarea data-manual-prompt readonly>{_escape(manual_prompt)}</textarea></label>
+      <p class="muted">Tap an AI to generate its fresh packet. Copy with the button or use your phone's native Select All → Copy, then open the selected AI.</p>
+      <label class="manual-field">Prompt to send<textarea data-manual-prompt>{_escape(manual_prompt)}</textarea></label>
       <div class="manual-actions"><button type="button" data-manual-copy>Copy prompt</button><button type="button" data-manual-launch hidden>Open selected AI</button></div>
       <label class="manual-field">Returned JSON<textarea data-manual-response spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="Paste the complete JSON response here."></textarea></label>
       <div class="manual-actions">
@@ -997,18 +997,10 @@ const prepareManualProvider=(button)=>{{
 }};
 if(manualOpen)manualOpen.addEventListener('click',()=>{{if(manualDialog)manualDialog.showModal();}});
 if(manualClose)manualClose.addEventListener('click',()=>manualDialog?.close());
-document.querySelectorAll('[data-manual-vendor]').forEach(button=>button.addEventListener('click',async()=>{{
+document.querySelectorAll('[data-manual-vendor]').forEach(button=>button.addEventListener('click',()=>{{
   if(!prepareManualProvider(button))return;
-  if(manualLaunch){{manualLaunch.hidden=true;manualLaunch.textContent='Open '+button.dataset.manualVendor;}}
-  const value=manualPrompt?.value||'';
-  let copied=await copyText(value);
-  if(!copied)copied=copyManualFromField();
-  if(!copied){{
-    setManualStatus('Clipboard copy failed. Tap Copy prompt to retry; the AI will not open until copying succeeds.');
-    return;
-  }}
-  if(manualLaunch)manualLaunch.hidden=false;
-  setManualStatus('Prompt copied. Tap Open '+button.dataset.manualVendor+'.');
+  if(manualLaunch){{manualLaunch.hidden=false;manualLaunch.textContent='Open '+button.dataset.manualVendor;}}
+  setManualStatus('Packet ready. Copy it, then tap Open '+button.dataset.manualVendor+'.');
 }}));
 if(manualLaunch)manualLaunch.addEventListener('click',()=>{{
   if(!selectedManualProvider){{setManualStatus('Choose an AI first.');return;}}
