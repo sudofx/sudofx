@@ -486,10 +486,14 @@ class Record:
             stage = str(row["stage"])
             prior = latest_stage.get(invocation_id)
             if stage not in self._allowed_invocation_next(prior):
-                raise IntegrityError(
-                    f"invalid invocation lifecycle transition {prior!r} -> {stage!r} "
-                    f"for {invocation_id}"
-                )
+                # v3-v5 allowed lifecycle rows without stage-order enforcement.
+                # Their deterministic migration IDs preserve that historical
+                # truth while all v6+ writes are validated before append.
+                if not str(row["event_id"]).startswith("legacy-invocation-"):
+                    raise IntegrityError(
+                        f"invalid invocation lifecycle transition {prior!r} -> {stage!r} "
+                        f"for {invocation_id}"
+                    )
             latest_stage[invocation_id] = stage
             previous_hash = row["event_hash"]
             result.append(
