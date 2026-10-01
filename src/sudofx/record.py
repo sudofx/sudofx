@@ -631,6 +631,8 @@ class Record:
                 )
             )
             event_count = int(connection.execute("SELECT COUNT(*) FROM events").fetchone()[0])
+            invocation_events = self._verify_invocation_rows(self._invocation_rows(connection))
+            invocation_event_count = len(invocation_events)
             page_size = int(connection.execute("PRAGMA page_size").fetchone()[0])
             page_count = int(connection.execute("PRAGMA page_count").fetchone()[0])
             free_pages = int(connection.execute("PRAGMA freelist_count").fetchone()[0])
@@ -640,6 +642,7 @@ class Record:
             "schema_version": SCHEMA_VERSION,
             "revision": revision,
             "event_count": event_count,
+            "invocation_event_count": invocation_event_count,
             "database_bytes": page_size * page_count,
             "free_bytes": page_size * free_pages,
             "replay_ms": round((time.perf_counter() - started) * 1000, 3),
