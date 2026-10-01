@@ -17,12 +17,13 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import sys
 import time
 import urllib.error
 import urllib.request
 from typing import Any
+
+from gemini_transport import build_generate_request, extract_text
 
 
 class RecoverableProviderFailure(RuntimeError):
@@ -135,21 +136,6 @@ def _prompt(context: dict[str, Any], trial: dict[str, Any]) -> str:
     )
 
 
-def _extract_text(response: dict[str, Any]) -> str:
-    """Extract the first textual Gemini candidate."""
-    candidates = response.get("candidates")
-    if not isinstance(candidates, list) or not candidates:
-        raise ValueError("Gemini returned no candidates")
-    content = candidates[0].get("content")
-    parts = content.get("parts") if isinstance(content, dict) else None
-    if not isinstance(parts, list):
-        raise ValueError("Gemini candidate has no content parts")
-    text = "".join(part.get("text", "") for part in parts if isinstance(part, dict)).strip()
-    if not text:
-        raise ValueError("Gemini candidate contained no text")
-    return text
-
-
 def _semantic_output(raw: str) -> dict[str, str]:
     """Validate the compact semantic answer before adapting it to a Proposal."""
     try:
@@ -183,25 +169,16 @@ def main() -> int:
         raise ValueError("context revision must be an integer")
     work_id, work, trial = _bounded_work(context)
 
-    body = json.dumps(
-        {
-            "contents": [{"parts": [{"text": _prompt(context, trial)}]}],
-            "generationConfig": {"temperature": 0.25, "responseMimeType": "application/json"},
-        }
-    ).encode("utf-8")
-    safe_model = re.sub(r"[^A-Za-z0-9._-]", "", model)
-    if not safe_model:
-        raise ValueError("GEMINI_MODEL contains no usable model identifier")
-    request = urllib.request.Request(
-        f"https://generativelanguage.googleapis.com/v1beta/models/{safe_model}:generateContent",
-        data=body,
-        headers={"Content-Type": "application/json", "x-goog-api-key": api_key},
-        method="POST",
+    safe_model, request = build_generate_request(
+        api_key=api_key,
+        model=model,
+        prompt=_prompt(context, trial),
+        temperature=0.25,
     )
     payload = _request_json(request)
 
     try:
-        semantic = _semantic_output(_extract_text(payload))
+        semantic = _semantic_output(extract_text(payload))
     except ValueError as error:
         raise RecoverableProviderFailure(
             f"Gemini response was unusable for this cycle: {error}"
