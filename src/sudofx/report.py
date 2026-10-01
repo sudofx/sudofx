@@ -748,9 +748,9 @@ def render(
         <button type="button" data-manual-vendor="Gemini" data-manual-url="googlegemini://" data-manual-fallback="https://gemini.google.com/app">Gemini</button>
         <button type="button" data-manual-vendor="DeepSeek" data-manual-url="deepseek://" data-manual-fallback="https://chat.deepseek.com/">DeepSeek</button>
       </div>
-      <p class="muted">Tap an AI to generate and copy its fresh packet, then open that app in the same tap.</p>
+      <p class="muted">Tap an AI to generate and copy its fresh packet. After the copy succeeds, open that AI with the separate button.</p>
       <label class="manual-field">Prompt to send<textarea data-manual-prompt readonly>{_escape(manual_prompt)}</textarea></label>
-      <div class="manual-actions"><button type="button" data-manual-copy>Copy prompt</button></div>
+      <div class="manual-actions"><button type="button" data-manual-copy>Copy prompt</button><button type="button" data-manual-launch hidden>Open selected AI</button></div>
       <label class="manual-field">Returned JSON<textarea data-manual-response spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="Paste the complete JSON response here."></textarea></label>
       <div class="manual-actions">
         <button type="button" data-manual-analyze>Analyze response</button>
@@ -925,6 +925,7 @@ const liveManualUrl='https://raw.githubusercontent.com/'+(observer?.dataset.repo
 const manualPrompt=document.querySelector('[data-manual-prompt]');
 const manualResponse=document.querySelector('[data-manual-response]');
 const manualStatus=document.querySelector('[data-manual-status]');
+const manualLaunch=document.querySelector('[data-manual-launch]');
 const manualAnalyze=document.querySelector('[data-manual-analyze]');
 const manualCopy=document.querySelector('[data-manual-copy]');
 const manualContribute=document.querySelector('[data-manual-contribute]');
@@ -996,25 +997,34 @@ const prepareManualProvider=(button)=>{{
 }};
 if(manualOpen)manualOpen.addEventListener('click',()=>{{if(manualDialog)manualDialog.showModal();}});
 if(manualClose)manualClose.addEventListener('click',()=>manualDialog?.close());
-document.querySelectorAll('[data-manual-vendor]').forEach(button=>button.addEventListener('click',()=>{{
+document.querySelectorAll('[data-manual-vendor]').forEach(button=>button.addEventListener('click',async()=>{{
   if(!prepareManualProvider(button))return;
-  const copied=copyManualFromField();
+  if(manualLaunch){{manualLaunch.hidden=true;manualLaunch.textContent='Open '+button.dataset.manualVendor;}}
+  const value=manualPrompt?.value||'';
+  let copied=await copyText(value);
+  if(!copied)copied=copyManualFromField();
   if(!copied){{
-    setManualStatus('Clipboard copy failed. Prompt is visible below; AI was not opened.');
+    setManualStatus('Clipboard copy failed. Tap Copy prompt to retry; the AI will not open until copying succeeds.');
     return;
   }}
-  setManualStatus('Prompt copied. Opening '+button.dataset.manualVendor+'…');
-  launchManualProvider(button);
+  if(manualLaunch)manualLaunch.hidden=false;
+  setManualStatus('Prompt copied. Tap Open '+button.dataset.manualVendor+'.');
 }}));
+if(manualLaunch)manualLaunch.addEventListener('click',()=>{{
+  if(!selectedManualProvider){{setManualStatus('Choose an AI first.');return;}}
+  launchManualProvider(selectedManualProvider);
+}});
 if(manualCopy)manualCopy.addEventListener('click',async()=>{{
   const value=manualPrompt?.value||'';
   if(/__SUDOFX_(?:VENDOR|TEST_ID|NONCE)__/.test(value)){{
     setManualStatus('Copy blocked: regenerate the packet; transport metadata is unresolved.');
     return;
   }}
-  const copied=await copyText(value);
+  let copied=await copyText(value);
+  if(!copied)copied=copyManualFromField();
+  if(copied&&selectedManualProvider&&manualLaunch){{manualLaunch.hidden=false;manualLaunch.textContent='Open '+selectedManualProvider.dataset.manualVendor;}}
   if(copied){{
-    setManualStatus('Prompt copied.');
+    setManualStatus(selectedManualProvider?'Prompt copied. Tap Open '+selectedManualProvider.dataset.manualVendor+'.':'Prompt copied.');
   }}else{{
     setManualStatus('Clipboard write failed. The prompt remains visible for manual selection.');
   }}
