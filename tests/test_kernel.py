@@ -703,6 +703,13 @@ json.dump({
             ["requested", "context_delivered", "attempt_started", "failed"],
         )
         self.assertEqual(lifecycle[-1]["provenance"], provenance.to_dict())
+        delivered = lifecycle[1]["context_receipt"]
+        self.assertEqual(delivered["policy_version"], "kernel-context-v1")
+        self.assertGreater(delivered["payload_bytes"], 0)
+        self.assertEqual(delivered["included_categories"], ["state", "recent_receipts"])
+        self.assertEqual(delivered["scope"], {"kind": "global"})
+        self.assertIsNone(lifecycle[0]["context_receipt"])
+        self.assertIsNone(lifecycle[2]["context_receipt"])
         self.assertIn("ProviderError", lifecycle[-1]["detail"])
         self.assertEqual(self.kernel.record.incomplete_invocations(), ())
 
@@ -737,6 +744,7 @@ json.dump({
         )
         self.assertEqual(lifecycle[-1]["proposal_id"], "runtime-success")
         self.assertEqual(lifecycle[-1]["receipt_id"], result.run.receipt.receipt_id)
+        self.assertEqual(lifecycle[1]["context_receipt"]["scope"], {"kind": "global"})
         self.assertEqual(self.kernel.context().state, {"runtime": "recorded"})
 
     def test_incomplete_invocation_survives_process_reopen_without_guessing_success(self) -> None:
