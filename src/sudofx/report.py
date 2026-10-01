@@ -996,9 +996,11 @@ const prepareManualProvider=(button)=>{{
 }};
 if(manualOpen)manualOpen.addEventListener('click',()=>{{if(manualDialog)manualDialog.showModal();}});
 if(manualClose)manualClose.addEventListener('click',()=>manualDialog?.close());
-document.querySelectorAll('[data-manual-vendor]').forEach(button=>button.addEventListener('click',()=>{{
+document.querySelectorAll('[data-manual-vendor]').forEach(button=>button.addEventListener('click',async()=>{{
   if(!prepareManualProvider(button))return;
-  const copied=copyManualFromField();
+  const value=manualPrompt?.value||'';
+  let copied=await copyText(value);
+  if(!copied)copied=copyManualFromField();
   if(!copied){{
     setManualStatus('Clipboard copy failed. Prompt is visible below; AI was not opened.');
     return;
@@ -1083,12 +1085,22 @@ const analyzeManual=()=>{{
 if(manualAnalyze)manualAnalyze.addEventListener('click',()=>{{
   try{{analyzeManual();}}catch(error){{if(manualLocalScore)manualLocalScore.hidden=true;setManualStatus('Could not score: '+error.message);}}
 }});
-if(manualContribute)manualContribute.addEventListener('click',async()=>{{
-  await copyManual(manualResponse?.value||'');
+if(manualContribute)manualContribute.addEventListener('click',async(event)=>{{
+  const copied=await copyText(manualResponse?.value||'');
+  if(!copied){{
+    event.preventDefault();
+    setManualStatus('Response copy failed. The response remains visible for manual selection.');
+    return;
+  }}
   setManualStatus('Response copied. Paste it into the GitHub issue so the contribution is preserved for review.');
 }});
-if(manualRecord)manualRecord.addEventListener('click',async()=>{{
-  await copyManual(manualResponse?.value||'');
+if(manualRecord)manualRecord.addEventListener('click',async(event)=>{{
+  const copied=await copyText(manualResponse?.value||'');
+  if(!copied){{
+    event.preventDefault();
+    setManualStatus('Response copy failed. The response remains visible for manual selection.');
+    return;
+  }}
   setManualStatus('Response copied. Use handoff-evaluate in GitHub Actions to record it into governed SQLite state.');
 }});
 const refreshManualEvidence=async()=>{{
