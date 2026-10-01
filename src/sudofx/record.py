@@ -259,7 +259,11 @@ class _SQLiteTransaction:
         ).fetchone()
         return row["event_hash"] if row else GENESIS_HASH
 
-    def append(self, event: EventAppend) -> None:
+    def append(
+        self,
+        event: EventAppend,
+        projection_overrides: dict[str, JsonValue] | None = None,
+    ) -> None:
         """
         Append one complete event inside the already-open write transaction.
 
@@ -293,6 +297,16 @@ class _SQLiteTransaction:
         if event.status == "accepted":
             for operation in event.payload["operations"]:
                 apply_operation(state, operation)
+            for application_id, projection_state in (projection_overrides or {}).items():
+                key_name = application_key(application_id)
+                envelope = state.get(key_name)
+                if not isinstance(envelope, dict) or envelope.get("storage") != "event_log":
+                    raise IntegrityError(
+                        f"application projection override has no event-log envelope: {application_id}"
+                    )
+                projected = dict(envelope)
+                projected["projection_state"] = projection_state
+                state[key_name] = projected
 
         state_json = canonical_json(state)
         state_digest = hashlib.sha256(state_json.encode()).hexdigest()
