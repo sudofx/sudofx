@@ -5,7 +5,7 @@ on:
     branches: [master]
     paths:
       - 'src/**'
-      - 'apps/**'
+      - 'applications/**'
       - 'tests/**'
       - 'scripts/**'
       - 'experiments/**'
@@ -18,10 +18,11 @@ on:
       - '.github/workflows/sudofx-runner.yml'
       - '.github/workflows/promote-runtime.yml'
       - '.github/workflows/pages.yml'
+      - '.github/workflows/phase-d-live-proof.yml'
   pull_request:
     paths:
       - 'src/**'
-      - 'apps/**'
+      - 'applications/**'
       - 'tests/**'
       - 'scripts/**'
       - 'experiments/**'
