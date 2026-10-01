@@ -43,6 +43,9 @@ __all__ = [
     "ProviderTemporaryError",
     "Receipt",
     "RunResult",
+    "InvocationResult",
+    "Runtime",
+    "SubmissionProvenance",
 ]
 
 __version__ = "0.1.0"
