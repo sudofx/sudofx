@@ -31,6 +31,8 @@ from sudofx import (
 )
 from sudofx.record import APPLICATION_ID, SCHEMA_VERSION, IntegrityError, Record, StorageVersionError
 from sudofx.governance import Governance
+from apps.conversation import CONVERSATION_APPLICATION, bounded_context
+from scripts.conversation_sudofx import ConversationIntelligence, ProjectedKernel
 from sudofx.storage import InvocationEvent
 from experiments.continuity import (
     run_compressed_model_continuity_probe,
@@ -802,6 +804,109 @@ json.dump({
         )
         self.assertEqual(receipt.status, "rejected")
         self.assertTrue(any("application migration required" in reason for reason in receipt.reasons))
+
+    def test_conversation_provider_receives_bounded_app_context_and_governs_reply(self) -> None:
+        """Phase D: one human/provider turn crosses the app and runtime boundaries."""
+        registry = ApplicationRegistry((CONVERSATION_APPLICATION,))
+        kernel = Kernel(self.kernel.record, Governance(application_registry=registry))
+        host = ApplicationHost(kernel, registry, "conversation")
+        human = host.submit(
+            ApplicationIntent("conversation-human", 0, "human_message", "Hello from the browser"),
+            provenance=SubmissionProvenance("human", "operator", "unit-test"),
+        )
+        self.assertEqual(human.status, "accepted")
+
+        app_context = host.context()
+        projection = bounded_context(app_context.state, max_turns=2)
+        bounded = Context(
+            revision=app_context.revision,
+            state={"app:conversation": projection},
+            recent_receipts=(),
+        )
+        provider = (
+            sys.executable,
+            "-c",
+            "import json,sys; data=json.load(sys.stdin); "
+            "assert list(data['state']) == ['app:conversation']; "
+            "json.dump({'content':'Hello back'}, sys.stdout)",
+        )
+        runtime = Runtime(
+            ProjectedKernel(kernel, bounded),
+            kernel.record,
+        )
+        result = runtime.run(
+            ConversationIntelligence(current_state=app_context.state, provider_command=provider),
+            provenance=SubmissionProvenance("model", "fake-conversation", "unit-test"),
+            context_scope={"kind": "application", "application_id": "conversation"},
+        )
+        self.assertEqual(result.run.receipt.status, "accepted")
+        turns = ApplicationHost(kernel, registry, "conversation").context().state["turns"]
+        self.assertEqual(
+            turns,
+            [
+                {"role": "human", "content": "Hello from the browser"},
+                {"role": "assistant", "content": "Hello back"},
+            ],
+        )
+        lifecycle = kernel.record.invocation_history(result.invocation_id)
+        self.assertEqual(
+            lifecycle[1]["context_receipt"]["scope"],
+            {"kind": "application", "application_id": "conversation"},
+        )
+
+    def test_conversation_quota_failure_preserves_human_turn_and_failure_evidence(self) -> None:
+        """Provider quota exhaustion must not erase already-governed human input."""
+        registry = ApplicationRegistry((CONVERSATION_APPLICATION,))
+        kernel = Kernel(self.kernel.record, Governance(application_registry=registry))
+        host = ApplicationHost(kernel, registry, "conversation")
+        host.submit(
+            ApplicationIntent("conversation-human-quota", 0, "human_message", "Please answer"),
+            provenance=SubmissionProvenance("human", "operator", "unit-test"),
+        )
+        app_context = host.context()
+        bounded = Context(
+            revision=app_context.revision,
+            state={"app:conversation": bounded_context(app_context.state)},
+            recent_receipts=(),
+        )
+        runtime = Runtime(ProjectedKernel(kernel, bounded), kernel.record)
+        with self.assertRaises(ProviderQuotaError):
+            runtime.run(
+                ConversationIntelligence(
+                    current_state=app_context.state,
+                    provider_command=(sys.executable, "-c", "import sys; sys.exit(78)"),
+                ),
+                provenance=SubmissionProvenance("model", "fake-conversation", "unit-test"),
+                context_scope={"kind": "application", "application_id": "conversation"},
+            )
+        state = ApplicationHost(kernel, registry, "conversation").context().state
+        self.assertEqual(state["turns"], [{"role": "human", "content": "Please answer"}])
+        accounting = kernel.record.invocation_accounting()
+        self.assertEqual(accounting["quota_exhausted"], 1)
+        self.assertEqual(accounting["completed"], 0)
+
+    def test_conversation_projection_discloses_omitted_history(self) -> None:
+        """Bounded provider context must make compression visible rather than silent."""
+        turns = [
+            {"role": "human" if index % 2 == 0 else "assistant", "content": f"turn-{index}"}
+            for index in range(10)
+        ]
+        projection = bounded_context({"turns": turns, "turn_count": 10}, max_turns=4)
+        self.assertEqual(projection["turn_count"], 10)
+        self.assertEqual(projection["omitted_turn_count"], 6)
+        self.assertEqual(len(projection["turns"]), 4)
+        self.assertEqual(len(projection["omitted_turns_digest"]), 64)
+        self.assertEqual(projection["turns"][0]["content"], "turn-6")
+
+    def test_operator_workflow_exposes_governed_conversation_browser_path(self) -> None:
+        """The zero-cost browser proof uses workflow input and disposable Actions summary."""
+        workflow = (
+            Path(__file__).parents[1] / ".github" / "workflows" / "sudofx.yml"
+        ).read_text(encoding="utf-8")
+        self.assertIn("backup, conversation, handoff-evaluate", workflow)
+        self.assertIn("inputs.action == 'conversation'", workflow)
+        self.assertIn("scripts/conversation_sudofx.py", workflow)
+        self.assertIn("--summary-file \"$GITHUB_STEP_SUMMARY\"", workflow)
 
     def test_fresh_intelligences_continue_from_durable_context(self) -> None:
         """A second provider instance must derive progress only from durable context."""
