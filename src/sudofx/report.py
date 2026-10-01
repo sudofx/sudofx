@@ -993,7 +993,6 @@ const launchManualProvider=(button)=>{{
 const manualDialog=document.querySelector('[data-manual-dialog]');
 const manualOpen=document.querySelector('[data-manual-open]');
 const manualClose=document.querySelector('[data-manual-close]');
-const manualLaunch=document.querySelector('[data-manual-launch]');
 let selectedManualProvider=null;
 const prepareManualProvider=(button)=>{{
   if(!manualPrompt||!manualBasePrompt){{setManualStatus('No manual packet is available yet.');return false;}}
@@ -1029,22 +1028,15 @@ document.querySelectorAll('[data-manual-vendor]').forEach(button=>button.addEven
 if(manualCopy)manualCopy.addEventListener('click',async()=>{{
   const value=manualPrompt?.value||'';
   if(/__SUDOFX_(?:VENDOR|TEST_ID|NONCE)__/.test(value)){{
-    if(manualLaunch)manualLaunch.disabled=true;
     setManualStatus('Copy blocked: regenerate the packet; transport metadata is unresolved.');
     return;
   }}
   const copied=await copyText(value);
-  if(copied&&selectedManualProvider){{
-    if(manualLaunch)manualLaunch.disabled=false;
-    setManualStatus('Prompt copied. Now open '+selectedManualProvider.dataset.manualVendor+'.');
+  if(copied){{
+    setManualStatus('Prompt copied.');
   }}else{{
-    if(manualLaunch)manualLaunch.disabled=true;
-    setManualStatus('Clipboard write failed. Open AI remains locked; use the visible prompt only as a manual fallback.');
+    setManualStatus('Clipboard write failed. The prompt remains visible for manual selection.');
   }}
-}});
-if(manualLaunch)manualLaunch.addEventListener('click',()=>{{
-  if(!selectedManualProvider||manualLaunch.disabled)return;
-  launchManualProvider(selectedManualProvider);
 }});
 const parseManualResponse=(raw)=>{{
   let candidate=String(raw||'').trim();
