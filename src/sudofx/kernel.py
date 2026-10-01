@@ -102,10 +102,15 @@ class Kernel:
         """
         context = self.context(work_id=work_id)
         proposal = intelligence.propose(context)
-        receipt = self.submit(proposal)
+        receipt = self.submit(proposal, provenance=provenance)
         return RunResult(context=context, proposal=proposal, receipt=receipt)
 
-    def submit(self, proposal: Proposal) -> Receipt:
+    def submit(
+        self,
+        proposal: Proposal,
+        *,
+        provenance: SubmissionProvenance | None = None,
+    ) -> Receipt:
         """
         Govern and durably record one proposal as a single semantic transaction.
 
@@ -115,6 +120,7 @@ class Kernel:
         because silent idempotent replay could hide mismatched reused identity.
         """
         payload = proposal.to_dict()
+        provenance_payload = provenance.to_dict() if provenance is not None else None
 
         with self.record.write_transaction() as transaction:
             revision, state = transaction.replay()
@@ -164,6 +170,7 @@ class Kernel:
                     revision_after=revision_after,
                     payload=payload,
                     reasons=decision.reasons,
+                    provenance=provenance_payload,
                     previous_hash=previous_hash,
                     event_hash=event_hash,
                 )
