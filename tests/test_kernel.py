@@ -1048,21 +1048,14 @@ json.dump({
         self.assertIn('data-manual-vendor="Claude"', page)
         self.assertIn('data-manual-vendor="Gemini"', page)
         self.assertIn('data-manual-vendor="DeepSeek"', page)
-        # Restore the proven pre-Cloudflare interaction: real app links, modal
-        # transport, and a clipboard write started from the trusted provider tap.
-        self.assertIn('href="com.openai.chat://"', page)
-        self.assertIn('href="claude://"', page)
-        self.assertIn('href="https://gemini.google.com/app"', page)
-        self.assertIn('href="deepseek://"', page)
-        self.assertIn("navigator.share", page)
-        self.assertIn("Share prompt", page)
-        self.assertIn("providerPromptUrl", page)
-        self.assertIn("claude://claude.ai/new?q=", page)
-        self.assertIn("document.execCommand('copy')", page)
         self.assertIn("data-manual-dialog", page)
         self.assertIn("data-manual-open", page)
         self.assertIn("navigator.clipboard.writeText", page)
-        self.assertIn("temporary-chat=true&prompt=", page)
+        self.assertIn("await copyText(manualPrompt.value)", page)
+        self.assertIn('data-manual-vendor="ChatGPT"', page)
+        self.assertNotIn("navigator.share", page)
+        self.assertNotIn("providerPromptUrl", page)
+        self.assertNotIn("document.execCommand", page)
         self.assertIn("manualDialog.showModal()", page)
         self.assertIn('id="manual-handoff-dialog"', page)
         self.assertIn("getElementById('manual-handoff-dialog').showModal()", page)
@@ -1375,3 +1368,5 @@ json.dump({
 
 if __name__ == "__main__":
     unittest.main()
+
+

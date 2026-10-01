@@ -600,9 +600,9 @@ def render(
     .manual-test-panel .quality-head {{ margin-bottom:12px }}
     .manual-test-intro {{ margin:0 0 14px; color:var(--muted); font:11px/1.5 var(--mono) }}
     .provider-buttons {{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:7px; margin-bottom:14px }}
-    .provider-buttons a,.manual-actions button,.manual-actions a {{ border:1px solid var(--line); border-radius:4px; background:var(--surface); color:var(--ink); padding:9px 11px; font:800 11px var(--mono); cursor:pointer; text-align:center; text-decoration:none }}
-    .provider-buttons a:hover,.provider-buttons a:focus-visible,.manual-actions button:hover,.manual-actions a:hover {{ border-color:var(--accent); color:var(--accent) }}
-    .provider-buttons a[aria-pressed="true"] {{ color:var(--green); border-color:var(--green) }}
+    .provider-buttons button,.manual-actions button,.manual-actions a {{ border:1px solid var(--line); border-radius:4px; background:var(--surface); color:var(--ink); padding:9px 11px; font:800 11px var(--mono); cursor:pointer; text-align:center; text-decoration:none }}
+    .provider-buttons button:hover,.provider-buttons button:focus-visible,.manual-actions button:hover,.manual-actions a:hover {{ border-color:var(--accent); color:var(--accent) }}
+    .provider-buttons button[aria-pressed="true"] {{ color:var(--green); border-color:var(--green) }}
     .manual-field {{ display:grid; gap:6px; margin-top:12px; color:var(--muted); font:700 10px var(--mono); letter-spacing:.05em; text-transform:uppercase }}
     .manual-field textarea {{ width:100%; min-height:180px; resize:vertical; border:1px solid var(--line); background:var(--paper); color:var(--ink); padding:12px; font:12px/1.45 var(--mono); text-transform:none; letter-spacing:normal }}
     .manual-actions {{ display:flex; flex-wrap:wrap; gap:8px; margin-top:10px }}
@@ -761,13 +761,13 @@ def render(
       <div class="quality-head"><b>Manual AI continuity test</b><span class="quality-verdict quality-pass">PUBLIC</span></div>
       <p class="manual-test-intro">Anyone can run this test. Choose an AI, send the generated bounded prompt, paste its JSON response back here, and sudofx will score packet grounding locally. Local scoring is evidence, not database authority.</p>
       <div class="provider-buttons" aria-label="Choose AI provider">
-        <a href="com.openai.chat://" data-manual-vendor="ChatGPT">ChatGPT</a>
-        <a href="claude://" data-manual-vendor="Claude">Claude</a>
-        <a href="https://gemini.google.com/app" target="_blank" rel="noopener noreferrer" data-manual-vendor="Gemini">Gemini</a>
-        <a href="deepseek://" data-manual-vendor="DeepSeek">DeepSeek</a>
+        <button type="button" data-manual-vendor="ChatGPT">ChatGPT</button>
+        <button type="button" data-manual-vendor="Claude">Claude</button>
+        <button type="button" data-manual-vendor="Gemini">Gemini</button>
+        <button type="button" data-manual-vendor="DeepSeek">DeepSeek</button>
       </div>
       <label class="manual-field">Prompt to send<textarea data-manual-prompt readonly>{_escape(manual_prompt)}</textarea></label>
-      <div class="manual-actions"><button type="button" data-manual-copy>Share prompt</button></div>
+      <div class="manual-actions"><button type="button" data-manual-copy>Copy prompt</button></div>
       <label class="manual-field">Returned JSON<textarea data-manual-response spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="Paste the complete JSON response here."></textarea></label>
       <div class="manual-actions">
         <button type="button" data-manual-analyze>Analyze response</button>
@@ -964,65 +964,33 @@ const manualPacketText=()=>{{
   return index>=0?source.slice(index+packetMarker.length).trim():'';
 }};
 const setManualStatus=(message)=>{{if(manualStatus)manualStatus.textContent=message;}};
-const copyManualFromField=()=>{{
-  if(!manualPrompt?.value)return false;
-  try{{
-    const helper=document.createElement('textarea');
-    helper.value=manualPrompt.value;
-    helper.setAttribute('aria-hidden','true');
-    helper.style.position='fixed';
-    helper.style.top='0';
-    helper.style.left='-9999px';
-    helper.style.opacity='0';
-    helper.style.fontSize='16px';
-    document.body.appendChild(helper);
-    helper.focus();
-    helper.select();
-    helper.setSelectionRange(0,helper.value.length);
-    const copied=Boolean(document.execCommand('copy'));
-    helper.remove();
-    return copied;
-  }}catch{{return false;}}
-}};
-const copyManual=async(value)=>{{
-  if(!value)return false;
-  try{{if(navigator.clipboard?.writeText){{await navigator.clipboard.writeText(value);return true;}}}}catch{{}}
-  return copyManualFromField();
-}};
-const providerPromptUrl=(vendor,prompt,fallback)=>{{
-  const encoded=encodeURIComponent(prompt);
-  if(vendor==='ChatGPT')return 'com.openai.chat://chatgpt.com/?temporary-chat=true&prompt='+encoded;
-  if(vendor==='Claude')return 'claude://claude.ai/new?q='+encoded;
-  return fallback||'';
+const copyText=async(value)=>{{
+  await navigator.clipboard.writeText(value);
 }};
 const manualDialog=document.querySelector('[data-manual-dialog]');
 const manualOpen=document.querySelector('[data-manual-open]');
 const manualClose=document.querySelector('[data-manual-close]');
-const prepareManualProvider=(link)=>{{
-  if(!manualPrompt||!manualBasePrompt){{setManualStatus('No manual packet is available yet.');return false;}}
-  const vendor=link.dataset.manualVendor||'';
+const prepareManualProvider=async(button)=>{{
+  if(!manualPrompt||!manualBasePrompt){{setManualStatus('No manual packet is available yet.');return;}}
+  const vendor=button.dataset.manualVendor||'';
   const testId=freshManualId();
   const nonce='HANDOFF-'+testId;
   manualPrompt.value=manualBasePrompt.replaceAll('__SUDOFX_VENDOR__',vendor).replaceAll('__SUDOFX_TEST_ID__',testId).replaceAll('__SUDOFX_NONCE__',nonce);
-  document.querySelectorAll('[data-manual-vendor]').forEach(node=>node.setAttribute('aria-pressed',String(node===link)));
-  const fallback=link.dataset.manualFallback||link.getAttribute('href')||'';
-  const promptUrl=providerPromptUrl(vendor,manualPrompt.value,fallback);
-  if(promptUrl)link.setAttribute('href',promptUrl);
-  setManualStatus((vendor==='ChatGPT'||vendor==='Claude')?'Opening '+vendor+' with the sudofx prompt already filled in. Review it, then tap Send.':'Opening '+vendor+'. Return and use Share prompt if the provider cannot receive the prompt directly.');
-  return true;
+  document.querySelectorAll('[data-manual-vendor]').forEach(candidate=>candidate.setAttribute('aria-pressed',String(candidate===button)));
+  try{{
+    await copyText(manualPrompt.value);
+    setManualStatus(vendor+' selected · prompt copied. Open '+vendor+', paste, then return with the complete response.');
+  }}catch{{
+    manualPrompt.focus();manualPrompt.select();
+    setManualStatus('Automatic clipboard access was blocked. The prompt is selected for manual copying.');
+  }}
 }};
 if(manualOpen)manualOpen.addEventListener('click',()=>{{if(manualDialog)manualDialog.showModal();}});
 if(manualClose)manualClose.addEventListener('click',()=>manualDialog?.close());
-document.querySelectorAll('[data-manual-vendor]').forEach(link=>link.addEventListener('click',()=>prepareManualProvider(link)));
+document.querySelectorAll('[data-manual-vendor]').forEach(button=>button.addEventListener('click',()=>prepareManualProvider(button)));
 if(manualCopy)manualCopy.addEventListener('click',async()=>{{
-  const value=manualPrompt?.value||'';
-  if(!value)return;
-  if(navigator.share){{
-    try{{await navigator.share({{text:value}});setManualStatus('Prompt shared. Choose the AI app from the iOS share sheet.');return;}}
-    catch(error){{if(error?.name==='AbortError')return;}}
-  }}
-  const copied=await copyManual(value);
-  setManualStatus(copied?'Prompt copied.':'iOS blocked automatic copy. Press and hold the prompt text, then choose Copy.');
+  try{{await copyText(manualPrompt?.value||'');setManualStatus('Prompt copied.');}}
+  catch{{manualPrompt?.focus();manualPrompt?.select();setManualStatus('Clipboard access was blocked; the prompt is selected.');}}
 }});
 const parseManualResponse=(raw)=>{{
   let candidate=String(raw||'').trim();
