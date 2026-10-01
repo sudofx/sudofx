@@ -7,7 +7,7 @@ on:
       - 'src/**'
       - 'tests/**'
       - 'scripts/**'
-      - 'plugins/**'
+      - 'experiments/**'
       - 'pyproject.toml'
       - '.github/workflows/ci.yml'
       - '.github/workflows/sudofx.yml'
@@ -22,7 +22,7 @@ on:
       - 'src/**'
       - 'tests/**'
       - 'scripts/**'
-      - 'plugins/**'
+      - 'experiments/**'
       - 'pyproject.toml'
       - '.github/workflows/**'
 
