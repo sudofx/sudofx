@@ -52,7 +52,7 @@ from .storage import EventAppend, GENESIS_HASH, canonical_json, hash_event
 # sudofx record; user_version gives storage evolution one ordered owner instead
 # of scattering opportunistic CREATE/ALTER statements through runtime paths.
 APPLICATION_ID = 0x53444658  # "SDFX"
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 def apply_operation(state: dict[str, JsonValue], operation: dict[str, Any]) -> None:
@@ -194,8 +194,8 @@ class _SQLiteTransaction:
             """
             INSERT INTO events (
                 receipt_id, proposal_id, status, revision_before, revision_after,
-                payload, reasons, previous_hash, event_hash
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                payload, reasons, provenance, previous_hash, event_hash
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 event.receipt_id,
@@ -205,6 +205,7 @@ class _SQLiteTransaction:
                 event.revision_after,
                 canonical_json(event.payload),
                 canonical_json(list(event.reasons)),
+                canonical_json(event.provenance) if event.provenance is not None else None,
                 event.previous_hash,
                 event.event_hash,
             ),
@@ -311,16 +312,20 @@ class Record:
                     revision_after INTEGER NOT NULL,
                     payload TEXT NOT NULL,
                     reasons TEXT NOT NULL,
+                    provenance TEXT,
                     previous_hash TEXT NOT NULL,
                     event_hash TEXT NOT NULL UNIQUE,
                     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
                 )
                 """
             )
-            # Version zero is the only legacy shape and is structurally identical
-            # to v1. Recording identity/version makes that fact explicit; future
-            # versions must add ordered migration steps here rather than guessing
-            # from whichever tables happen to exist.
+            # Versions zero and one predate durable trusted provenance. The v2
+            # migration adds one nullable column: existing event bytes and hashes
+            # remain valid because historical rows keep provenance NULL and replay
+            # omits absent provenance from legacy semantic hash material.
+            columns = {row[1] for row in connection.execute("PRAGMA table_info(events)")}
+            if "provenance" not in columns:
+                connection.execute("ALTER TABLE events ADD COLUMN provenance TEXT")
             connection.execute(f"PRAGMA application_id = {APPLICATION_ID}")
             connection.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
             connection.commit()
@@ -465,6 +470,7 @@ class Record:
             "revision_after": row["revision_after"],
             "proposal": json.loads(row["payload"]),
             "reasons": json.loads(row["reasons"]),
+            "provenance": json.loads(row["provenance"]) if row["provenance"] else None,
             "previous_hash": row["previous_hash"],
             "event_hash": row["event_hash"],
             "created_at": row["created_at"],
@@ -517,6 +523,12 @@ class Record:
                 "payload": payload,
                 "reasons": reasons,
             }
+            provenance = json.loads(row["provenance"]) if row["provenance"] else None
+            # Historical v0/v1 rows did not hash a provenance field at all.
+            # Omitting NULL here preserves their original semantic identity while
+            # every newly attributed v2 event binds provenance into its hash.
+            if provenance is not None:
+                material["provenance"] = provenance
             expected_hash = self.hash_event(previous_hash, material)
             if row["previous_hash"] != previous_hash or row["event_hash"] != expected_hash:
                 raise IntegrityError(f"event chain is invalid at sequence {row['sequence']}")
@@ -565,6 +577,7 @@ class Record:
                 "revision_after": row["revision_after"],
                 "reasons": json.loads(row["reasons"]),
                 "proposal": json.loads(row["payload"]),
+                "provenance": json.loads(row["provenance"]) if row["provenance"] else None,
                 "event_hash": row["event_hash"],
             }
             for row in reversed(rows)
