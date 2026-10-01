@@ -23,7 +23,7 @@ from dataclasses import dataclass
 
 from .kernel import Kernel, RunResult
 from .models import SubmissionProvenance
-from .providers import Intelligence
+from .providers import Intelligence, ProviderQuotaError, ProviderTemporaryError
 from .storage import (
     ContextDeliveryReceipt,
     InvocationEvent,
@@ -138,6 +138,12 @@ class Runtime:
         try:
             proposal = intelligence.propose(context)
         except BaseException as error:
+            if isinstance(error, ProviderQuotaError):
+                outcome = "quota_exhausted"
+            elif isinstance(error, ProviderTemporaryError):
+                outcome = "temporary_failure"
+            else:
+                outcome = "provider_failure"
             self.journal.append_invocation_event(
                 InvocationEvent(
                     invocation_id=invocation_id,
@@ -145,6 +151,7 @@ class Runtime:
                     source_revision=context.revision,
                     context_digest=digest,
                     provenance=provenance_payload,
+                    outcome=outcome,
                     detail=f"{type(error).__name__}: {error}",
                 )
             )
@@ -182,6 +189,7 @@ class Runtime:
                 provenance=provenance_payload,
                 proposal_id=proposal.proposal_id,
                 receipt_id=receipt.receipt_id,
+                outcome="success",
                 detail=receipt.status,
             )
         )
