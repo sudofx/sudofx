@@ -102,7 +102,11 @@ def apply_operation(state: dict[str, JsonValue], operation: dict[str, Any]) -> N
                 and prior.get("storage") == "event_log"
                 and isinstance(prior.get("events"), list)
             ):
-                events = list(prior["events"])
+                # Replay owns this fresh in-memory projection. Reuse its event
+                # list instead of copying the full accumulated history for every
+                # subsequent application event; copying here makes event-log
+                # replay quadratic while adding no isolation boundary.
+                events = prior["events"]
             else:
                 raise IntegrityError(f"invalid application event-log envelope: {application_id}")
             events.append({
