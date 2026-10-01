@@ -934,6 +934,80 @@ json.dump({
             self.assertIn("provenance", columns)
             self.assertEqual(connection.execute("PRAGMA user_version").fetchone()[0], SCHEMA_VERSION)
 
+    def test_v3_invocation_rows_migrate_to_hash_linked_v4_evidence(self) -> None:
+        """Legacy lifecycle rows gain deterministic chain evidence during schema migration."""
+        legacy_path = Path(self.tempdir.name) / "legacy-v3.sqlite"
+        with closing(sqlite3.connect(legacy_path)) as connection:
+            connection.execute(f"PRAGMA application_id = {APPLICATION_ID}")
+            connection.execute("PRAGMA user_version = 3")
+            connection.execute(
+                """
+                CREATE TABLE invocation_events (
+                    sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+                    invocation_id TEXT NOT NULL,
+                    stage TEXT NOT NULL,
+                    source_revision INTEGER NOT NULL,
+                    context_digest TEXT NOT NULL,
+                    provenance TEXT,
+                    proposal_id TEXT,
+                    receipt_id TEXT,
+                    detail TEXT NOT NULL DEFAULT '',
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+            connection.execute(
+                """
+                INSERT INTO invocation_events (
+                    invocation_id, stage, source_revision, context_digest,
+                    provenance, proposal_id, receipt_id, detail
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    "legacy-invocation",
+                    "requested",
+                    0,
+                    "d" * 64,
+                    json.dumps({"origin": "runtime", "actor": "legacy"}),
+                    None,
+                    None,
+                    "",
+                ),
+            )
+            connection.execute(
+                """
+                INSERT INTO invocation_events (
+                    invocation_id, stage, source_revision, context_digest,
+                    provenance, proposal_id, receipt_id, detail
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    "legacy-invocation",
+                    "context_delivered",
+                    0,
+                    "d" * 64,
+                    json.dumps({"origin": "runtime", "actor": "legacy"}),
+                    None,
+                    None,
+                    "",
+                ),
+            )
+            connection.commit()
+
+        migrated = Record(legacy_path)
+        self.assertTrue(migrated.schema_changed)
+        history = migrated.invocation_history()
+        self.assertEqual([item["stage"] for item in history], ["requested", "context_delivered"])
+        self.assertEqual(history[0]["event_id"], "legacy-invocation-1")
+        self.assertEqual(history[0]["previous_hash"], "0" * 64)
+        self.assertEqual(history[0]["metadata"], {})
+        self.assertEqual(len(history[0]["event_hash"]), 64)
+        self.assertEqual(history[1]["previous_hash"], history[0]["event_hash"])
+        with closing(sqlite3.connect(legacy_path)) as connection:
+            columns = {row[1] for row in connection.execute("PRAGMA table_info(invocation_events)")}
+            self.assertTrue({"event_id", "metadata", "previous_hash", "event_hash"} <= columns)
+            self.assertEqual(connection.execute("PRAGMA user_version").fetchone()[0], SCHEMA_VERSION)
+
     def test_static_report_exposes_state_and_receipt_provenance(self) -> None:
         """Pages is a public observer; GitHub Actions is the operator surface."""
         self.kernel.submit(Proposal("p1", 0, (Operation("set", "objective", "continue"),)))
