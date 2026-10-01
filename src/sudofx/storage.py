@@ -71,7 +71,6 @@ class EventAppend:
     provenance: dict[str, str] | None
     previous_hash: str
     event_hash: str
-    application_states: tuple[tuple[str, JsonValue], ...] = ()
 
 
 @dataclass(frozen=True)
