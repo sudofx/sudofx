@@ -766,8 +766,9 @@ def render(
         <button type="button" data-manual-vendor="Gemini" data-manual-url="googlegemini://" data-manual-fallback="https://gemini.google.com/app">Gemini</button>
         <button type="button" data-manual-vendor="DeepSeek" data-manual-url="deepseek://" data-manual-fallback="https://chat.deepseek.com/">DeepSeek</button>
       </div>
+      <p class="muted">1. Choose an AI to generate its fresh packet. 2. Copy the prompt. 3. Open the AI.</p>
       <label class="manual-field">Prompt to send<textarea data-manual-prompt readonly>{_escape(manual_prompt)}</textarea></label>
-      <div class="manual-actions"><button type="button" data-manual-copy>Copy prompt</button></div>
+      <div class="manual-actions"><button type="button" data-manual-copy>Copy prompt</button><button type="button" data-manual-launch disabled>Open selected AI</button></div>
       <label class="manual-field">Returned JSON<textarea data-manual-response spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="Paste the complete JSON response here."></textarea></label>
       <div class="manual-actions">
         <button type="button" data-manual-analyze>Analyze response</button>
@@ -995,26 +996,35 @@ const launchManualProvider=(button)=>{{
 const manualDialog=document.querySelector('[data-manual-dialog]');
 const manualOpen=document.querySelector('[data-manual-open]');
 const manualClose=document.querySelector('[data-manual-close]');
+const manualLaunch=document.querySelector('[data-manual-launch]');
+let selectedManualProvider=null;
 const prepareManualProvider=(button)=>{{
   if(!manualPrompt||!manualBasePrompt){{setManualStatus('No manual packet is available yet.');return;}}
   const vendor=button.dataset.manualVendor||'';
   const testId=freshManualId();
   const nonce='HANDOFF-'+testId;
   manualPrompt.value=manualBasePrompt.replaceAll('__SUDOFX_VENDOR__',vendor).replaceAll('__SUDOFX_TEST_ID__',testId).replaceAll('__SUDOFX_NONCE__',nonce);
+  selectedManualProvider=button;
+  if(manualLaunch){{manualLaunch.disabled=true;manualLaunch.textContent='Open '+vendor;}}
   document.querySelectorAll('[data-manual-vendor]').forEach(candidate=>candidate.setAttribute('aria-pressed',String(candidate===button)));
-  // Proven iOS path: synchronously select/copy while the physical tap is active,
-  // then synchronously launch the provider. Do not race an async clipboard write
-  // against the app switch.
-  const copied=copyManualFromField();
-  setManualStatus((copied?'Prompt copied. ':'Prompt ready. ')+'Opening '+vendor+'.');
-  launchManualProvider(button);
+  setManualStatus(vendor+' selected. Tap Copy prompt; Open '+vendor+' will unlock only after the clipboard write succeeds.');
 }};
 if(manualOpen)manualOpen.addEventListener('click',()=>{{if(manualDialog)manualDialog.showModal();}});
 if(manualClose)manualClose.addEventListener('click',()=>manualDialog?.close());
 document.querySelectorAll('[data-manual-vendor]').forEach(button=>button.addEventListener('click',()=>prepareManualProvider(button)));
 if(manualCopy)manualCopy.addEventListener('click',async()=>{{
   const copied=await copyText(manualPrompt?.value||'');
-  setManualStatus(copied?'Prompt copied.':'Clipboard access was blocked; the prompt is selected.');
+  if(copied&&selectedManualProvider){{
+    if(manualLaunch)manualLaunch.disabled=false;
+    setManualStatus('Prompt copied. Now open '+selectedManualProvider.dataset.manualVendor+'.');
+  }}else{{
+    if(manualLaunch)manualLaunch.disabled=true;
+    setManualStatus('Clipboard access was blocked; the prompt is selected for manual copying.');
+  }}
+}});
+if(manualLaunch)manualLaunch.addEventListener('click',()=>{{
+  if(!selectedManualProvider||manualLaunch.disabled)return;
+  launchManualProvider(selectedManualProvider);
 }});
 const parseManualResponse=(raw)=>{{
   let candidate=String(raw||'').trim();
