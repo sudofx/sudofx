@@ -52,7 +52,7 @@ from .storage import EventAppend, GENESIS_HASH, InvocationEvent, canonical_json,
 # sudofx record; user_version gives storage evolution one ordered owner instead
 # of scattering opportunistic CREATE/ALTER statements through runtime paths.
 APPLICATION_ID = 0x53444658  # "SDFX"
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 
 def apply_operation(state: dict[str, JsonValue], operation: dict[str, Any]) -> None:
@@ -349,6 +349,7 @@ class Record:
                     source_revision INTEGER NOT NULL,
                     context_digest TEXT NOT NULL,
                     provenance TEXT,
+                    context_receipt TEXT,
                     proposal_id TEXT,
                     receipt_id TEXT,
                     detail TEXT NOT NULL DEFAULT '',
@@ -356,6 +357,16 @@ class Record:
                 )
                 """
             )
+            invocation_columns = {
+                row[1] for row in connection.execute("PRAGMA table_info(invocation_events)")
+            }
+            if "context_receipt" not in invocation_columns:
+                # v4 adds structured evidence describing the bounded context
+                # delivered at the runtime boundary. Existing v3 rows remain
+                # valid with NULL because their digest and revision still survive.
+                connection.execute(
+                    "ALTER TABLE invocation_events ADD COLUMN context_receipt TEXT"
+                )
             connection.execute(
                 "CREATE INDEX IF NOT EXISTS invocation_events_id_sequence "
                 "ON invocation_events(invocation_id, sequence)"
@@ -382,14 +393,26 @@ class Record:
         provenance = (
             canonical_json(event.provenance) if event.provenance is not None else None
         )
+        context_receipt = (
+            canonical_json(
+                {
+                    "policy_version": event.context_receipt.policy_version,
+                    "payload_bytes": event.context_receipt.payload_bytes,
+                    "included_categories": list(event.context_receipt.included_categories),
+                    "scope": event.context_receipt.scope,
+                }
+            )
+            if event.context_receipt is not None
+            else None
+        )
         with self.connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
             connection.execute(
                 """
                 INSERT INTO invocation_events (
                     invocation_id, stage, source_revision, context_digest,
-                    provenance, proposal_id, receipt_id, detail
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    provenance, context_receipt, proposal_id, receipt_id, detail
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     event.invocation_id,
@@ -397,6 +420,7 @@ class Record:
                     event.source_revision,
                     event.context_digest,
                     provenance,
+                    context_receipt,
                     event.proposal_id,
                     event.receipt_id,
                     event.detail,
@@ -432,6 +456,9 @@ class Record:
                 "context_digest": row["context_digest"],
                 "provenance": (
                     json.loads(row["provenance"]) if row["provenance"] else None
+                ),
+                "context_receipt": (
+                    json.loads(row["context_receipt"]) if row["context_receipt"] else None
                 ),
                 "proposal_id": row["proposal_id"],
                 "receipt_id": row["receipt_id"],
