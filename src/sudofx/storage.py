@@ -157,7 +157,11 @@ class WriteTransaction(ReadTransaction, Protocol):
 
     def head_hash(self) -> str: ...
 
-    def append(self, event: EventAppend) -> None: ...
+    def append(
+        self,
+        event: EventAppend,
+        projection_overrides: dict[str, JsonValue] | None = None,
+    ) -> None: ...
 
 
 class RecordStore(Protocol):
