@@ -45,7 +45,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from sudofx import Kernel, Operation, Proposal
+from sudofx import Kernel, Operation, Proposal, SubmissionProvenance
 from sudofx.record import Record
 from sudofx.continuity import (
     run_compressed_model_continuity_probe,
@@ -685,7 +685,8 @@ def main() -> int:
                 context.revision,
                 (Operation("record_assessment", AUTO_HANDOFF_ID, assessment),),
                 "Authenticated human semantic review bound to exact overnight evidence",
-            )
+            ),
+            provenance=SubmissionProvenance("human", reviewer, "github-actions"),
         )
         if receipt.status != "accepted":
             raise RuntimeError(f"semantic review recording was {receipt.status}: {receipt.reasons}")
@@ -755,7 +756,8 @@ def main() -> int:
                         ),
                     ),
                     "Observer-mode automatic milestone seed",
-                )
+                ),
+                provenance=SubmissionProvenance("runtime", "github-operations", "auto-handoff"),
             )
             if receipt.status != "accepted":
                 raise RuntimeError(f"automatic handoff work creation was {receipt.status}")
@@ -776,12 +778,15 @@ def main() -> int:
         )
         result = evaluate_handoff_response(raw_response, packet)
         context = kernel.context()
-        receipt = kernel.submit(Proposal(
-            str(uuid.uuid4()), context.revision,
-            (Operation("record_handoff_evaluation", selected_work_id, result),),
-            # GitHub Actions supplies the authenticated operator boundary; the kernel remains the only path that can record the untrusted result.
-            "GitHub operator submitted one human-transported handoff evaluation",
-        ))
+        receipt = kernel.submit(
+            Proposal(
+                str(uuid.uuid4()), context.revision,
+                (Operation("record_handoff_evaluation", selected_work_id, result),),
+                # GitHub Actions supplies the authenticated operator boundary; the kernel remains the only path that can record the untrusted result.
+                "GitHub operator submitted one human-transported handoff evaluation",
+            ),
+            provenance=SubmissionProvenance("human", "operator", "github-actions"),
+        )
         if receipt.status != "accepted":
             raise RuntimeError(f"handoff evaluation was {receipt.status}: {receipt.reasons}")
         checkpoint()
@@ -849,7 +854,10 @@ def main() -> int:
             operation = Operation("record_assessment", args.key, parsed)
         else:
             operation = Operation("complete_work", args.key, {"result": args.value})
-        receipt = kernel.submit(Proposal(str(uuid.uuid4()), context.revision, (operation,), "GitHub operator proposal"))
+        receipt = kernel.submit(
+            Proposal(str(uuid.uuid4()), context.revision, (operation,), "GitHub operator proposal"),
+            provenance=SubmissionProvenance("human", "operator", "github-actions"),
+        )
 
         # Checkpoint precedes export. A failed push stops publication so Pages
         # cannot get ahead of the durable branch.

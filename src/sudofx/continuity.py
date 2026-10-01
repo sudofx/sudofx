@@ -34,7 +34,7 @@ from pathlib import Path
 from typing import Any
 
 from .kernel import Kernel
-from .models import Context, Operation, Proposal
+from .models import Context, Operation, Proposal, SubmissionProvenance
 from .providers import CommandIntelligence
 from .record import Record
 from .storage import GENESIS_HASH, canonical_json
@@ -138,6 +138,9 @@ json.dump(
         result = replacement.run(
             CommandIntelligence((sys.executable, "-c", provider)),
             work_id=WORK_ID,
+            provenance=SubmissionProvenance(
+                "runtime", "deterministic-continuity-provider", "synthetic-process"
+            ),
         )
         if result.receipt.status != "accepted":
             raise AssertionError(f"fresh-process proposal was {result.receipt.status}")
@@ -301,6 +304,9 @@ json.dump(
         result = probe_kernel.run(
             CommandIntelligence((sys.executable, "-c", provider)),
             work_id=work_id,
+            provenance=SubmissionProvenance(
+                "runtime", "deterministic-continuity-provider", "snapshot-probe"
+            ),
         )
         if result.receipt.status != "accepted":
             raise AssertionError(f"real-record probe proposal was {result.receipt.status}")
@@ -414,6 +420,7 @@ def run_model_continuity_probe(
         result = probe_kernel.run(
             CommandIntelligence(provider_command, timeout_seconds=90),
             work_id=work_id,
+            provenance=SubmissionProvenance("model", provider, model),
         )
         if result.receipt.status != "accepted":
             raise AssertionError(f"real-model probe proposal was {result.receipt.status}")
@@ -662,7 +669,10 @@ def run_compressed_model_continuity_probe(
         probe_kernel = Kernel(Record(snapshot_path))
         intelligence = CommandIntelligence(provider_command, timeout_seconds=90)
         proposal = intelligence.propose(compressed)
-        result_receipt = probe_kernel.submit(proposal)
+        result_receipt = probe_kernel.submit(
+            proposal,
+            provenance=SubmissionProvenance("model", provider, model),
+        )
         if result_receipt.status != "accepted":
             raise AssertionError(f"compressed model probe proposal was {result_receipt.status}")
 
