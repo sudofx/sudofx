@@ -73,6 +73,45 @@ class EventAppend:
     event_hash: str
 
 
+@dataclass(frozen=True)
+class InvocationEvent:
+    """
+    Carry one append-only provider/runtime lifecycle fact.
+
+    Invocation evidence is operational truth but not a governed proposal event.
+    It therefore lives in the same authoritative database under a separate
+    contract and never advances semantic record revision by itself.
+    """
+    invocation_id: str
+    stage: Literal[
+        "requested",
+        "context_delivered",
+        "attempt_started",
+        "proposal_received",
+        "governed",
+        "completed",
+        "failed",
+    ]
+    source_revision: int
+    context_digest: str
+    provenance: dict[str, str] | None = None
+    proposal_id: str | None = None
+    receipt_id: str | None = None
+    detail: str = ""
+
+
+class InvocationJournal(Protocol):
+    """Backend-independent append-only evidence surface for runtime invocations."""
+
+    def append_invocation_event(self, event: InvocationEvent) -> None: ...
+
+    def invocation_history(
+        self, invocation_id: str | None = None
+    ) -> tuple[dict[str, Any], ...]: ...
+
+    def incomplete_invocations(self) -> tuple[dict[str, Any], ...]: ...
+
+
 class ReadTransaction(Protocol):
     """
     Snapshot-consistent read surface required by Kernel.context.
