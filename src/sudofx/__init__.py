@@ -16,6 +16,16 @@ record schema. Replayed history is protected by explicit event structure and
 governance semantics rather than an implicit dependency on this string.
 """
 
+from .applications import (
+    ApplicationAction,
+    ApplicationContext,
+    ApplicationDecision,
+    ApplicationDefinition,
+    ApplicationHost,
+    ApplicationIntent,
+    ApplicationRegistry,
+    EffectRequest,
+)
 from .kernel import Kernel, RunResult
 from .runtime import InvocationResult, Runtime
 from .models import Context, Operation, Proposal, Receipt, SubmissionProvenance
@@ -30,6 +40,14 @@ from .providers import (
 )
 
 __all__ = [
+    "ApplicationAction",
+    "ApplicationContext",
+    "ApplicationDecision",
+    "ApplicationDefinition",
+    "ApplicationHost",
+    "ApplicationIntent",
+    "ApplicationRegistry",
+    "EffectRequest",
     "Context",
     "CommandIntelligence",
     "FakeIntelligence",
