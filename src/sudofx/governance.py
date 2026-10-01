@@ -223,6 +223,8 @@ class Governance:
             expected_digest = hashlib.sha256(canonical_json(decision.next_state).encode()).hexdigest()
             if result_digest != expected_digest:
                 reasons.append("application result_digest does not match deterministic policy result")
+            if canonical_json(value.get("projection_state")) != canonical_json(decision.next_state):
+                reasons.append("application projection_state does not match deterministic policy result")
         elif canonical_json(decision.next_state) != canonical_json(value.get("next_state")):
             reasons.append("application next_state does not match deterministic policy result")
 
