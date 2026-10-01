@@ -94,7 +94,7 @@ jobs:
           GEMINI_MODEL: ${{ inputs.model }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           MESSAGE: ${{ inputs.value }}
-        run: PYTHONPATH=src python scripts/conversation_sudofx.py --message "$MESSAGE" --summary-file "$GITHUB_STEP_SUMMARY"
+        run: PYTHONPATH=src python scripts/conversation_sudofx.py --message "$MESSAGE" --summary-file "$GITHUB_STEP_SUMMARY" --summary-file "$GITHUB_STEP_SUMMARY"
       - name: Run governed conversation turn
         # GitHub's authenticated workflow form is the browser/mobile input surface.
         # The runner commits the human turn before invoking Gemini, then records
