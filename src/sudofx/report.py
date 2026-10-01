@@ -1010,7 +1010,14 @@ const prepareManualProvider=(link)=>{{
     : 'Opening '+vendor+'. If the prompt is not prefilled, return and use Share prompt.');
   return true;
 }};
-document.querySelectorAll('[data-manual-vendor]').forEach(link=>link.addEventListener('click',()=>prepareManualProvider(link)));
+document.querySelectorAll('[data-manual-vendor]').forEach(link=>link.addEventListener('click',(event)=>{{
+  event.preventDefault();
+  if(!prepareManualProvider(link))return;
+  const vendor=link.dataset.manualVendor||'';
+  const fallback=link.dataset.manualFallback||link.getAttribute('href')||'';
+  const promptUrl=providerPromptUrl(vendor,manualPrompt?.value||'',fallback);
+  if(promptUrl)location.href=promptUrl;
+}}));
 if(manualCopy)manualCopy.addEventListener('click',async()=>{{
   const value=manualPrompt?.value||'';
   if(!value)return;
