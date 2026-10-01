@@ -710,7 +710,8 @@ json.dump({
         self.assertEqual(delivered["scope"], {"kind": "global"})
         self.assertIsNone(lifecycle[0]["context_receipt"])
         self.assertIsNone(lifecycle[2]["context_receipt"])
-        self.assertIn("ProviderError", lifecycle[-1]["detail"])
+        self.assertEqual(lifecycle[-1]["detail"], "ProviderError")
+        self.assertNotIn("not json", json.dumps(lifecycle[-1]))
         self.assertEqual(lifecycle[-1]["outcome"], "provider_failure")
         self.assertEqual(self.kernel.record.incomplete_invocations(), ())
 
@@ -751,14 +752,21 @@ json.dump({
 
     def test_incomplete_invocation_survives_process_reopen_without_guessing_success(self) -> None:
         """A successor must see interrupted work as incomplete rather than completed."""
-        event = InvocationEvent(
-            invocation_id="interrupted-1",
-            stage="attempt_started",
-            source_revision=0,
-            context_digest="d" * 64,
-            provenance={"origin": "runtime", "actor": "test"},
+        common = {
+            "invocation_id": "interrupted-1",
+            "source_revision": 0,
+            "context_digest": "d" * 64,
+            "provenance": {"origin": "runtime", "actor": "test"},
+        }
+        self.kernel.record.append_invocation_event(
+            InvocationEvent(stage="requested", **common)
         )
-        self.kernel.record.append_invocation_event(event)
+        self.kernel.record.append_invocation_event(
+            InvocationEvent(stage="context_delivered", **common)
+        )
+        self.kernel.record.append_invocation_event(
+            InvocationEvent(stage="attempt_started", **common)
+        )
 
         reopened = Record(self.path)
         incomplete = reopened.incomplete_invocations()
@@ -767,6 +775,14 @@ json.dump({
         self.assertEqual(incomplete[0]["stage"], "attempt_started")
         self.assertIsNone(incomplete[0]["proposal_id"])
         self.assertIsNone(incomplete[0]["receipt_id"])
+
+        runtime = Runtime(Kernel(reopened), reopened)
+        self.assertEqual(runtime.recover_incomplete_invocations(), ("interrupted-1",))
+        self.assertEqual(reopened.incomplete_invocations(), ())
+        terminal = reopened.invocation_history("interrupted-1")[-1]
+        self.assertEqual(terminal["stage"], "failed")
+        self.assertEqual(terminal["detail"], "interrupted")
+        self.assertIsNone(terminal["outcome"])
 
     def test_runtime_accounting_classifies_quota_and_temporary_failures(self) -> None:
         """Generic accounting must preserve outcomes without embedding vendor quota policy."""
@@ -791,6 +807,36 @@ json.dump({
         self.assertEqual(accounting["temporary_failures"], 1)
         self.assertEqual(accounting["quota_exhausted"], 1)
         self.assertEqual(accounting["provider_failures"], 0)
+
+    def test_invocation_journal_detects_tampering(self) -> None:
+        """Changing lifecycle bytes must make operational history unverifiable."""
+        runtime = Runtime(self.kernel, self.kernel.record)
+        runtime.run(
+            FakeIntelligence(
+                [Proposal("invocation-chain", 0, (Operation("set", "x", 1),))]
+            ),
+            provenance=SubmissionProvenance("model", "fake", "unit-test"),
+        )
+        with closing(sqlite3.connect(self.path)) as connection:
+            connection.execute(
+                "UPDATE invocation_events SET detail = ? WHERE sequence = 1",
+                ("forged",),
+            )
+            connection.commit()
+        with self.assertRaises(IntegrityError):
+            self.kernel.record.invocation_history()
+
+    def test_invocation_lifecycle_rejects_out_of_order_new_events(self) -> None:
+        """New lifecycle evidence may not skip the durable boundary sequence."""
+        with self.assertRaisesRegex(ValueError, "invalid invocation lifecycle transition"):
+            self.kernel.record.append_invocation_event(
+                InvocationEvent(
+                    invocation_id="out-of-order",
+                    stage="attempt_started",
+                    source_revision=0,
+                    context_digest="d" * 64,
+                )
+            )
 
     def test_provider_exit_codes_classify_retryable_and_quota_failures(self) -> None:
         """Continuous runners can recover provider noise but must stop on exhausted quota."""
@@ -962,6 +1008,9 @@ json.dump({
         self.assertEqual(len(lifecycle), 1)
         self.assertEqual(lifecycle[0]["stage"], "context_delivered")
         self.assertIsNone(lifecycle[0]["context_receipt"])
+        self.assertEqual(lifecycle[0]["event_id"], "legacy-invocation-1")
+        self.assertEqual(lifecycle[0]["previous_hash"], "0" * 64)
+        self.assertEqual(len(lifecycle[0]["event_hash"]), 64)
         with closing(sqlite3.connect(legacy_path)) as connection:
             columns = {
                 row[1] for row in connection.execute("PRAGMA table_info(invocation_events)")
