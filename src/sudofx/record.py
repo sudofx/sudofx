@@ -77,16 +77,47 @@ def apply_operation(state: dict[str, JsonValue], operation: dict[str, Any]) -> N
     elif action == "delete":
         state.pop(key, None)
     elif action == "apply_application":
-        # Governance already reproduced the registered deterministic transition.
-        # Replay stores that verified result in a generic envelope, so historical
-        # record reconstruction does not require the application to be installed.
+        # Snapshot mode retains the verified result directly. Event-log mode
+        # stores only the governed domain input plus a result digest, allowing
+        # large applications to grow with transition size instead of repeatedly
+        # copying their complete state into every semantic event.
         value = operation["value"]
         application_id = value["application_id"]
-        state[application_key(application_id)] = {
-            "application_id": application_id,
-            "application_version": value["application_version"],
-            "state": value["next_state"],
-        }
+        storage = value.get("storage", "snapshot")
+        if storage == "snapshot":
+            state[application_key(application_id)] = {
+                "application_id": application_id,
+                "application_version": value["application_version"],
+                "state": value["next_state"],
+            }
+        elif storage == "event_log":
+            key_name = application_key(application_id)
+            prior = state.get(key_name)
+            if prior is None:
+                events = []
+            elif (
+                isinstance(prior, dict)
+                and prior.get("application_id") == application_id
+                and prior.get("application_version") == value["application_version"]
+                and prior.get("storage") == "event_log"
+                and isinstance(prior.get("events"), list)
+            ):
+                events = list(prior["events"])
+            else:
+                raise IntegrityError(f"invalid application event-log envelope: {application_id}")
+            events.append({
+                "action": value["action"],
+                "input": value.get("input"),
+                "result_digest": value["result_digest"],
+            })
+            state[key_name] = {
+                "application_id": application_id,
+                "application_version": value["application_version"],
+                "storage": "event_log",
+                "events": events,
+            }
+        else:
+            raise IntegrityError(f"unsupported application storage mode: {storage}")
     elif action == "create_work":
         # Creation derives lifecycle-owned fields here rather than accepting
         # provider-supplied status, revisions, or results. The proposer controls
