@@ -18,6 +18,7 @@ from sudofx import (
     ApplicationPermissions,
     ApplicationRegistry,
     CommandIntelligence,
+    Context,
     FakeIntelligence,
     FakeWorkIntelligence,
     Kernel,
@@ -31,7 +32,7 @@ from sudofx import (
 )
 from sudofx.record import APPLICATION_ID, SCHEMA_VERSION, IntegrityError, Record, StorageVersionError
 from sudofx.governance import Governance
-from apps.conversation import CONVERSATION_APPLICATION, bounded_context
+from applications.conversation import CONVERSATION_APPLICATION, bounded_context
 from scripts.conversation_sudofx import ConversationIntelligence, ProjectedKernel
 from sudofx.storage import InvocationEvent
 from experiments.continuity import (
@@ -898,6 +899,19 @@ json.dump({
         self.assertEqual(len(projection["omitted_turns_digest"]), 64)
         self.assertEqual(projection["turns"][0]["content"], "turn-6")
 
+    def test_pages_renders_governed_conversation_projection(self) -> None:
+        """The browser view must derive the transcript from replayed application state."""
+        registry = ApplicationRegistry((CONVERSATION_APPLICATION,))
+        kernel = Kernel(self.kernel.record, Governance(application_registry=registry))
+        host = ApplicationHost(kernel, registry, "conversation")
+        host.submit(ApplicationIntent("page-human", 0, "human_message", "Visible human turn"))
+        host.submit(ApplicationIntent("page-assistant", 1, "assistant_message", "Visible assistant turn"))
+        page = render(kernel)
+        self.assertIn("Governed conversation", page)
+        self.assertIn("Visible human turn", page)
+        self.assertIn("Visible assistant turn", page)
+        self.assertIn("Send next message", page)
+        self.assertIn("actions/workflows/sudofx.yml", page)
     def test_operator_workflow_exposes_governed_conversation_browser_path(self) -> None:
         """The zero-cost browser proof uses workflow input and disposable Actions summary."""
         workflow = (
