@@ -92,19 +92,46 @@ class Runtime:
         self.kernel = kernel
         self.journal = journal
 
+    def recover_incomplete_invocations(self) -> tuple[str, ...]:
+        """
+        Close abandoned invocations without guessing what happened externally.
+
+        Recovery turns an unfinished lifecycle into explicit interruption
+        evidence. It does not manufacture a Proposal, receipt, or successful
+        external effect.
+        """
+        recovered: list[str] = []
+        for pending in self.journal.incomplete_invocations():
+            invocation_id = str(pending["invocation_id"])
+            self.journal.append_invocation_event(
+                InvocationEvent(
+                    invocation_id=invocation_id,
+                    stage="failed",
+                    source_revision=int(pending["source_revision"]),
+                    context_digest=str(pending["context_digest"]),
+                    provenance=pending.get("provenance"),
+                    outcome=None,
+                    proposal_id=pending.get("proposal_id"),
+                    receipt_id=pending.get("receipt_id"),
+                    detail="interrupted",
+                )
+            )
+            recovered.append(invocation_id)
+        return tuple(recovered)
+
     def run(
         self,
         intelligence: Intelligence,
         *,
+        provenance: SubmissionProvenance,
         work_id: str | None = None,
-        provenance: SubmissionProvenance | None = None,
     ) -> InvocationResult:
         """Execute one disposable intelligence with reconstructable lifecycle evidence."""
         context = self.kernel.context(work_id=work_id)
         digest = context_digest(context)
         delivery_receipt = context_delivery_receipt(context, work_id=work_id)
         invocation_id = str(uuid.uuid4())
-        provenance_payload = provenance.to_dict() if provenance is not None else None
+        provenance_payload = provenance.to_dict()
 
         self.journal.append_invocation_event(
             InvocationEvent(
@@ -137,7 +164,7 @@ class Runtime:
 
         try:
             proposal = intelligence.propose(context)
-        except BaseException as error:
+        except Exception as error:
             if isinstance(error, ProviderQuotaError):
                 outcome = "quota_exhausted"
             elif isinstance(error, ProviderTemporaryError):
@@ -152,7 +179,7 @@ class Runtime:
                     context_digest=digest,
                     provenance=provenance_payload,
                     outcome=outcome,
-                    detail=f"{type(error).__name__}: {error}",
+                    detail=type(error).__name__,
                 )
             )
             raise
@@ -167,7 +194,22 @@ class Runtime:
                 proposal_id=proposal.proposal_id,
             )
         )
-        receipt = self.kernel.submit(proposal, provenance=provenance)
+        try:
+            receipt = self.kernel.submit(proposal, provenance=provenance)
+        except Exception as error:
+            self.journal.append_invocation_event(
+                InvocationEvent(
+                    invocation_id=invocation_id,
+                    stage="failed",
+                    source_revision=context.revision,
+                    context_digest=digest,
+                    provenance=provenance_payload,
+                    proposal_id=proposal.proposal_id,
+                    detail=type(error).__name__,
+                )
+            )
+            raise
+
         self.journal.append_invocation_event(
             InvocationEvent(
                 invocation_id=invocation_id,
