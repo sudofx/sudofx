@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from apps.conversation import CONVERSATION_APPLICATION, bounded_context
+from applications.conversation import CONVERSATION_APPLICATION, bounded_context
 from scripts.github_state import DATA, checkpoint, restore
 from sudofx import (
     ApplicationHost,
