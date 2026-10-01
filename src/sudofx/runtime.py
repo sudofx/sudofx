@@ -90,7 +90,7 @@ class Runtime:
 
         try:
             proposal = intelligence.propose(context)
-        except BaseException as error:
+        except Exception as error:
             self.kernel.record.append_invocation_event(
                 invocation_id,
                 "failed",
