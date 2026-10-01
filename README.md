@@ -185,7 +185,7 @@ content must be treated as public data.
 ## Repository structure
 
 ```text
-src/sudofx/             kernel, record, governance, continuity, reporting
+src/sudofx/             reusable engine: kernel, record, governance, reporting
 scripts/                provider adapters, GitHub runtime, recovery runner
 .github/workflows/      governed cloud execution and continuation
 tests/                  invariant and failure-boundary proofs
