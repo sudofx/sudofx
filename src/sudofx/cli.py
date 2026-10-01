@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import Any
 
 from .kernel import Kernel
-from .models import Operation, Proposal
+from .models import Operation, Proposal, SubmissionProvenance
 from .providers import CommandIntelligence
 from .record import Record
 from .report import export_site
@@ -122,6 +122,7 @@ def main(argv: list[str] | None = None) -> int:
         result = kernel.run(
             CommandIntelligence(command, timeout_seconds=args.timeout),
             work_id=args.work_id,
+            provenance=SubmissionProvenance("model", "external-command", "cli"),
         )
         print(json.dumps(asdict(result.receipt), indent=2, sort_keys=True))
         return 0 if result.receipt.status == "accepted" else 2
@@ -170,7 +171,10 @@ def main(argv: list[str] | None = None) -> int:
     else:
         operation = Operation("complete_work", args.work_id, {"result": args.result})
     proposal = Proposal(str(uuid.uuid4()), context.revision, (operation,), "CLI proposal")
-    receipt = kernel.submit(proposal)
+    receipt = kernel.submit(
+        proposal,
+        provenance=SubmissionProvenance("human", "operator", "cli"),
+    )
     print(json.dumps(asdict(receipt), indent=2, sort_keys=True))
     return 0 if receipt.status == "accepted" else 2
 
