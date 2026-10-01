@@ -703,7 +703,10 @@ json.dump({
             ["requested", "context_delivered", "attempt_started", "failed"],
         )
         self.assertEqual(lifecycle[-1]["provenance"], provenance.to_dict())
-        self.assertIn("ProviderError", lifecycle[-1]["detail"])
+        self.assertEqual(lifecycle[-1]["detail"], "ProviderError")
+        self.assertEqual(lifecycle[-1]["metadata"]["failure_stage"], "provider")
+        self.assertFalse(lifecycle[-1]["metadata"]["external_success_assumed"])
+        self.assertNotIn("not json", json.dumps(lifecycle[-1]))
         self.assertEqual(self.kernel.record.incomplete_invocations(), ())
 
     def test_runtime_success_records_proposal_governance_and_completion(self) -> None:
@@ -737,18 +740,30 @@ json.dump({
         )
         self.assertEqual(lifecycle[-1]["proposal_id"], "runtime-success")
         self.assertEqual(lifecycle[-1]["receipt_id"], result.run.receipt.receipt_id)
+        delivered = lifecycle[1]["metadata"]
+        self.assertEqual(delivered["context_policy"], "kernel-context-v1")
+        self.assertGreater(delivered["context_bytes"], 0)
+        self.assertEqual(delivered["state_keys"], [])
+        self.assertEqual(delivered["receipt_count"], 0)
+        self.assertEqual(len(delivered["source_event_head"]), 64)
+        self.assertEqual(lifecycle[-1]["metadata"]["receipt_event_hash"], result.run.receipt.event_hash)
         self.assertEqual(self.kernel.context().state, {"runtime": "recorded"})
 
     def test_incomplete_invocation_survives_process_reopen_without_guessing_success(self) -> None:
         """A successor must see interrupted work as incomplete rather than completed."""
-        event = InvocationEvent(
-            invocation_id="interrupted-1",
-            stage="attempt_started",
-            source_revision=0,
-            context_digest="d" * 64,
-            provenance={"origin": "runtime", "actor": "test"},
+        common = {
+            "invocation_id": "interrupted-1",
+            "source_revision": 0,
+            "context_digest": "d" * 64,
+            "provenance": {"origin": "runtime", "actor": "test"},
+        }
+        self.kernel.record.append_invocation_event(InvocationEvent(stage="requested", **common))
+        self.kernel.record.append_invocation_event(
+            InvocationEvent(stage="context_delivered", **common)
         )
-        self.kernel.record.append_invocation_event(event)
+        self.kernel.record.append_invocation_event(
+            InvocationEvent(stage="attempt_started", **common)
+        )
 
         reopened = Record(self.path)
         incomplete = reopened.incomplete_invocations()
@@ -757,6 +772,42 @@ json.dump({
         self.assertEqual(incomplete[0]["stage"], "attempt_started")
         self.assertIsNone(incomplete[0]["proposal_id"])
         self.assertIsNone(incomplete[0]["receipt_id"])
+
+        recovered = Runtime(Kernel(reopened), reopened).recover_incomplete_invocations()
+        self.assertEqual(recovered, ("interrupted-1",))
+        self.assertEqual(reopened.incomplete_invocations(), ())
+        terminal = reopened.invocation_history("interrupted-1")[-1]
+        self.assertEqual(terminal["stage"], "failed")
+        self.assertEqual(terminal["detail"], "interrupted")
+        self.assertFalse(terminal["metadata"]["external_success_assumed"])
+
+    def test_invocation_journal_detects_tampering(self) -> None:
+        """Operational lifecycle evidence must fail closed when durable bytes change."""
+        runtime = Runtime(self.kernel, self.kernel.record)
+        runtime.run(
+            FakeIntelligence([Proposal("invocation-tamper", 0, (Operation("set", "x", 1),))]),
+            provenance=SubmissionProvenance("model", "fake", "unit-test"),
+        )
+        with closing(sqlite3.connect(self.path)) as connection:
+            connection.execute(
+                "UPDATE invocation_events SET detail = ? WHERE sequence = 1",
+                ("forged",),
+            )
+            connection.commit()
+        with self.assertRaises(IntegrityError):
+            self.kernel.record.invocation_history()
+
+    def test_invocation_lifecycle_rejects_out_of_order_append(self) -> None:
+        """Storage must not accept lifecycle stages that skip required boundaries."""
+        with self.assertRaisesRegex(ValueError, "invalid invocation lifecycle transition"):
+            self.kernel.record.append_invocation_event(
+                InvocationEvent(
+                    invocation_id="out-of-order",
+                    stage="attempt_started",
+                    source_revision=0,
+                    context_digest="d" * 64,
+                )
+            )
 
     def test_provider_exit_codes_classify_retryable_and_quota_failures(self) -> None:
         """Continuous runners can recover provider noise but must stop on exhausted quota."""
