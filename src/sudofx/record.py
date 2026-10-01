@@ -44,6 +44,7 @@ from pathlib import Path
 from typing import Any, Iterator
 
 from .models import JsonValue
+from .applications import application_key
 from .governance import work_key
 from .storage import EventAppend, GENESIS_HASH, InvocationEvent, canonical_json, hash_event
 
@@ -75,6 +76,17 @@ def apply_operation(state: dict[str, JsonValue], operation: dict[str, Any]) -> N
         state[key] = operation.get("value")
     elif action == "delete":
         state.pop(key, None)
+    elif action == "apply_application":
+        # Governance already reproduced the registered deterministic transition.
+        # Replay stores that verified result in a generic envelope, so historical
+        # record reconstruction does not require the application to be installed.
+        value = operation["value"]
+        application_id = value["application_id"]
+        state[application_key(application_id)] = {
+            "application_id": application_id,
+            "application_version": value["application_version"],
+            "state": value["next_state"],
+        }
     elif action == "create_work":
         # Creation derives lifecycle-owned fields here rather than accepting
         # provider-supplied status, revisions, or results. The proposer controls
