@@ -588,6 +588,14 @@ def render(
     .actions-light-dot {{ display:block; width:12px; height:12px; flex:0 0 12px; border-radius:50%; background:#e7c35a }}
     .actions-light[data-light-state="running"] .actions-light-dot {{ background:#307444; animation:status-light-pulse 3.2s ease-in-out infinite }}
     .actions-light[data-light-state="stopped"] .actions-light-dot {{ background:#d65e6c; animation:status-light-blink 2.4s step-end infinite }}
+    .manual-launch {{ margin-top:24px }}
+    .manual-launch button {{ border:1px solid var(--accent); border-radius:4px; background:var(--surface); color:var(--accent); padding:10px 12px; font:800 11px var(--mono); cursor:pointer }}
+    .manual-test-dialog {{ width:min(760px,calc(100vw - 24px)); max-height:calc(100vh - 24px); padding:0; border:1px solid var(--line); background:var(--surface); color:var(--ink); box-shadow:0 22px 70px #0007 }}
+    .manual-test-dialog::backdrop {{ background:#111a }}
+    .manual-dialog-shell {{ display:grid; gap:12px; padding:18px }}
+    .manual-dialog-head {{ display:flex; justify-content:space-between; align-items:start; gap:16px }}
+    .manual-dialog-head h2 {{ margin:4px 0 0 }}
+    .manual-dialog-head button {{ border:1px solid var(--line); border-radius:4px; background:var(--surface); color:var(--ink); padding:9px 11px; font:800 11px var(--mono); cursor:pointer }}
     .manual-test-panel {{ margin-top:24px; padding:18px; border:1px solid var(--line); background:var(--surface) }}
     .manual-test-panel .quality-head {{ margin-bottom:12px }}
     .manual-test-intro {{ margin:0 0 14px; color:var(--muted); font:11px/1.5 var(--mono) }}
@@ -759,17 +767,21 @@ def render(
       <div><span>Replay</span><strong>{health['replay_ms']} ms</strong></div>
       <div><span>Receipts</span><strong>{total_receipts}</strong></div>
     </div>
-    <div class="manual-test-panel" data-manual-test>
+    <div class="manual-launch"><button type="button" data-manual-open>Manual AI handoff</button></div>
+    <dialog class="manual-test-dialog" data-manual-dialog>
+      <div class="manual-dialog-shell">
+        <div class="manual-dialog-head"><div><span class="eyebrow">Manual transport</span><h2>Manual AI handoff</h2></div><button type="button" data-manual-close aria-label="Close manual handoff">Close</button></div>
+        <div class="manual-test-panel" data-manual-test>
       <div class="quality-head"><b>Manual AI continuity test</b><span class="quality-verdict quality-pass">PUBLIC</span></div>
       <p class="manual-test-intro">Anyone can run this test. Choose an AI, send the generated bounded prompt, paste its JSON response back here, and sudofx will score packet grounding locally. Local scoring is evidence, not database authority.</p>
       <div class="provider-buttons" aria-label="Choose AI provider">
-        <a data-manual-vendor="ChatGPT" href="com.openai.chat://" data-manual-fallback="https://chatgpt.com/">ChatGPT</a>
-        <a data-manual-vendor="Claude" href="claude://" data-manual-fallback="https://claude.ai/new">Claude</a>
-        <a data-manual-vendor="Gemini" href="googlegemini://" data-manual-fallback="https://gemini.google.com/app">Gemini</a>
-        <a data-manual-vendor="DeepSeek" href="deepseek://" data-manual-fallback="https://chat.deepseek.com/">DeepSeek</a>
+        <a href="com.openai.chat://" data-manual-vendor="ChatGPT">ChatGPT</a>
+        <a href="claude://" data-manual-vendor="Claude">Claude</a>
+        <a href="https://gemini.google.com/app" target="_blank" rel="noopener noreferrer" data-manual-vendor="Gemini">Gemini</a>
+        <a href="deepseek://" data-manual-vendor="DeepSeek">DeepSeek</a>
       </div>
       <label class="manual-field">Prompt to send<textarea data-manual-prompt readonly>{_escape(manual_prompt)}</textarea></label>
-      <div class="manual-actions"><button type="button" data-manual-copy>Share prompt</button></div>
+      <div class="manual-actions"><button type="button" data-manual-copy>Copy prompt</button></div>
       <label class="manual-field">Returned JSON<textarea data-manual-response spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="Paste the complete JSON response here."></textarea></label>
       <div class="manual-actions">
         <button type="button" data-manual-analyze>Analyze response</button>
@@ -781,7 +793,9 @@ def render(
         <div class="quality-grid" data-manual-local-criteria></div>
       </div>
       <p class="manual-note" data-manual-status>{"Choose a provider to generate a fresh test ID and copy the prompt." if manual_prompt else "No handoff work item is available in this projection yet."}</p>
-    </div>
+        </div>
+      </div>
+    </dialog>
     <div class="quality-block" data-manual-live>
       <div class="quality-head"><b>Live manual grounding evidence</b><span class="quality-verdict" data-manual-latest>—</span></div>
       <div class="quality-metrics">
@@ -949,51 +963,14 @@ const manualPacketText=()=>{{
   return index>=0?source.slice(index+packetMarker.length).trim():'';
 }};
 const setManualStatus=(message)=>{{if(manualStatus)manualStatus.textContent=message;}};
-// Keep copying and app launching as separate browser primitives. iOS is most
-// reliable when the provider control is a real link that the OS can hand to the
-// installed app. Copy remains best-effort on the same tap and is always
-// available as an explicit second tap if WebKit denies clipboard access.
-const copyManualFromField=()=>{{
-  if(!manualPrompt?.value)return false;
-  try{{
-    // iOS Safari is unreliable when copying from readonly controls. Copy from
-    // a short-lived editable textarea instead, keeping the whole operation
-    // synchronous so provider deep-links can still use the same physical tap.
-    const helper=document.createElement('textarea');
-    helper.value=manualPrompt.value;
-    helper.setAttribute('aria-hidden','true');
-    helper.style.position='fixed';
-    helper.style.top='0';
-    helper.style.left='-9999px';
-    helper.style.opacity='0';
-    helper.style.fontSize='16px';
-    document.body.appendChild(helper);
-    helper.focus();
-    helper.select();
-    helper.setSelectionRange(0,helper.value.length);
-    const copied=Boolean(document.execCommand('copy'));
-    helper.remove();
-    return copied;
-  }}catch{{return false;}}
+const copyText=async(value)=>{{
+  await navigator.clipboard.writeText(value);
 }};
-const copyManual=async(value)=>{{
-  if(!value)return false;
-  try{{
-    if(navigator.clipboard?.writeText){{
-      await navigator.clipboard.writeText(value);
-      return true;
-    }}
-  }}catch{{}}
-  return copyManualFromField();
-}};
-const providerPromptUrl=(vendor,prompt,fallback)=>{{
-  const encoded=encodeURIComponent(prompt);
-  if(vendor==='ChatGPT')return 'com.openai.chat://chatgpt.com/?prompt='+encoded;
-  if(vendor==='Claude')return 'claude://claude.ai/new?q='+encoded;
-  return fallback||'';
-}};
+const manualDialog=document.querySelector('[data-manual-dialog]');
+const manualOpen=document.querySelector('[data-manual-open]');
+const manualClose=document.querySelector('[data-manual-close]');
 const prepareManualProvider=(link)=>{{
-  if(!manualPrompt||!manualBasePrompt){{setManualStatus('No manual packet is available yet.');return false;}}
+  if(!manualPrompt||!manualBasePrompt){{setManualStatus('No manual packet is available yet.');return;}}
   const vendor=link.dataset.manualVendor||'';
   const testId=freshManualId();
   const nonce='HANDOFF-'+testId;
@@ -1001,30 +978,24 @@ const prepareManualProvider=(link)=>{{
     .replaceAll('__SUDOFX_VENDOR__',vendor)
     .replaceAll('__SUDOFX_TEST_ID__',testId)
     .replaceAll('__SUDOFX_NONCE__',nonce);
-  document.querySelectorAll('[data-manual-vendor]').forEach(node=>node.setAttribute('aria-pressed',String(node===link)));
-  const fallback=link.dataset.manualFallback||link.getAttribute('href')||'';
-  const promptUrl=providerPromptUrl(vendor,manualPrompt.value,fallback);
-  if(promptUrl)link.setAttribute('href',promptUrl);
-  setManualStatus((vendor==='ChatGPT'||vendor==='Claude')
-    ? 'Opening '+vendor+' with the sudofx prompt already filled in. Review it, then tap Send.'
-    : 'Opening '+vendor+'. If the prompt is not prefilled, return and use Share prompt.');
-  return true;
+  if(vendor==='ChatGPT'){{
+    link.href='com.openai.chat://chatgpt.com/?temporary-chat=true&prompt='+encodeURIComponent(manualPrompt.value);
+  }}
+  document.querySelectorAll('[data-manual-vendor]').forEach(candidate=>candidate.setAttribute('aria-pressed',String(candidate===link)));
+  // Historical pre-Cloudflare-removal behavior: fire the clipboard write
+  // during the trusted tap without awaiting it, then let the anchor navigation
+  // continue naturally into the destination app.
+  copyText(manualPrompt.value).catch(()=>{{manualPrompt.focus();manualPrompt.select();}});
+  setManualStatus(vendor==='ChatGPT'
+    ?'ChatGPT opening with a draft when supported. Tap Send; if the draft is empty, paste the copied prompt.'
+    :vendor+' opening. Paste the copied prompt into a new chat and send it.');
 }};
+if(manualOpen)manualOpen.addEventListener('click',()=>{{if(manualDialog)manualDialog.showModal();}});
+if(manualClose)manualClose.addEventListener('click',()=>manualDialog?.close());
 document.querySelectorAll('[data-manual-vendor]').forEach(link=>link.addEventListener('click',()=>prepareManualProvider(link)));
 if(manualCopy)manualCopy.addEventListener('click',async()=>{{
-  const value=manualPrompt?.value||'';
-  if(!value)return;
-  if(navigator.share){{
-    try{{
-      await navigator.share({{text:value}});
-      setManualStatus('Prompt shared. Choose the AI app from the iOS share sheet.');
-      return;
-    }}catch(error){{
-      if(error?.name==='AbortError')return;
-    }}
-  }}
-  const copied=await copyManual(value);
-  setManualStatus(copied?'Prompt copied.':'iOS blocked automatic copy. Press and hold the prompt text, then choose Copy.');
+  try{{await copyText(manualPrompt?.value||'');setManualStatus('Prompt copied.');}}
+  catch{{manualPrompt?.focus();manualPrompt?.select();setManualStatus('Clipboard access was blocked; the prompt is selected.');}}
 }});
 const parseManualResponse=(raw)=>{{
   let candidate=String(raw||'').trim();
