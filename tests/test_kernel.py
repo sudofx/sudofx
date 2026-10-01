@@ -1048,14 +1048,13 @@ json.dump({
         self.assertIn('data-manual-vendor="Claude"', page)
         self.assertIn('data-manual-vendor="Gemini"', page)
         self.assertIn('data-manual-vendor="DeepSeek"', page)
-        # Provider controls are real links so iOS can dispatch installed apps
-        # directly; clipboard work must not replace the anchor navigation.
+        # Restore the proven pre-Cloudflare interaction: real app links, modal
+        # transport, and a clipboard write started from the trusted provider tap.
         self.assertIn('href="com.openai.chat://"', page)
         self.assertIn('href="claude://"', page)
-        self.assertIn('href="googlegemini://"', page)
+        self.assertIn('href="https://gemini.google.com/app"', page)
         self.assertIn('href="deepseek://"', page)
-        self.assertIn('data-manual-fallback="https://chatgpt.com/"', page)
-        self.assertIn("navigator.clipboard.writeText(manualPrompt.value)", page)
+        self.assertIn("copyText(manualPrompt.value).catch", page)
         self.assertIn("data-manual-dialog", page)
         self.assertIn("data-manual-open", page)
         self.assertIn("navigator.clipboard.writeText", page)
