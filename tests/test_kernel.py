@@ -912,11 +912,19 @@ json.dump({
         self.assertIn("actions/workflows/sudofx-runner.yml/enable", start)
         self.assertIn('runtime_ref', start)
         self.assertIn('-f "operator_start=true"', start)
-        self.assertIn("for workflow in sudofx-runner.yml prove-model.yml", stop)
-        self.assertIn('state="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$workflow" --jq \' .state\')"'.replace("\' .state\'", "\'.state\'"), stop)
-        self.assertIn('if [[ "$state" == "active" ]]', stop)
-        self.assertIn('actions/workflows/$workflow/disable', stop)
-        self.assertLess(stop.index("actions/workflows/$workflow/disable"), stop.index("actions/runs/$run_id/cancel"))
+        # Start/Stop have one control authority: the runner workflow's enabled state.
+        # prove-model remains dispatchable infrastructure, never a second stop latch.
+        self.assertIn("actions/workflows/prove-model.yml/enable", start)
+        self.assertIn("actions/workflows/sudofx-runner.yml/enable", start)
+        self.assertIn("group: sudofx-operator-control", start)
+        self.assertIn("group: sudofx-operator-control", stop)
+        self.assertIn("actions/workflows/sudofx-runner.yml/disable", stop)
+        self.assertNotIn("actions/workflows/prove-model.yml/disable", stop)
+        self.assertIn("Cancel current-runtime continuity cycles", stop)
+        self.assertIn("Wait until current runtime is stopped", stop)
+        self.assertIn("runtime_ref", stop)
+        self.assertIn("head_sha", stop)
+        self.assertLess(stop.index("sudofx-runner.yml/disable"), stop.index("actions/runs/$run_id/cancel"))
 
     def test_semantic_review_ui_defaults_to_pass_and_confirms_submission(self) -> None:
         """Semantic review remains visible evidence without a Pages authentication path."""
