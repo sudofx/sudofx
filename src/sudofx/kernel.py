@@ -29,7 +29,7 @@ import uuid
 from dataclasses import dataclass
 
 from .governance import Governance, WORK_ACTIONS, work_key
-from .models import Context, Proposal, Receipt
+from .models import Context, Proposal, Receipt, SubmissionProvenance
 from .providers import Intelligence
 from .storage import EventAppend, RecordStore, hash_event
 
@@ -87,7 +87,13 @@ class Kernel:
             )
         return Context(revision=revision, state=state, recent_receipts=receipts)
 
-    def run(self, intelligence: Intelligence, *, work_id: str | None = None) -> RunResult:
+    def run(
+        self,
+        intelligence: Intelligence,
+        *,
+        work_id: str | None = None,
+        provenance: SubmissionProvenance | None = None,
+    ) -> RunResult:
         """
         Give one disposable intelligence a bounded context and submit its proposal.
 
@@ -139,6 +145,11 @@ class Kernel:
                 "payload": payload,
                 "reasons": list(decision.reasons),
             }
+            # Legacy events predate trusted provenance and intentionally omit the
+            # field from their hash material. New attributed events bind origin
+            # evidence into the same semantic hash chain as the proposal.
+            if provenance_payload is not None:
+                material["provenance"] = provenance_payload
             event_hash = hash_event(previous_hash, material)
 
             # Storage receives one complete event. Commit/rollback remains inside
