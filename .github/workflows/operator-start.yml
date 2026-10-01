@@ -46,7 +46,7 @@ jobs:
         run: |
           set -euo pipefail
           runtime_ref="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/sudofx-runtime" --jq '.object.sha')"
-          gh workflow run prove-model.yml --repo "$GITHUB_REPOSITORY" --ref sudofx-runtime -f "dispatch_token=start-$GITHUB_RUN_ID" -f "runtime_ref=$runtime_ref"
+          gh workflow run prove-model.yml --repo "$GITHUB_REPOSITORY" --ref sudofx-runtime -f "dispatch_token=start-$GITHUB_RUN_ID" -f "runtime_ref=$runtime_ref" -f "operator_start=true"
 
       - name: Explain the result
         if: always()
