@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 from typing import Any
 
-from .storage import canonical_json
+from sudofx.storage import canonical_json
 
 EXPERIMENT_STATE_KEY = "experiment:overnight-continuity-v1"
 EXPERIMENT_VERSION = 3

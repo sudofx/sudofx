@@ -61,7 +61,7 @@ from experiments.manual_handoff.scoring import (
     handoff_packet_digest,
     handoff_work_id,
 )
-from sudofx.overnight import EXPERIMENT_STATE_KEY
+from experiments.overnight import EXPERIMENT_STATE_KEY
 
 DATA = ROOT / "data" / "sudofx.sqlite"
 STATE_BRANCH = "sudofx-state"
