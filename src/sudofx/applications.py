@@ -21,11 +21,13 @@ not depend on a plugin loader or a specific application still being present.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Callable
+import hashlib
+from typing import TYPE_CHECKING, Callable, Literal
 
 if TYPE_CHECKING:
     from .kernel import Kernel
 from .models import JsonValue, Operation, Proposal, Receipt, SubmissionProvenance
+from .storage import canonical_json
 
 
 APPLICATION_PREFIX = "app:"
@@ -64,6 +66,7 @@ class ApplicationDefinition:
     version: str
     actions: tuple[ApplicationAction, ...]
     effect_capabilities: frozenset[str] = frozenset()
+    state_storage: Literal["snapshot", "event_log"] = "snapshot"
 
     def __post_init__(self) -> None:
         if not self.application_id.strip():
@@ -79,6 +82,8 @@ class ApplicationDefinition:
             raise ValueError("application action names must be unique")
         if any(not capability.strip() for capability in self.effect_capabilities):
             raise ValueError("effect capability names must not be empty")
+        if self.state_storage not in {"snapshot", "event_log"}:
+            raise ValueError("application state_storage must be snapshot or event_log")
 
     def action(self, name: str) -> ApplicationAction | None:
         """Resolve one registered action without inventing fallback behavior."""
@@ -101,6 +106,54 @@ class ApplicationRegistry:
     def get(self, application_id: str) -> ApplicationDefinition | None:
         return self._definitions.get(application_id)
 
+
+def application_state(
+    definition: ApplicationDefinition,
+    envelope: JsonValue,
+) -> JsonValue:
+    """Reconstruct one application state from its generic durable envelope."""
+    if envelope is None:
+        return None
+    if not isinstance(envelope, dict):
+        raise ValueError(f"application state envelope is invalid: {definition.application_id}")
+    if envelope.get("application_id") != definition.application_id:
+        raise ValueError(f"application state identity mismatch: {definition.application_id}")
+    if envelope.get("application_version") != definition.version:
+        raise ValueError(
+            f"application migration required: stored {envelope.get('application_version')}, "
+            f"registered {definition.version}"
+        )
+
+    storage = envelope.get("storage", "snapshot")
+    if storage == "snapshot":
+        if definition.state_storage != "snapshot":
+            raise ValueError("application storage mode does not match registered definition")
+        return envelope.get("state")
+    if storage != "event_log" or definition.state_storage != "event_log":
+        raise ValueError("application storage mode does not match registered definition")
+
+    events = envelope.get("events")
+    if not isinstance(events, list):
+        raise ValueError("application event log is invalid")
+    state: JsonValue = None
+    for index, event in enumerate(events):
+        if not isinstance(event, dict):
+            raise ValueError(f"application event {index} is invalid")
+        action_name = event.get("action")
+        result_digest = event.get("result_digest")
+        if not isinstance(action_name, str) or not isinstance(result_digest, str):
+            raise ValueError(f"application event {index} is incomplete")
+        action = definition.action(action_name)
+        if action is None:
+            raise ValueError(f"application event uses unknown action: {action_name}")
+        decision = action.evaluate(state, event.get("input"))
+        if not decision.accepted:
+            raise ValueError(f"application replay rejected historical action: {action_name}")
+        expected = hashlib.sha256(canonical_json(decision.next_state).encode()).hexdigest()
+        if expected != result_digest:
+            raise ValueError(f"application replay drift detected at event {index}")
+        state = decision.next_state
+    return state
 
 @dataclass(frozen=True)
 class ApplicationContext:
@@ -173,9 +226,7 @@ class ApplicationHost:
         """Return only this application's durable domain state."""
         context = self.kernel.context()
         envelope = context.state.get(application_key(self.application_id))
-        app_state: JsonValue = None
-        if isinstance(envelope, dict):
-            app_state = envelope.get("state")
+        app_state = application_state(self.definition, envelope)
         return ApplicationContext(
             application_id=self.application_id,
             application_version=self.definition.version,
@@ -201,17 +252,20 @@ class ApplicationHost:
                 reasons=(f"unknown application action: {intent.action}",),
             )
         )
-        operation = Operation(
-            "apply_application",
-            self.application_id,
-            {
-                "application_id": self.application_id,
-                "application_version": definition.version,
-                "action": intent.action,
-                "input": intent.payload,
-                "next_state": decision.next_state,
-            },
-        )
+        value: dict[str, JsonValue] = {
+            "application_id": self.application_id,
+            "application_version": definition.version,
+            "action": intent.action,
+            "input": intent.payload,
+        }
+        if definition.state_storage == "event_log":
+            value["storage"] = "event_log"
+            value["result_digest"] = hashlib.sha256(
+                canonical_json(decision.next_state).encode()
+            ).hexdigest()
+        else:
+            value["next_state"] = decision.next_state
+        operation = Operation("apply_application", self.application_id, value)
         proposal = Proposal(
             proposal_id=intent.proposal_id,
             based_on_revision=intent.based_on_revision,
