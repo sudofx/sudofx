@@ -44,7 +44,7 @@ from typing import Any, Iterator
 
 from .models import JsonValue
 from .governance import work_key
-from .storage import EventAppend, GENESIS_HASH, canonical_json, hash_event
+from .storage import EventAppend, GENESIS_HASH, InvocationEvent, canonical_json, hash_event
 
 
 # These header values identify the file before table-level parsing begins. The
@@ -52,7 +52,7 @@ from .storage import EventAppend, GENESIS_HASH, canonical_json, hash_event
 # sudofx record; user_version gives storage evolution one ordered owner instead
 # of scattering opportunistic CREATE/ALTER statements through runtime paths.
 APPLICATION_ID = 0x53444658  # "SDFX"
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 
 def apply_operation(state: dict[str, JsonValue], operation: dict[str, Any]) -> None:
@@ -326,10 +326,137 @@ class Record:
             columns = {row[1] for row in connection.execute("PRAGMA table_info(events)")}
             if "provenance" not in columns:
                 connection.execute("ALTER TABLE events ADD COLUMN provenance TEXT")
+
+            # v3 adds a separate append-only operational journal for provider
+            # invocation lifecycle. These rows never advance semantic revision
+            # and never impersonate proposal receipts.
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS invocation_events (
+                    sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+                    invocation_id TEXT NOT NULL,
+                    stage TEXT NOT NULL CHECK (
+                        stage IN (
+                            'requested',
+                            'context_delivered',
+                            'attempt_started',
+                            'proposal_received',
+                            'governed',
+                            'completed',
+                            'failed'
+                        )
+                    ),
+                    source_revision INTEGER NOT NULL,
+                    context_digest TEXT NOT NULL,
+                    provenance TEXT,
+                    proposal_id TEXT,
+                    receipt_id TEXT,
+                    detail TEXT NOT NULL DEFAULT '',
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+            connection.execute(
+                "CREATE INDEX IF NOT EXISTS invocation_events_id_sequence "
+                "ON invocation_events(invocation_id, sequence)"
+            )
             connection.execute(f"PRAGMA application_id = {APPLICATION_ID}")
             connection.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
             connection.commit()
             return changed
+
+    def append_invocation_event(self, event: InvocationEvent) -> None:
+        """
+        Append one runtime lifecycle fact independently of semantic revision.
+
+        Each event commits separately so a process crash can still leave enough
+        durable evidence for a successor to discover that an invocation began
+        but did not reach a terminal state.
+        """
+        if not event.invocation_id.strip():
+            raise ValueError("invocation_id must not be empty")
+        if event.source_revision < 0:
+            raise ValueError("source_revision must not be negative")
+        if not event.context_digest.strip():
+            raise ValueError("context_digest must not be empty")
+        provenance = (
+            canonical_json(event.provenance) if event.provenance is not None else None
+        )
+        with self.connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            connection.execute(
+                """
+                INSERT INTO invocation_events (
+                    invocation_id, stage, source_revision, context_digest,
+                    provenance, proposal_id, receipt_id, detail
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    event.invocation_id,
+                    event.stage,
+                    event.source_revision,
+                    event.context_digest,
+                    provenance,
+                    event.proposal_id,
+                    event.receipt_id,
+                    event.detail,
+                ),
+            )
+            connection.commit()
+
+    def invocation_history(
+        self, invocation_id: str | None = None
+    ) -> tuple[dict[str, Any], ...]:
+        """Return durable invocation evidence in append order."""
+        with self.connect() as connection:
+            if invocation_id is None:
+                rows = list(
+                    connection.execute(
+                        "SELECT * FROM invocation_events ORDER BY sequence"
+                    )
+                )
+            else:
+                rows = list(
+                    connection.execute(
+                        "SELECT * FROM invocation_events "
+                        "WHERE invocation_id = ? ORDER BY sequence",
+                        (invocation_id,),
+                    )
+                )
+        return tuple(
+            {
+                "sequence": row["sequence"],
+                "invocation_id": row["invocation_id"],
+                "stage": row["stage"],
+                "source_revision": row["source_revision"],
+                "context_digest": row["context_digest"],
+                "provenance": (
+                    json.loads(row["provenance"]) if row["provenance"] else None
+                ),
+                "proposal_id": row["proposal_id"],
+                "receipt_id": row["receipt_id"],
+                "detail": row["detail"],
+                "created_at": row["created_at"],
+            }
+            for row in rows
+        )
+
+    def incomplete_invocations(self) -> tuple[dict[str, Any], ...]:
+        """
+        Return latest evidence for invocations that never reached a terminal stage.
+
+        A fresh process can use this projection to make interruption explicit.
+        It must not infer that an external effect or provider call succeeded.
+        """
+        history = self.invocation_history()
+        latest: dict[str, dict[str, Any]] = {}
+        for event in history:
+            latest[event["invocation_id"]] = event
+        return tuple(
+            event
+            for event in latest.values()
+            if event["stage"] not in {"completed", "failed"}
+        )
 
     def backup_to(self, destination: str | Path) -> None:
         """
