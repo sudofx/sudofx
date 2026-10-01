@@ -112,6 +112,7 @@ class InvocationEvent:
     context_digest: str
     provenance: dict[str, str] | None = None
     context_receipt: ContextDeliveryReceipt | None = None
+    outcome: Literal["success", "temporary_failure", "quota_exhausted", "provider_failure"] | None = None
     proposal_id: str | None = None
     receipt_id: str | None = None
     detail: str = ""
@@ -127,6 +128,8 @@ class InvocationJournal(Protocol):
     ) -> tuple[dict[str, Any], ...]: ...
 
     def incomplete_invocations(self) -> tuple[dict[str, Any], ...]: ...
+
+    def invocation_accounting(self) -> dict[str, int]: ...
 
 
 class ReadTransaction(Protocol):
