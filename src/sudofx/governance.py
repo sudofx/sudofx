@@ -104,7 +104,6 @@ class Governance:
         """
         current_state = current_state or {}
         reasons: list[str] = []
-        application_states: list[tuple[str, JsonValue]] = []
 
         # Optimistic concurrency is global. Even a work-scoped provider reasons
         # from a record revision, so unrelated accepted work makes that view
@@ -151,21 +150,13 @@ class Governance:
             # One durable action per key keeps proposals reviewable and replay
             # semantics unsurprising.
             if operation.action == "apply_application":
-                valid_application, next_application_state = self._validate_application(
-                    operation.key, operation.value, current_state, reasons
-                )
-                if valid_application:
-                    application_states.append((operation.key, next_application_state))
+                self._validate_application(operation.key, operation.value, current_state, reasons)
             elif operation.action == "create_work":
                 self._validate_create(operation.key, operation.value, current_state, reasons)
             elif operation.action in {"advance_work", "record_assessment", "record_handoff_evaluation", "complete_work"}:
                 self._validate_transition(operation.action, operation.key, operation.value, current_state, reasons)
 
-        return GovernanceDecision(
-            accepted=not reasons,
-            reasons=tuple(reasons),
-            application_states=tuple(application_states) if not reasons else (),
-        )
+        return GovernanceDecision(accepted=not reasons, reasons=tuple(reasons))
 
     def _validate_application(
         self,
@@ -173,69 +164,67 @@ class Governance:
         value: JsonValue,
         state: dict[str, JsonValue],
         reasons: list[str],
-    ) -> tuple[bool, JsonValue]:
+    ) -> None:
         """Recompute one registered application transition before accepting it."""
         if not isinstance(value, dict):
             reasons.append("apply_application requires an object")
-            return False, None
+            return
         if value.get("application_id") != application_id:
             reasons.append("application identity does not match operation key")
-            return False, None
+            return
         version = value.get("application_version")
         action_name = value.get("action")
         if not isinstance(version, str) or not version.strip():
             reasons.append("application version is required")
-            return False, None
+            return
         if not isinstance(action_name, str) or not action_name.strip():
             reasons.append("application action is required")
-            return False, None
+            return
 
         definition = self.application_registry.get(application_id)
         if definition is None:
             reasons.append(f"application is not registered: {application_id}")
-            return False, None
+            return
         if definition.version != version:
             reasons.append(
                 f"application version mismatch: registered {definition.version}, proposed {version}"
             )
-            return False, None
+            return
 
         envelope = state.get(application_key(application_id))
         try:
             current_state = application_state(definition, envelope)
         except ValueError as error:
             reasons.append(str(error))
-            return False, None
+            return
 
         action = definition.action(action_name)
         if action is None:
             reasons.append(f"unknown application action: {action_name}")
-            return False, None
+            return
         try:
             decision = action.evaluate(current_state, value.get("input"))
         except Exception:
             reasons.append(f"application policy could not evaluate action: {action_name}")
-            return False, None
+            return
         if not decision.accepted:
             reasons.extend(
                 decision.reasons or (f"application action rejected: {action_name}",)
             )
-            return False, None
+            return
         if definition.state_storage == "event_log":
             if value.get("storage") != "event_log":
                 reasons.append("application event-log storage mode is required")
-                return False, None
+                return
             if "next_state" in value:
                 reasons.append("event-log application events must not persist full next_state")
-                return False, None
+                return
             result_digest = value.get("result_digest")
             expected_digest = hashlib.sha256(canonical_json(decision.next_state).encode()).hexdigest()
             if result_digest != expected_digest:
                 reasons.append("application result_digest does not match deterministic policy result")
         elif canonical_json(decision.next_state) != canonical_json(value.get("next_state")):
             reasons.append("application next_state does not match deterministic policy result")
-            return False, None
-        return True, decision.next_state
 
     @staticmethod
     def _validate_create(
