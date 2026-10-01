@@ -179,6 +179,8 @@ class RecordStore(Protocol):
 
     def history(self) -> tuple[dict[str, Any], ...]: ...
 
+    def full_replay(self) -> tuple[int, dict[str, JsonValue]]: ...
+
     def projection_snapshot(
         self, history_limit: int = 50
     ) -> tuple[
