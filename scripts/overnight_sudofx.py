@@ -31,7 +31,7 @@ from typing import Any
 import github_sudofx as cloud
 from sudofx import Kernel, Operation, Proposal, SubmissionProvenance
 from sudofx.models import Context
-from sudofx.overnight import (
+from experiments.overnight import (
     EXPERIMENT_STATE_KEY,
     advance_experiment_state,
     build_trial_directive,
