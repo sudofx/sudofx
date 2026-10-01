@@ -21,8 +21,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh api --method PUT "repos/$GITHUB_REPOSITORY/actions/workflows/sudofx-runner.yml/disable" >/dev/null
-          gh api --method PUT "repos/$GITHUB_REPOSITORY/actions/workflows/prove-model.yml/disable" >/dev/null
+          set -euo pipefail
+          for workflow in sudofx-runner.yml prove-model.yml; do
+            state="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$workflow" --jq '.state')"
+            if [[ "$state" == "active" ]]; then
+              gh api --method PUT "repos/$GITHUB_REPOSITORY/actions/workflows/$workflow/disable" >/dev/null
+            fi
+          done
 
       - name: Cancel any active continuity cycle
         env:
