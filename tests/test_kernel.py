@@ -1364,8 +1364,11 @@ json.dump({
         with closing(sqlite3.connect(self.path)) as connection:
             connection.execute("UPDATE events SET payload = ? WHERE sequence = 1", ('{}',))
             connection.commit()
+        # Operational context uses the hash-bound materialized checkpoint;
+        # explicit audit replay verifies the complete historical chain.
+        self.assertEqual(self.kernel.context().state["x"], 1)
         with self.assertRaises(IntegrityError):
-            self.kernel.context()
+            self.kernel.record.full_replay()
     def test_submission_provenance_is_durable_and_hash_bound(self) -> None:
         """Trusted caller attribution must survive replay and detect later rewriting."""
         provenance = SubmissionProvenance("human", "operator", "phone")
@@ -1387,8 +1390,9 @@ json.dump({
                 (json.dumps({"origin": "model", "actor": "forged"}),),
             )
             connection.commit()
+        self.assertEqual(self.kernel.context().state["x"], 1)
         with self.assertRaises(IntegrityError):
-            self.kernel.context()
+            self.kernel.record.full_replay()
 
     def test_v1_record_without_provenance_column_migrates_without_rehashing_history(self) -> None:
         """Schema v2 adds attribution support without invalidating legacy event identity."""
