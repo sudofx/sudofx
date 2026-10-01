@@ -38,6 +38,7 @@ from __future__ import annotations
 import json
 import sqlite3
 import time
+import uuid
 from contextlib import closing, contextmanager
 from pathlib import Path
 from typing import Any, Iterator
@@ -474,7 +475,7 @@ class Record:
                         raise ValueError("completed requires proposal_received")
 
                 previous_hash = verified[-1]["event_hash"] if verified else GENESIS_HASH
-                event_id = __import__("uuid").uuid4().hex
+                event_id = uuid.uuid4().hex
                 material = {
                     "event_id": event_id,
                     "invocation_id": invocation_id,
