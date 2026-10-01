@@ -436,13 +436,76 @@ class Record:
             connection.commit()
             return changed
 
+    @staticmethod
+    def _invocation_material(row: sqlite3.Row) -> dict[str, Any]:
+        """Rebuild exactly the semantic material bound into one lifecycle hash."""
+        return {
+            "event_id": row["event_id"],
+            "invocation_id": row["invocation_id"],
+            "stage": row["stage"],
+            "source_revision": row["source_revision"],
+            "context_digest": row["context_digest"],
+            "provenance": json.loads(row["provenance"]) if row["provenance"] else None,
+            "proposal_id": row["proposal_id"],
+            "receipt_id": row["receipt_id"],
+            "detail": row["detail"],
+            "metadata": json.loads(row["metadata"]) if row["metadata"] else {},
+        }
+
+    def _verified_invocation_history(
+        self,
+        connection: sqlite3.Connection,
+    ) -> tuple[dict[str, Any], ...]:
+        """Verify the global invocation hash chain and each invocation's stage order."""
+        rows = list(connection.execute("SELECT * FROM invocation_events ORDER BY sequence"))
+        previous_hash = GENESIS_HASH
+        prior_stage: dict[str, str] = {}
+        allowed_next = {
+            None: {"requested"},
+            "requested": {"context_delivered", "failed"},
+            "context_delivered": {"attempt_started", "failed"},
+            "attempt_started": {"proposal_received", "failed"},
+            "proposal_received": {"governed", "failed"},
+            "governed": {"completed", "failed"},
+            "completed": set(),
+            "failed": set(),
+        }
+        result: list[dict[str, Any]] = []
+        for row in rows:
+            material = self._invocation_material(row)
+            expected_hash = hash_event(previous_hash, material)
+            if row["previous_hash"] != previous_hash or row["event_hash"] != expected_hash:
+                raise IntegrityError(
+                    f"invocation chain is invalid at sequence {row['sequence']}"
+                )
+            invocation_id = str(row["invocation_id"])
+            stage = str(row["stage"])
+            prior = prior_stage.get(invocation_id)
+            if stage not in allowed_next.get(prior, set()):
+                raise IntegrityError(
+                    f"invalid invocation lifecycle transition {prior!r} -> {stage!r} "
+                    f"for {invocation_id}"
+                )
+            prior_stage[invocation_id] = stage
+            previous_hash = row["event_hash"]
+            result.append(
+                {
+                    "sequence": row["sequence"],
+                    **material,
+                    "previous_hash": row["previous_hash"],
+                    "event_hash": row["event_hash"],
+                    "created_at": row["created_at"],
+                }
+            )
+        return tuple(result)
+
     def append_invocation_event(self, event: InvocationEvent) -> None:
         """
         Append one runtime lifecycle fact independently of semantic revision.
 
-        Each event commits separately so a process crash can still leave enough
-        durable evidence for a successor to discover that an invocation began
-        but did not reach a terminal state.
+        Invocation rows share the authoritative database but form their own
+        globally hash-linked evidence stream. A provider failure therefore stays
+        durable without becoming a fake Proposal receipt or advancing state.
         """
         if not event.invocation_id.strip():
             raise ValueError("invocation_id must not be empty")
@@ -450,74 +513,100 @@ class Record:
             raise ValueError("source_revision must not be negative")
         if not event.context_digest.strip():
             raise ValueError("context_digest must not be empty")
+
         provenance = (
             canonical_json(event.provenance) if event.provenance is not None else None
         )
+        metadata = canonical_json(event.metadata or {})
         with self.connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
-            connection.execute(
-                """
-                INSERT INTO invocation_events (
-                    invocation_id, stage, source_revision, context_digest,
-                    provenance, proposal_id, receipt_id, detail
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    event.invocation_id,
-                    event.stage,
-                    event.source_revision,
-                    event.context_digest,
-                    provenance,
-                    event.proposal_id,
-                    event.receipt_id,
-                    event.detail,
-                ),
-            )
-            connection.commit()
+            try:
+                verified = self._verified_invocation_history(connection)
+                prior = next(
+                    (
+                        item["stage"]
+                        for item in reversed(verified)
+                        if item["invocation_id"] == event.invocation_id
+                    ),
+                    None,
+                )
+                allowed_next = {
+                    None: {"requested"},
+                    "requested": {"context_delivered", "failed"},
+                    "context_delivered": {"attempt_started", "failed"},
+                    "attempt_started": {"proposal_received", "failed"},
+                    "proposal_received": {"governed", "failed"},
+                    "governed": {"completed", "failed"},
+                    "completed": set(),
+                    "failed": set(),
+                }
+                if event.stage not in allowed_next.get(prior, set()):
+                    raise ValueError(
+                        f"invalid invocation lifecycle transition {prior!r} -> {event.stage!r}"
+                    )
+
+                previous_hash = verified[-1]["event_hash"] if verified else GENESIS_HASH
+                event_id = str(uuid.uuid4())
+                material = {
+                    "event_id": event_id,
+                    "invocation_id": event.invocation_id,
+                    "stage": event.stage,
+                    "source_revision": event.source_revision,
+                    "context_digest": event.context_digest,
+                    "provenance": event.provenance,
+                    "proposal_id": event.proposal_id,
+                    "receipt_id": event.receipt_id,
+                    "detail": event.detail,
+                    "metadata": event.metadata or {},
+                }
+                event_hash = hash_event(previous_hash, material)
+                connection.execute(
+                    """
+                    INSERT INTO invocation_events (
+                        invocation_id, stage, source_revision, context_digest,
+                        provenance, proposal_id, receipt_id, detail,
+                        event_id, metadata, previous_hash, event_hash
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        event.invocation_id,
+                        event.stage,
+                        event.source_revision,
+                        event.context_digest,
+                        provenance,
+                        event.proposal_id,
+                        event.receipt_id,
+                        event.detail,
+                        event_id,
+                        metadata,
+                        previous_hash,
+                        event_hash,
+                    ),
+                )
+                connection.commit()
+            except BaseException:
+                connection.rollback()
+                raise
 
     def invocation_history(
         self, invocation_id: str | None = None
     ) -> tuple[dict[str, Any], ...]:
-        """Return durable invocation evidence in append order."""
+        """Return verified durable invocation evidence in append order."""
         with self.connect() as connection:
-            if invocation_id is None:
-                rows = list(
-                    connection.execute(
-                        "SELECT * FROM invocation_events ORDER BY sequence"
-                    )
-                )
-            else:
-                rows = list(
-                    connection.execute(
-                        "SELECT * FROM invocation_events "
-                        "WHERE invocation_id = ? ORDER BY sequence",
-                        (invocation_id,),
-                    )
-                )
+            connection.execute("BEGIN")
+            verified = self._verified_invocation_history(connection)
+        if invocation_id is None:
+            return verified
         return tuple(
-            {
-                "sequence": row["sequence"],
-                "invocation_id": row["invocation_id"],
-                "stage": row["stage"],
-                "source_revision": row["source_revision"],
-                "context_digest": row["context_digest"],
-                "provenance": (
-                    json.loads(row["provenance"]) if row["provenance"] else None
-                ),
-                "proposal_id": row["proposal_id"],
-                "receipt_id": row["receipt_id"],
-                "detail": row["detail"],
-                "created_at": row["created_at"],
-            }
-            for row in rows
+            event for event in verified if event["invocation_id"] == invocation_id
         )
 
     def incomplete_invocations(self) -> tuple[dict[str, Any], ...]:
         """
         Return latest evidence for invocations that never reached a terminal stage.
 
-        A fresh process can use this projection to make interruption explicit.
-        It must not infer that an external effect or provider call succeeded.
+        A fresh process can explicitly close these as failed/interrupted. It must
+        never infer that an external provider or side effect succeeded.
         """
         history = self.invocation_history()
         latest: dict[str, dict[str, Any]] = {}
