@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: sudofx-operator-stop
+  group: sudofx-operator-control
   cancel-in-progress: false
 
 jobs:
@@ -17,28 +17,43 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Close the continuation latch and cycle workflow first
+      - name: Close the continuation latch
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          for workflow in sudofx-runner.yml prove-model.yml; do
-            state="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$workflow" --jq '.state')"
-            if [[ "$state" == "active" ]]; then
-              gh api --method PUT "repos/$GITHUB_REPOSITORY/actions/workflows/$workflow/disable" >/dev/null
-            fi
-          done
+          state="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/sudofx-runner.yml" --jq '.state')"
+          if [[ "$state" == "active" ]]; then
+            gh api --method PUT "repos/$GITHUB_REPOSITORY/actions/workflows/sudofx-runner.yml/disable" >/dev/null
+          fi
 
-      - name: Cancel any active continuity cycle
+      - name: Cancel current-runtime continuity cycles
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          mapfile -t runs < <(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/prove-model.yml/runs?branch=sudofx-runtime&per_page=50" --jq '.workflow_runs[] | select(.head_branch=="sudofx-runtime" and .status!="completed") | .id')
+          runtime_ref="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/sudofx-runtime" --jq '.object.sha')"
+          mapfile -t runs < <(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/prove-model.yml/runs?branch=sudofx-runtime&per_page=50" --jq '.workflow_runs[] | select(.head_branch=="sudofx-runtime" and .status!="completed") | [.id, .head_sha] | @tsv' | awk -F '\t' -v runtime_ref="$runtime_ref" '$2 == runtime_ref { print $1 }')
           for run_id in "${runs[@]}"; do
             gh api --method POST "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/cancel" >/dev/null || true
           done
-          echo "Cancelled ${#runs[@]} active sudofx cycle(s)." >> "$GITHUB_STEP_SUMMARY"
+          echo "Cancelled ${#runs[@]} current-runtime sudofx cycle(s)." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Wait until current runtime is stopped
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          runtime_ref="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/sudofx-runtime" --jq '.object.sha')"
+          for attempt in {1..20}; do
+            active="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/prove-model.yml/runs?branch=sudofx-runtime&per_page=50" --jq '.workflow_runs[] | select(.head_branch=="sudofx-runtime" and .status!="completed") | [.head_sha, .status] | @tsv' | awk -F '\t' -v runtime_ref="$runtime_ref" '$1 == runtime_ref { count++ } END { print count+0 }')"
+            if [[ "$active" == "0" ]]; then
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "::error::Current sudofx runtime did not stop within 60 seconds."
+          exit 1
 
       - name: Explain the result
-        run: echo "sudofx is stopped. No successor cycle will be dispatched until Start is run." >> "$GITHUB_STEP_SUMMARY"
+        run: echo "sudofx is stopped. The cycle workflow remains available; the disabled continuation latch prevents successors until Start is run." >> "$GITHUB_STEP_SUMMARY"
