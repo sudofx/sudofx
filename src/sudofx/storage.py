@@ -86,6 +86,7 @@ class InvocationEvent:
     stage: Literal[
         "requested",
         "context_delivered",
+        "provider_selected",
         "attempt_started",
         "proposal_received",
         "governed",
@@ -98,6 +99,7 @@ class InvocationEvent:
     proposal_id: str | None = None
     receipt_id: str | None = None
     detail: str = ""
+    evidence: dict[str, Any] | None = None
 
 
 class InvocationJournal(Protocol):
