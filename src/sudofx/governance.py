@@ -36,7 +36,14 @@ updated together.
 
 from __future__ import annotations
 
-from .applications import APPLICATION_PREFIX, ApplicationRegistry, application_key
+import hashlib
+
+from .applications import (
+    APPLICATION_PREFIX,
+    ApplicationRegistry,
+    application_key,
+    application_state,
+)
 from .models import GovernanceDecision, JsonValue, Proposal
 from .storage import canonical_json
 
@@ -185,18 +192,11 @@ class Governance:
             return
 
         envelope = state.get(application_key(application_id))
-        current_state: JsonValue = None
-        if envelope is not None:
-            if not isinstance(envelope, dict):
-                reasons.append(f"application state envelope is invalid: {application_id}")
-                return
-            prior_version = envelope.get("application_version")
-            if prior_version != definition.version:
-                reasons.append(
-                    f"application migration required: stored {prior_version}, registered {definition.version}"
-                )
-                return
-            current_state = envelope.get("state")
+        try:
+            current_state = application_state(definition, envelope)
+        except ValueError as error:
+            reasons.append(str(error))
+            return
 
         action = definition.action(action_name)
         if action is None:
@@ -212,7 +212,18 @@ class Governance:
                 decision.reasons or (f"application action rejected: {action_name}",)
             )
             return
-        if canonical_json(decision.next_state) != canonical_json(value.get("next_state")):
+        if definition.state_storage == "event_log":
+            if value.get("storage") != "event_log":
+                reasons.append("application event-log storage mode is required")
+                return
+            if "next_state" in value:
+                reasons.append("event-log application events must not persist full next_state")
+                return
+            result_digest = value.get("result_digest")
+            expected_digest = hashlib.sha256(canonical_json(decision.next_state).encode()).hexdigest()
+            if result_digest != expected_digest:
+                reasons.append("application result_digest does not match deterministic policy result")
+        elif canonical_json(decision.next_state) != canonical_json(value.get("next_state")):
             reasons.append("application next_state does not match deterministic policy result")
 
     @staticmethod
