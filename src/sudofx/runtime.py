@@ -24,7 +24,12 @@ from dataclasses import dataclass
 from .kernel import Kernel, RunResult
 from .models import SubmissionProvenance
 from .providers import Intelligence
-from .storage import InvocationEvent, InvocationJournal, canonical_json
+from .storage import (
+    ContextDeliveryReceipt,
+    InvocationEvent,
+    InvocationJournal,
+    canonical_json,
+)
 
 
 @dataclass(frozen=True)
@@ -35,14 +40,43 @@ class InvocationResult:
     run: RunResult
 
 
-def context_digest(context: object) -> str:
-    """Fingerprint exactly the bounded context delivered to one intelligence."""
-    payload = {
+CONTEXT_POLICY_VERSION = "kernel-context-v1"
+
+
+def context_payload(context: object) -> dict[str, object]:
+    """Project the exact provider-neutral payload fingerprinted for delivery evidence."""
+    return {
         "revision": context.revision,
         "state": context.state,
         "recent_receipts": context.recent_receipts,
     }
-    return hashlib.sha256(canonical_json(payload).encode()).hexdigest()
+
+
+def context_digest(context: object) -> str:
+    """Fingerprint exactly the bounded context delivered to one intelligence."""
+    return hashlib.sha256(canonical_json(context_payload(context)).encode()).hexdigest()
+
+
+def context_delivery_receipt(
+    context: object,
+    *,
+    work_id: str | None,
+) -> ContextDeliveryReceipt:
+    """
+    Describe bounded context without durably copying the context itself.
+
+    The lifecycle digest anchors the exact bytes. This receipt adds structural
+    evidence about the policy, byte size, categories, and scope that crossed the
+    boundary while keeping authoritative state singular.
+    """
+    encoded = canonical_json(context_payload(context)).encode()
+    scope = {"kind": "work", "work_id": work_id} if work_id is not None else {"kind": "global"}
+    return ContextDeliveryReceipt(
+        policy_version=CONTEXT_POLICY_VERSION,
+        payload_bytes=len(encoded),
+        included_categories=("state", "recent_receipts"),
+        scope=scope,
+    )
 
 
 class Runtime:
@@ -68,6 +102,7 @@ class Runtime:
         """Execute one disposable intelligence with reconstructable lifecycle evidence."""
         context = self.kernel.context(work_id=work_id)
         digest = context_digest(context)
+        delivery_receipt = context_delivery_receipt(context, work_id=work_id)
         invocation_id = str(uuid.uuid4())
         provenance_payload = provenance.to_dict() if provenance is not None else None
 
@@ -87,6 +122,7 @@ class Runtime:
                 source_revision=context.revision,
                 context_digest=digest,
                 provenance=provenance_payload,
+                context_receipt=delivery_receipt,
             )
         )
         self.journal.append_invocation_event(
