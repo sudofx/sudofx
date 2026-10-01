@@ -886,6 +886,107 @@ json.dump({
         self.assertEqual(accounting["quota_exhausted"], 1)
         self.assertEqual(accounting["completed"], 0)
 
+    def test_conversation_survives_process_replacement_across_multiple_rounds(self) -> None:
+        """Phase D exit: two back-and-forth rounds continue only from durable SQLite."""
+        registry_one = ApplicationRegistry((CONVERSATION_APPLICATION,))
+        kernel_one = Kernel(Record(self.path), Governance(application_registry=registry_one))
+        host_one = ApplicationHost(kernel_one, registry_one, "conversation")
+        first_human = host_one.submit(
+            ApplicationIntent("replacement-human-1", 0, "human_message", "First question"),
+            provenance=SubmissionProvenance("human", "operator", "round-one"),
+        )
+        self.assertEqual(first_human.status, "accepted")
+        first_context = host_one.context()
+        first_bounded = Context(
+            revision=first_context.revision,
+            state={"app:conversation": bounded_context(first_context.state)},
+            recent_receipts=(),
+        )
+        first_provider = (
+            sys.executable,
+            "-c",
+            "import json,sys; json.load(sys.stdin); "
+            "json.dump({'content':'First answer'}, sys.stdout)",
+        )
+        first_result = Runtime(
+            ProjectedKernel(kernel_one, first_bounded),
+            kernel_one.record,
+        ).run(
+            ConversationIntelligence(
+                current_state=first_context.state,
+                provider_command=first_provider,
+            ),
+            provenance=SubmissionProvenance("model", "replacement-provider-1", "round-one"),
+            context_scope={"kind": "application", "application_id": "conversation"},
+        )
+        self.assertEqual(first_result.run.receipt.status, "accepted")
+
+        # Replace every in-process application/runtime object before round two.
+        # The second provider is also a new external process. No object from the
+        # first round supplies conversation state to the second round.
+        registry_two = ApplicationRegistry((CONVERSATION_APPLICATION,))
+        kernel_two = Kernel(Record(self.path), Governance(application_registry=registry_two))
+        host_two = ApplicationHost(kernel_two, registry_two, "conversation")
+        recovered = host_two.context()
+        self.assertEqual(
+            recovered.state["turns"],
+            [
+                {"role": "human", "content": "First question"},
+                {"role": "assistant", "content": "First answer"},
+            ],
+        )
+        second_human = host_two.submit(
+            ApplicationIntent(
+                "replacement-human-2",
+                recovered.revision,
+                "human_message",
+                "Second question",
+            ),
+            provenance=SubmissionProvenance("human", "operator", "round-two"),
+        )
+        self.assertEqual(second_human.status, "accepted")
+        second_context = host_two.context()
+        second_bounded = Context(
+            revision=second_context.revision,
+            state={"app:conversation": bounded_context(second_context.state)},
+            recent_receipts=(),
+        )
+        second_provider = (
+            sys.executable,
+            "-c",
+            "import json,sys; data=json.load(sys.stdin); "
+            "turns=data['state']['app:conversation']['turns']; "
+            "assert turns[-1] == {'role':'human','content':'Second question'}; "
+            "assert turns[-2] == {'role':'assistant','content':'First answer'}; "
+            "json.dump({'content':'Second answer'}, sys.stdout)",
+        )
+        second_result = Runtime(
+            ProjectedKernel(kernel_two, second_bounded),
+            kernel_two.record,
+        ).run(
+            ConversationIntelligence(
+                current_state=second_context.state,
+                provider_command=second_provider,
+            ),
+            provenance=SubmissionProvenance("model", "replacement-provider-2", "round-two"),
+            context_scope={"kind": "application", "application_id": "conversation"},
+        )
+        self.assertEqual(second_result.run.receipt.status, "accepted")
+
+        # One more fresh reconstruction proves the final transcript is database state.
+        registry_three = ApplicationRegistry((CONVERSATION_APPLICATION,))
+        final_kernel = Kernel(Record(self.path), Governance(application_registry=registry_three))
+        final_state = ApplicationHost(final_kernel, registry_three, "conversation").context().state
+        self.assertEqual(
+            final_state["turns"],
+            [
+                {"role": "human", "content": "First question"},
+                {"role": "assistant", "content": "First answer"},
+                {"role": "human", "content": "Second question"},
+                {"role": "assistant", "content": "Second answer"},
+            ],
+        )
+
     def test_conversation_projection_discloses_omitted_history(self) -> None:
         """Bounded provider context must make compression visible rather than silent."""
         turns = [
