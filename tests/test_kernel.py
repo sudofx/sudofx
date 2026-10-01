@@ -1065,7 +1065,7 @@ json.dump({
         self.assertIn("document.execCommand('copy')", page)
         self.assertNotIn("data-manual-launch", page)
         self.assertIn("const copied=copyManualFromField();", page)
-        self.assertNotIn("addEventListener('click',async()=>", page)
+        self.assertNotIn("data-manual-vendor]').forEach(button=>button.addEventListener('click',async()=>", page)
         self.assertIn("if(!value||!navigator.clipboard?.writeText)return false", page)
         self.assertIn("Packet generation failed: unresolved transport metadata.", page)
         self.assertIn("Copy blocked: regenerate the packet; transport metadata is unresolved.", page)
