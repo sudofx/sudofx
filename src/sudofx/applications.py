@@ -21,9 +21,10 @@ not depend on a plugin loader or a specific application still being present.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable
+from typing import TYPE_CHECKING, Callable
 
-from .kernel import Kernel
+if TYPE_CHECKING:
+    from .kernel import Kernel
 from .models import JsonValue, Operation, Proposal, Receipt, SubmissionProvenance
 
 
