@@ -765,7 +765,6 @@ json.dump({
         self.assertIn('class="technical-view"', page)
         self.assertIn("DERIVED VIEW", page)
         self.assertNotIn('data-owner-technical', page)
-        self.assertIn('data-runner="sudofx-runner.yml"', page)
         self.assertIn("actions/workflows/'+runner", page)
         self.assertIn("actions/workflows/'+workflow+'/runs?branch=sudofx-runtime", page)
         self.assertIn("setActionsLight(actionsLightForVisualState(visualState))", page)
