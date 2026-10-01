@@ -1092,30 +1092,50 @@ class Record:
 
     def replay(self, connection: sqlite3.Connection | None = None) -> tuple[int, dict[str, JsonValue]]:
         """
-        Verify the complete chain, then load the hash-bound current projection.
+        Load the atomically hash-bound current projection from the durable head.
 
-        Normal reads still verify every semantic event and revision edge. They do
-        not repeatedly execute every historical transition. If the projection is
-        unavailable or stale, replay falls back to full reconstruction.
+        Normal reads validate the materialized checkpoint against the latest
+        semantic event instead of rescanning genesis. Explicit full_replay()
+        remains the complete historical integrity and drift-verification path.
+        If the projection is unavailable or stale, replay falls back to full
+        reconstruction.
         """
         if connection is None:
             with self.connect() as own_connection:
                 own_connection.execute("BEGIN")
                 return self.replay(own_connection)
 
-        revision, sequence, event_hash = self._verified_chain(connection)
+        # Normal operational reads use the atomically committed, hash-bound
+        # projection as their checkpoint.  Re-scanning genesis here would make
+        # every fresh process O(history) and defeat the purpose of a durable
+        # materialized projection.  The latest event row is sufficient to prove
+        # that the checkpoint is current because append publishes the event and
+        # checkpoint in one SQLite transaction.  Explicit full_replay() remains
+        # the complete historical integrity/drift verification path.
+        head = connection.execute(
+            "SELECT sequence, revision_after, event_hash "
+            "FROM events ORDER BY sequence DESC LIMIT 1"
+        ).fetchone()
         row = connection.execute(
             "SELECT * FROM record_projection WHERE singleton = 1"
         ).fetchone()
+        if head is None:
+            if row is not None:
+                raise IntegrityError("record projection exists without semantic history")
+            return 0, {}
         if (
             row is None
-            or row["sequence"] != sequence
-            or row["revision"] != revision
-            or row["event_hash"] != event_hash
+            or row["sequence"] != head["sequence"]
+            or row["revision"] != head["revision_after"]
+            or row["event_hash"] != head["event_hash"]
         ):
+            # Missing/stale checkpoints are recoverable only by deterministic
+            # reconstruction; a successfully reconstructed state can then be
+            # materialized by the next governed append.
             full_revision, state, _, _ = self._full_replay(connection)
             return full_revision, state
 
+        revision = int(row["revision"])
         state_json = _decode_projection_state(row["state"])
         if hashlib.sha256(state_json.encode()).hexdigest() != row["state_digest"]:
             raise IntegrityError("record projection state digest is invalid")
