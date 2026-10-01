@@ -110,21 +110,17 @@ def apply_operation(state: dict[str, JsonValue], operation: dict[str, Any]) -> N
                 events = prior["events"]
             else:
                 raise IntegrityError(f"invalid application event-log envelope: {application_id}")
-            checkpoint = prior.get("checkpoint") if isinstance(prior, dict) else None
             events.append({
                 "action": value["action"],
                 "input": value.get("input"),
                 "result_digest": value["result_digest"],
             })
-            envelope = {
+            state[key_name] = {
                 "application_id": application_id,
                 "application_version": value["application_version"],
                 "storage": "event_log",
                 "events": events,
             }
-            if checkpoint is not None:
-                envelope["checkpoint"] = checkpoint
-            state[key_name] = envelope
         else:
             raise IntegrityError(f"unsupported application storage mode: {storage}")
     elif action == "create_work":
@@ -275,40 +271,6 @@ class _SQLiteTransaction:
         if event.status == "accepted":
             for operation in event.payload["operations"]:
                 apply_operation(state, operation)
-
-            # Event-log applications keep full semantic history in events while
-            # the SQLite projection stores only the verified current domain state.
-            # This derived checkpoint is never included in event hash material.
-            for application_id, application_state_value in event.application_states:
-                key_name = application_key(application_id)
-                envelope = state.get(key_name)
-                if not isinstance(envelope, dict) or envelope.get("storage") != "event_log":
-                    continue
-                events = envelope.get("events")
-                if not isinstance(events, list):
-                    raise IntegrityError("application projection event log is invalid")
-                prior_checkpoint = envelope.get("checkpoint")
-                prior_count = (
-                    prior_checkpoint.get("event_count", 0)
-                    if isinstance(prior_checkpoint, dict)
-                    else 0
-                )
-                result_digest = hashlib.sha256(
-                    canonical_json(application_state_value).encode()
-                ).hexdigest()
-                if events and events[-1].get("result_digest") != result_digest:
-                    raise IntegrityError("application projection digest mismatch")
-                state[key_name] = {
-                    "application_id": envelope["application_id"],
-                    "application_version": envelope["application_version"],
-                    "storage": "event_log",
-                    "events": [],
-                    "checkpoint": {
-                        "event_count": prior_count + len(events),
-                        "result_digest": result_digest,
-                        "state": application_state_value,
-                    },
-                }
 
         state_json = canonical_json(state)
         state_digest = hashlib.sha256(state_json.encode()).hexdigest()
