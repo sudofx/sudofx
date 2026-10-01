@@ -1138,7 +1138,7 @@ json.dump({
         self.assertIn("<textarea data-manual-prompt>", page)
         self.assertNotIn("<textarea data-manual-prompt readonly>", page)
         self.assertIn("Packet ready. Copy it, then tap Open ", page)
-        self.assertIn("if(manualLaunch){{manualLaunch.hidden=false;manualLaunch.textContent='Open '+button.dataset.manualVendor;}}", page)
+        self.assertIn("if(manualLaunch){manualLaunch.hidden=false;manualLaunch.textContent='Open '+button.dataset.manualVendor;}", page)
         self.assertIn("if(!copied)copied=copyManualFromField();", page)
         self.assertIn("if(!value||!navigator.clipboard?.writeText)return false", page)
         self.assertIn("Packet generation failed: unresolved transport metadata.", page)
