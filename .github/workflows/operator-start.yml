@@ -23,7 +23,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          active="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/prove-model.yml/runs?branch=sudofx-runtime&per_page=50" --jq '[.workflow_runs[] | select(.head_branch=="sudofx-runtime" and .status!="completed")] | length')"
+          runtime_ref="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/sudofx-runtime" --jq '.object.sha')"
+          active="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/prove-model.yml/runs?branch=sudofx-runtime&per_page=50" --jq --arg runtime_ref "$runtime_ref" '[.workflow_runs[] | select(.head_branch=="sudofx-runtime" and .head_sha==$runtime_ref and (.status=="queued" or .status=="in_progress" or .status=="requested" or .status=="waiting" or .status=="pending"))] | length')"
           echo "active=$active" >> "$GITHUB_OUTPUT"
 
       - name: Enable the continuity workflow and latch
@@ -31,8 +32,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh api --method PUT "repos/$GITHUB_REPOSITORY/actions/workflows/prove-model.yml/enable" >/dev/null
-          gh api --method PUT "repos/$GITHUB_REPOSITORY/actions/workflows/sudofx-runner.yml/enable" >/dev/null
+          for workflow in prove-model.yml sudofx-runner.yml; do
+            state="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$workflow" --jq '.state')"
+            if [[ "$state" != "active" ]]; then
+              gh api --method PUT "repos/$GITHUB_REPOSITORY/actions/workflows/$workflow/enable" >/dev/null
+            fi
+          done
 
       - name: Start the first continuity cycle
         if: steps.status.outputs.active == '0'
@@ -49,5 +54,5 @@ jobs:
           if [[ "${{ steps.status.outputs.active }}" == "0" ]]; then
             echo "sudofx was told to start. The first continuity cycle was dispatched and the continuation latch is open." >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "sudofx was already running, so nothing was duplicated." >> "$GITHUB_STEP_SUMMARY"
+            echo "sudofx is already running on the current runtime, so nothing was duplicated." >> "$GITHUB_STEP_SUMMARY"
           fi
