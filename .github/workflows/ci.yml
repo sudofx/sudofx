@@ -5,6 +5,7 @@ on:
     branches: [master]
     paths:
       - 'src/**'
+      - 'apps/**'
       - 'tests/**'
       - 'scripts/**'
       - 'experiments/**'
@@ -20,6 +21,7 @@ on:
   pull_request:
     paths:
       - 'src/**'
+      - 'apps/**'
       - 'tests/**'
       - 'scripts/**'
       - 'experiments/**'
