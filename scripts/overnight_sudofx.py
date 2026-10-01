@@ -29,7 +29,7 @@ from pathlib import Path
 from typing import Any
 
 import github_sudofx as cloud
-from sudofx import Kernel, Operation, Proposal
+from sudofx import Kernel, Operation, Proposal, SubmissionProvenance
 from sudofx.models import Context
 from sudofx.overnight import (
     EXPERIMENT_STATE_KEY,
@@ -91,7 +91,8 @@ def _ensure_work(kernel: Kernel) -> Kernel:
                 ),
             ),
             "Seed evolving continuity experiment",
-        )
+        ),
+        provenance=SubmissionProvenance("runtime", "overnight-runner", "github-actions"),
     )
     if receipt.status != "accepted":
         raise RuntimeError(f"automatic handoff creation was {receipt.status}")
@@ -119,7 +120,8 @@ def _record_start(kernel: Kernel) -> Kernel:
                 ),
             ),
             "Authenticated operator start transition for evolving continuity",
-        )
+        ),
+        provenance=SubmissionProvenance("human", "operator", "github-actions"),
     )
     if receipt.status != "accepted":
         raise RuntimeError(f"operator start transition was {receipt.status}")
@@ -245,7 +247,10 @@ def _probe(
             timeout_seconds=150,
         )
         proposal = intelligence.propose(bounded)
-        receipt = snapshot_kernel.submit(proposal)
+        receipt = snapshot_kernel.submit(
+            proposal,
+            provenance=SubmissionProvenance("model", "Google Gemini", model),
+        )
         if receipt.status != "accepted":
             raise RuntimeError(f"overnight Gemini proposal was {receipt.status}")
 
@@ -382,7 +387,8 @@ def _record_observation(
             context.revision,
             (Operation("set", EXPERIMENT_STATE_KEY, next_state),),
             "System-owned overnight observation; provider prose remains untrusted evidence",
-        )
+        ),
+        provenance=SubmissionProvenance("runtime", "overnight-runner", "github-actions"),
     )
     if receipt.status != "accepted":
         raise RuntimeError(f"overnight observation recording was {receipt.status}")
