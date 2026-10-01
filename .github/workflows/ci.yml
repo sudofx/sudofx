@@ -45,4 +45,4 @@ jobs:
         with:
           python-version: '3.13'
       - name: Run fast unit and sanity checks
-        run: PYTHONPATH=src python -m unittest discover -s tests -v
+        run: PYTHONPATH=src:. python -m unittest discover -s tests -v
