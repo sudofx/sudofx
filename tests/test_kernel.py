@@ -1054,14 +1054,14 @@ json.dump({
         self.assertIn('href="claude://"', page)
         self.assertIn('href="https://gemini.google.com/app"', page)
         self.assertIn('href="deepseek://"', page)
-        self.assertIn("navigator.share", page)
-        self.assertIn("Share prompt", page)
-        self.assertIn("providerPromptUrl", page)
-        self.assertIn("claude://claude.ai/new?q=", page)
-        self.assertIn("document.execCommand('copy')", page)
         self.assertIn("data-manual-dialog", page)
         self.assertIn("data-manual-open", page)
         self.assertIn("navigator.clipboard.writeText", page)
+        self.assertIn("await copyText(manualPrompt.value)", page)
+        self.assertIn('data-manual-vendor="ChatGPT"', page)
+        self.assertNotIn("navigator.share", page)
+        self.assertNotIn("providerPromptUrl", page)
+        self.assertNotIn("document.execCommand", page)
         self.assertIn("temporary-chat=true&prompt=", page)
         self.assertIn("manualDialog.showModal()", page)
         self.assertIn('id="manual-handoff-dialog"', page)
@@ -1375,3 +1375,4 @@ json.dump({
 
 if __name__ == "__main__":
     unittest.main()
+
