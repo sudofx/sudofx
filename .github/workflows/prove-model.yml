@@ -13,13 +13,13 @@ run-name: sudofx continue · ${{ inputs.dispatch_token || github.run_id }}
 # bounded, governed residue from the preceding experiment observation.
 # The experiment executes only from the dedicated sudofx-runtime branch.
 # master remains the development lane, so source/UI pushes cannot alter a live
-# continuity series. Runtime changes require an explicit, separately verified
-# promotion of sudofx-runtime.
+# continuity series. Start verifies master and freezes that exact commit as sudofx-runtime before
+# launching cycle one; there is no separate operator promotion step.
 
 on:
-  # One manual dispatch starts or repairs the chain. Successful runs create one
-  # successor themselves; omitting push and cron triggers prevents independent
-  # chains from multiplying while continuous operation is already healthy.
+  # Start is the operator entry point. This dispatch surface is retained for the
+  # internal first-cycle and successor chain. Omitting push and cron triggers
+  # prevents independent chains from multiplying.
   workflow_dispatch:
     inputs:
       dispatch_token:
