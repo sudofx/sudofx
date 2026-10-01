@@ -10,6 +10,12 @@ from contextlib import closing
 from pathlib import Path
 
 from sudofx import (
+    ApplicationAction,
+    ApplicationDecision,
+    ApplicationDefinition,
+    ApplicationHost,
+    ApplicationIntent,
+    ApplicationRegistry,
     CommandIntelligence,
     FakeIntelligence,
     FakeWorkIntelligence,
@@ -23,6 +29,7 @@ from sudofx import (
     SubmissionProvenance,
 )
 from sudofx.record import APPLICATION_ID, SCHEMA_VERSION, IntegrityError, Record, StorageVersionError
+from sudofx.governance import Governance
 from sudofx.storage import InvocationEvent
 from experiments.continuity import (
     run_compressed_model_continuity_probe,
@@ -625,6 +632,142 @@ json.dump({
         receipt = kernel.submit(Proposal("portable", 0, (Operation("set", "x", 1),)))
         self.assertEqual(receipt.status, "accepted")
         self.assertEqual(kernel.context().state, {"x": 1})
+
+    def test_application_contract_governs_domain_transition_and_replays_without_app(self) -> None:
+        """Accepted app state must remain replayable after application code is absent."""
+        def increment(current, payload):
+            current = current if isinstance(current, dict) else {"count": 0}
+            if not isinstance(payload, int) or isinstance(payload, bool) or payload <= 0:
+                return ApplicationDecision(False, reasons=("increment must be a positive integer",))
+            return ApplicationDecision(True, {"count": int(current.get("count", 0)) + payload})
+
+        definition = ApplicationDefinition(
+            "counter",
+            "1",
+            (ApplicationAction("increment", increment),),
+            frozenset({"notify"}),
+        )
+        registry = ApplicationRegistry((definition,))
+        kernel = Kernel(self.kernel.record, Governance(application_registry=registry))
+        host = ApplicationHost(kernel, registry, "counter")
+
+        receipt = host.submit(
+            ApplicationIntent("app-increment", 0, "increment", 2),
+            provenance=SubmissionProvenance("application", "counter", "unit-test"),
+        )
+        self.assertEqual(receipt.status, "accepted")
+        self.assertEqual(host.context().state, {"count": 2})
+
+        # A fresh kernel with no registry still reconstructs accepted history.
+        replayed = Kernel(Record(self.path)).context().state
+        self.assertEqual(
+            replayed["app:counter"],
+            {
+                "application_id": "counter",
+                "application_version": "1",
+                "state": {"count": 2},
+            },
+        )
+
+    def test_application_namespace_rejects_direct_generic_mutation(self) -> None:
+        """An app cannot bypass its policy by issuing ordinary set/delete operations."""
+        registry = ApplicationRegistry((
+            ApplicationDefinition(
+                "sealed",
+                "1",
+                (ApplicationAction("replace", lambda current, payload: ApplicationDecision(True, payload)),),
+            ),
+        ))
+        kernel = Kernel(self.kernel.record, Governance(application_registry=registry))
+        receipt = kernel.submit(
+            Proposal("app-bypass", 0, (Operation("set", "app:sealed", {"forged": True}),))
+        )
+        self.assertEqual(receipt.status, "rejected")
+        self.assertIn("application namespace requires apply_application", receipt.reasons)
+        self.assertNotIn("app:sealed", kernel.context().state)
+
+    def test_application_governance_rejects_forged_next_state(self) -> None:
+        """The host is not trusted to assert a domain result policy did not derive."""
+        definition = ApplicationDefinition(
+            "counter",
+            "1",
+            (ApplicationAction("increment", lambda current, payload: ApplicationDecision(True, {"count": 1})),),
+        )
+        registry = ApplicationRegistry((definition,))
+        kernel = Kernel(self.kernel.record, Governance(application_registry=registry))
+        forged = Proposal(
+            "app-forged",
+            0,
+            (
+                Operation(
+                    "apply_application",
+                    "counter",
+                    {
+                        "application_id": "counter",
+                        "application_version": "1",
+                        "action": "increment",
+                        "input": 1,
+                        "next_state": {"count": 999},
+                    },
+                ),
+            ),
+        )
+        receipt = kernel.submit(forged)
+        self.assertEqual(receipt.status, "rejected")
+        self.assertIn(
+            "application next_state does not match deterministic policy result",
+            receipt.reasons,
+        )
+        self.assertNotIn("app:counter", kernel.context().state)
+
+    def test_application_context_and_effect_capability_are_bounded(self) -> None:
+        """Apps see their state only and may request only declared, unexecuted effects."""
+        definition = ApplicationDefinition(
+            "bounded",
+            "1",
+            (ApplicationAction("replace", lambda current, payload: ApplicationDecision(True, payload)),),
+            frozenset({"notify"}),
+        )
+        registry = ApplicationRegistry((definition,))
+        kernel = Kernel(self.kernel.record, Governance(application_registry=registry))
+        kernel.submit(Proposal("unrelated-state", 0, (Operation("set", "secret", "outside-app"),)))
+        host = ApplicationHost(kernel, registry, "bounded")
+        accepted = host.submit(ApplicationIntent("bounded-state", 1, "replace", {"visible": True}))
+        self.assertEqual(accepted.status, "accepted")
+        self.assertEqual(host.context().state, {"visible": True})
+        self.assertFalse(hasattr(host.context(), "recent_receipts"))
+
+        request = host.request_effect("notify", {"message": "hello"})
+        self.assertEqual(request.capability, "notify")
+        self.assertEqual(request.application_id, "bounded")
+        with self.assertRaises(PermissionError):
+            host.request_effect("network-admin", {})
+
+    def test_application_version_change_requires_explicit_migration(self) -> None:
+        """Installing newer app code must not silently reinterpret older durable state."""
+        v1 = ApplicationDefinition(
+            "versioned",
+            "1",
+            (ApplicationAction("replace", lambda current, payload: ApplicationDecision(True, payload)),),
+        )
+        registry_v1 = ApplicationRegistry((v1,))
+        kernel_v1 = Kernel(self.kernel.record, Governance(application_registry=registry_v1))
+        ApplicationHost(kernel_v1, registry_v1, "versioned").submit(
+            ApplicationIntent("versioned-v1", 0, "replace", {"shape": 1})
+        )
+
+        v2 = ApplicationDefinition(
+            "versioned",
+            "2",
+            (ApplicationAction("replace", lambda current, payload: ApplicationDecision(True, payload)),),
+        )
+        registry_v2 = ApplicationRegistry((v2,))
+        kernel_v2 = Kernel(self.kernel.record, Governance(application_registry=registry_v2))
+        receipt = ApplicationHost(kernel_v2, registry_v2, "versioned").submit(
+            ApplicationIntent("versioned-v2", 1, "replace", {"shape": 2})
+        )
+        self.assertEqual(receipt.status, "rejected")
+        self.assertTrue(any("application migration required" in reason for reason in receipt.reasons))
 
     def test_fresh_intelligences_continue_from_durable_context(self) -> None:
         """A second provider instance must derive progress only from durable context."""
