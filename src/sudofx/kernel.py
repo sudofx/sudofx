@@ -139,6 +139,22 @@ class Kernel:
             previous_hash = transaction.head_hash()
             receipt_id = str(uuid.uuid4())
 
+            # Application materialized state is a derived projection hint, not
+            # semantic event content. Governance has already recomputed and
+            # validated it. Strip it before hashing/persistence, then hand the
+            # verified value separately to storage for atomic projection update.
+            projection_overrides = {}
+            durable_payload = proposal.to_dict()
+            for operation in durable_payload.get("operations", []):
+                if operation.get("action") != "apply_application":
+                    continue
+                value = operation.get("value")
+                if not isinstance(value, dict) or "projection_state" not in value:
+                    continue
+                projection_state = value.pop("projection_state")
+                if decision.accepted:
+                    projection_overrides[operation["key"]] = projection_state
+
             # Semantic hash material excludes physical storage metadata. A later
             # backend can change tables, timestamps, or sequence representation
             # while preserving the same durable event identity contract.
@@ -148,7 +164,7 @@ class Kernel:
                 "status": status,
                 "revision_before": revision,
                 "revision_after": revision_after,
-                "payload": payload,
+                "payload": durable_payload,
                 "reasons": list(decision.reasons),
             }
             # Legacy events predate trusted provenance and intentionally omit the
@@ -168,12 +184,13 @@ class Kernel:
                     status=status,
                     revision_before=revision,
                     revision_after=revision_after,
-                    payload=payload,
+                    payload=durable_payload,
                     reasons=decision.reasons,
                     provenance=provenance_payload,
                     previous_hash=previous_hash,
                     event_hash=event_hash,
-                )
+                ),
+                projection_overrides=projection_overrides or None,
             )
 
         return Receipt(
