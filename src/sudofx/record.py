@@ -52,7 +52,7 @@ from .storage import EventAppend, GENESIS_HASH, canonical_json, hash_event
 # sudofx record; user_version gives storage evolution one ordered owner instead
 # of scattering opportunistic CREATE/ALTER statements through runtime paths.
 APPLICATION_ID = 0x53444658  # "SDFX"
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 
 def apply_operation(state: dict[str, JsonValue], operation: dict[str, Any]) -> None:
@@ -326,10 +326,209 @@ class Record:
             columns = {row[1] for row in connection.execute("PRAGMA table_info(events)")}
             if "provenance" not in columns:
                 connection.execute("ALTER TABLE events ADD COLUMN provenance TEXT")
+
+            # v3 adds a separate append-only invocation evidence stream. Invocation
+            # events record provider/runtime lifecycle without pretending that a
+            # failed provider call produced a governed Proposal or state revision.
+            # The table lives in the same authoritative database and is hash-linked
+            # independently because lifecycle evidence is not replayable state.
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS invocation_events (
+                    sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+                    event_id TEXT NOT NULL UNIQUE,
+                    invocation_id TEXT NOT NULL,
+                    phase TEXT NOT NULL CHECK (
+                        phase IN ('started', 'proposal_received', 'completed', 'failed', 'interrupted')
+                    ),
+                    payload TEXT NOT NULL,
+                    previous_hash TEXT NOT NULL,
+                    event_hash TEXT NOT NULL UNIQUE,
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+            connection.execute(
+                "CREATE INDEX IF NOT EXISTS invocation_events_by_invocation "
+                "ON invocation_events(invocation_id, sequence)"
+            )
             connection.execute(f"PRAGMA application_id = {APPLICATION_ID}")
             connection.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
             connection.commit()
             return changed
+
+    def _invocation_rows(
+        self,
+        connection: sqlite3.Connection,
+        invocation_id: str | None = None,
+    ) -> list[sqlite3.Row]:
+        """Read invocation rows in global append order from one database snapshot."""
+        if invocation_id is None:
+            return list(connection.execute("SELECT * FROM invocation_events ORDER BY sequence"))
+        return list(
+            connection.execute(
+                "SELECT * FROM invocation_events WHERE invocation_id = ? ORDER BY sequence",
+                (invocation_id,),
+            )
+        )
+
+    def _verify_invocation_rows(self, rows: list[sqlite3.Row]) -> tuple[dict[str, Any], ...]:
+        """Verify hash continuity and per-invocation lifecycle ordering."""
+        previous_hash = GENESIS_HASH
+        latest_phase: dict[str, str] = {}
+        terminal = {"completed", "failed", "interrupted"}
+        result: list[dict[str, Any]] = []
+        for row in rows:
+            payload = json.loads(row["payload"])
+            material = {
+                "event_id": row["event_id"],
+                "invocation_id": row["invocation_id"],
+                "phase": row["phase"],
+                "payload": payload,
+            }
+            if row["previous_hash"] != previous_hash:
+                raise IntegrityError("invocation event predecessor hash does not match verified head")
+            expected_hash = hash_event(previous_hash, material)
+            if row["event_hash"] != expected_hash:
+                raise IntegrityError("invocation event hash does not match stored material")
+
+            invocation_id = str(row["invocation_id"])
+            phase = str(row["phase"])
+            prior = latest_phase.get(invocation_id)
+            if prior is None and phase != "started":
+                raise IntegrityError("invocation lifecycle does not begin with started")
+            if prior is not None:
+                if prior in terminal:
+                    raise IntegrityError("invocation lifecycle continues after terminal phase")
+                if phase == "started":
+                    raise IntegrityError("invocation lifecycle contains duplicate started phase")
+                if phase == "proposal_received" and prior != "started":
+                    raise IntegrityError("proposal_received must follow started")
+                if phase == "completed" and prior != "proposal_received":
+                    raise IntegrityError("completed invocation must have a received proposal")
+            latest_phase[invocation_id] = phase
+            previous_hash = row["event_hash"]
+            result.append(
+                {
+                    "sequence": int(row["sequence"]),
+                    "event_id": row["event_id"],
+                    "invocation_id": invocation_id,
+                    "phase": phase,
+                    "payload": payload,
+                    "previous_hash": row["previous_hash"],
+                    "event_hash": row["event_hash"],
+                    "created_at": row["created_at"],
+                }
+            )
+        return tuple(result)
+
+    def invocation_history(
+        self,
+        invocation_id: str | None = None,
+    ) -> tuple[dict[str, Any], ...]:
+        """Return verified provider/runtime lifecycle evidence without changing state."""
+        with self.connect() as connection:
+            # Verify the full global chain even when the caller requests one
+            # invocation; filtering before verification would lose predecessor
+            # evidence and could make a tampered prefix invisible.
+            verified = self._verify_invocation_rows(self._invocation_rows(connection))
+        if invocation_id is None:
+            return verified
+        return tuple(item for item in verified if item["invocation_id"] == invocation_id)
+
+    def append_invocation_event(
+        self,
+        invocation_id: str,
+        phase: str,
+        payload: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Append one lifecycle receipt without manufacturing a Proposal receipt."""
+        allowed = {"started", "proposal_received", "completed", "failed", "interrupted"}
+        if not invocation_id.strip():
+            raise ValueError("invocation_id must not be empty")
+        if phase not in allowed:
+            raise ValueError(f"unsupported invocation phase: {phase}")
+        # Force provider-neutral deterministic serialization before opening the
+        # write transaction. Arbitrary runtime objects must never reach storage.
+        canonical_json(payload)
+
+        with self.connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            try:
+                verified = self._verify_invocation_rows(self._invocation_rows(connection))
+                invocation_events = [
+                    item for item in verified if item["invocation_id"] == invocation_id
+                ]
+                prior = invocation_events[-1]["phase"] if invocation_events else None
+                terminal = {"completed", "failed", "interrupted"}
+                if prior is None and phase != "started":
+                    raise ValueError("first invocation phase must be started")
+                if prior is not None:
+                    if prior in terminal:
+                        raise ValueError("invocation is already terminal")
+                    if phase == "started":
+                        raise ValueError("invocation already started")
+                    if phase == "proposal_received" and prior != "started":
+                        raise ValueError("proposal_received must follow started")
+                    if phase == "completed" and prior != "proposal_received":
+                        raise ValueError("completed requires proposal_received")
+
+                previous_hash = verified[-1]["event_hash"] if verified else GENESIS_HASH
+                event_id = __import__("uuid").uuid4().hex
+                material = {
+                    "event_id": event_id,
+                    "invocation_id": invocation_id,
+                    "phase": phase,
+                    "payload": payload,
+                }
+                event_hash = hash_event(previous_hash, material)
+                connection.execute(
+                    """
+                    INSERT INTO invocation_events (
+                        event_id, invocation_id, phase, payload, previous_hash, event_hash
+                    ) VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        event_id,
+                        invocation_id,
+                        phase,
+                        canonical_json(payload),
+                        previous_hash,
+                        event_hash,
+                    ),
+                )
+                row = connection.execute(
+                    "SELECT * FROM invocation_events WHERE event_id = ?",
+                    (event_id,),
+                ).fetchone()
+                connection.commit()
+            except BaseException:
+                connection.rollback()
+                raise
+        assert row is not None
+        return {
+            "sequence": int(row["sequence"]),
+            "event_id": row["event_id"],
+            "invocation_id": row["invocation_id"],
+            "phase": row["phase"],
+            "payload": json.loads(row["payload"]),
+            "previous_hash": row["previous_hash"],
+            "event_hash": row["event_hash"],
+            "created_at": row["created_at"],
+        }
+
+    def incomplete_invocations(self) -> tuple[dict[str, Any], ...]:
+        """Return only unfinished lifecycles so a fresh runtime can mark interruption."""
+        history = self.invocation_history()
+        latest: dict[str, dict[str, Any]] = {}
+        for item in history:
+            latest[item["invocation_id"]] = item
+        terminal = {"completed", "failed", "interrupted"}
+        return tuple(
+            item
+            for item in latest.values()
+            if item["phase"] not in terminal
+        )
 
     def backup_to(self, destination: str | Path) -> None:
         """
@@ -351,7 +550,9 @@ class Record:
             result = check.execute("PRAGMA quick_check").fetchone()[0]
             if result != "ok":
                 raise IntegrityError(f"snapshot failed SQLite quick_check: {result}")
-        Record(destination).replay()
+        verified = Record(destination)
+        verified.replay()
+        verified.invocation_history()
 
     def vacuum_snapshot_to(self, destination: str | Path) -> None:
         """
@@ -372,7 +573,9 @@ class Record:
             result = check.execute("PRAGMA integrity_check").fetchone()[0]
             if result != "ok":
                 raise IntegrityError(f"VACUUM INTO snapshot failed SQLite integrity_check: {result}")
-        Record(destination).replay()
+        verified = Record(destination)
+        verified.replay()
+        verified.invocation_history()
 
     def health(self) -> dict[str, int | float | str]:
         """
@@ -387,6 +590,9 @@ class Record:
         replay_ms = (time.perf_counter() - started) * 1000
         with self.connect() as connection:
             event_count = int(connection.execute("SELECT COUNT(*) FROM events").fetchone()[0])
+            invocation_event_count = int(
+                connection.execute("SELECT COUNT(*) FROM invocation_events").fetchone()[0]
+            )
             page_size = int(connection.execute("PRAGMA page_size").fetchone()[0])
             page_count = int(connection.execute("PRAGMA page_count").fetchone()[0])
             free_pages = int(connection.execute("PRAGMA freelist_count").fetchone()[0])
@@ -395,6 +601,7 @@ class Record:
             "schema_version": SCHEMA_VERSION,
             "revision": revision,
             "event_count": event_count,
+            "invocation_event_count": invocation_event_count,
             "database_bytes": page_size * page_count,
             "free_bytes": page_size * free_pages,
             "replay_ms": round(replay_ms, 3),
