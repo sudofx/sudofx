@@ -835,6 +835,25 @@ class Record:
         verified.full_replay()
         verified.invocation_history()
 
+    def compact(self) -> None:
+        """
+        Reclaim unused SQLite pages without changing semantic authority.
+
+        This is intended for explicit maintenance after write-heavy migrations.
+        The append-only event chain, revisions, hashes, and derived projection
+        bytes remain semantically identical; only physical page layout changes.
+        """
+        before_revision, before_state = self.full_replay()
+        with self.connect() as connection:
+            connection.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+            connection.execute("VACUUM")
+            quick_check = str(connection.execute("PRAGMA quick_check").fetchone()[0])
+        if quick_check != "ok":
+            raise IntegrityError(f"database compaction failed SQLite quick_check: {quick_check}")
+        after_revision, after_state = self.full_replay()
+        if after_revision != before_revision or after_state != before_state:
+            raise IntegrityError("database compaction changed authoritative state")
+
     def vacuum_snapshot_to(self, destination: str | Path) -> None:
         """
         Create one compact derived recovery snapshot with SQLite VACUUM INTO.
