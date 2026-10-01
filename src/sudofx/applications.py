@@ -242,16 +242,25 @@ class ApplicationHost:
     ) -> Receipt:
         """Submit one application intent through ordinary Kernel governance."""
         definition = self.definition
-        current = self.context().state
-        action = definition.action(intent.action)
-        decision = (
-            action.evaluate(current, intent.payload)
-            if action is not None
-            else ApplicationDecision(
-                False,
-                reasons=(f"unknown application action: {intent.action}",),
+        raw_context = self.kernel.context()
+        envelope = raw_context.state.get(application_key(self.application_id))
+        try:
+            current = application_state(definition, envelope)
+        except ValueError:
+            # Submission still crosses the kernel boundary so version/storage/
+            # replay mismatches become durable governed rejections rather than
+            # disappearing as host-side exceptions before a receipt exists.
+            decision = ApplicationDecision(False)
+        else:
+            action = definition.action(intent.action)
+            decision = (
+                action.evaluate(current, intent.payload)
+                if action is not None
+                else ApplicationDecision(
+                    False,
+                    reasons=(f"unknown application action: {intent.action}",),
+                )
             )
-        )
         value: dict[str, JsonValue] = {
             "application_id": self.application_id,
             "application_version": definition.version,
