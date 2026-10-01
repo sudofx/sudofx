@@ -31,7 +31,7 @@ from sudofx.continuity import (
 )
 from sudofx.report import _format_bytes, export_site, render
 from sudofx.handoff import build_handoff_packet, export_handoff_packet
-from plugins.manual_handoff.scoring import (
+from experiments.manual_handoff.scoring import (
     DIMENSIONS,
     evaluate_handoff_response,
     handoff_packet_digest,
