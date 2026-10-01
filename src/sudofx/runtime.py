@@ -35,14 +35,18 @@ class InvocationResult:
     run: RunResult
 
 
-def context_digest(context: object) -> str:
+def context_payload(context: object) -> dict[str, object]:
     """Fingerprint exactly the bounded context delivered to one intelligence."""
-    payload = {
+    return {
         "revision": context.revision,
         "state": context.state,
         "recent_receipts": context.recent_receipts,
     }
-    return hashlib.sha256(canonical_json(payload).encode()).hexdigest()
+
+
+def context_digest(context: object) -> str:
+    """Fingerprint exactly the bounded context delivered to one intelligence."""
+    return hashlib.sha256(canonical_json(context_payload(context)).encode()).hexdigest()
 
 
 class Runtime:
@@ -64,10 +68,14 @@ class Runtime:
         *,
         work_id: str | None = None,
         provenance: SubmissionProvenance | None = None,
+        provider_id: str | None = None,
+        context_policy: str = "kernel-context-v1",
     ) -> InvocationResult:
         """Execute one disposable intelligence with reconstructable lifecycle evidence."""
         context = self.kernel.context(work_id=work_id)
-        digest = context_digest(context)
+        payload = context_payload(context)
+        serialized_context = canonical_json(payload).encode()
+        digest = hashlib.sha256(serialized_context).hexdigest()
         invocation_id = str(uuid.uuid4())
         provenance_payload = provenance.to_dict() if provenance is not None else None
 
@@ -87,6 +95,24 @@ class Runtime:
                 source_revision=context.revision,
                 context_digest=digest,
                 provenance=provenance_payload,
+                evidence={
+                    "context_policy": context_policy,
+                    "byte_size": len(serialized_context),
+                    "work_scope": work_id,
+                    "receipt_count": len(context.recent_receipts),
+                    "state_keys": sorted(context.state),
+                },
+            )
+        )
+        selected_provider = provider_id or type(intelligence).__name__
+        self.journal.append_invocation_event(
+            InvocationEvent(
+                invocation_id=invocation_id,
+                stage="provider_selected",
+                source_revision=context.revision,
+                context_digest=digest,
+                provenance=provenance_payload,
+                evidence={"provider_id": selected_provider},
             )
         )
         self.journal.append_invocation_event(
