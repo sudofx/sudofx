@@ -96,7 +96,7 @@ The application may interpret domain meaning. It may not redefine which componen
 
 ## Application contract: first version
 
-Do not freeze a broad framework before two materially different applications exercise it.
+Do not freeze a broad framework before two materially different applications exercise it. The contract tests now exercise both a counter-style transition and an append-only notes-style transition through the same kernel seam.
 
 The first contract should therefore expose the smallest useful concepts:
 
@@ -116,11 +116,13 @@ The namespace is semantic, not a separate database.
 
 Applications may define domain action names, but registration alone never makes an action legal.
 
+The v1 implementation uses one generic kernel action, `apply_application`. The application host supplies identity, version, action input, and a candidate next state; kernel governance independently reruns the registered deterministic policy before acceptance. Accepted events persist the verified resulting JSON state, so historical replay does not require the application code to remain installed.
+
 For each application action, all of the following must exist together:
 
 1. serialized boundary shape
 2. deterministic governance validation
-3. deterministic replay/transition semantics
+3. generic replay of the verified result
 4. tests proving acceptance and rejection behavior
 
 ### Context projection
@@ -137,7 +139,7 @@ Applications request named effect capabilities.
 
 An effect adapter receives only the minimum material required for that effect. It does not receive general database authority.
 
-A future permission layer may narrow capabilities per deployment. Configuration may narrow authority but cannot silently widen it.
+Deployment permissions independently grant a subset of declared capabilities. Declaration alone never grants effect authority, and configuration can narrow authority but cannot silently widen it.
 
 ### Presentation
 
