@@ -40,16 +40,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          set -euo pipefail
           latch_state="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/sudofx-runner.yml" --jq '.state' 2>/dev/null || true)"
           if [[ "$latch_state" == "active" ]]; then
             echo "::error::Continuity is enabled. Run Stop before promoting a new runtime."
             exit 1
           fi
           runtime_head="$(gh api "repos/$GITHUB_REPOSITORY/branches/sudofx-runtime" --jq '.commit.sha')"
-          active="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/prove-model.yml/runs?per_page=100" \
-            --jq --arg sha "$runtime_head" '[.workflow_runs[] | select(.head_branch == "sudofx-runtime" and .head_sha == $sha and .status != "completed")] | length')"
+          active="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/prove-model.yml/runs?per_page=100" --jq '.workflow_runs[] | select(.head_branch == "sudofx-runtime" and .status != "completed") | .head_sha' | grep -Fxc "$runtime_head" || true)"
           if [[ "$active" -ne 0 ]]; then
-            echo "Continuity is active; stop it before promoting a new runtime."
+            echo "::error::Continuity is active; stop it before promoting a new runtime."
             exit 1
           fi
       - name: Promote verified commit
@@ -57,5 +57,5 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           sha="$(git rev-parse HEAD)"
-          gh api --method PATCH "repos/$GITHUB_REPOSITORY/git/refs/heads/sudofx-runtime"             -f "sha=$sha" -F force=false
+          gh api --method PATCH "repos/$GITHUB_REPOSITORY/git/refs/heads/sudofx-runtime" -f "sha=$sha" -F force=false
           echo "Promoted sudofx-runtime to $sha"
