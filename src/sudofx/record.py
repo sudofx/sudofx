@@ -638,7 +638,9 @@ class Record:
             result = check.execute("PRAGMA quick_check").fetchone()[0]
             if result != "ok":
                 raise IntegrityError(f"snapshot failed SQLite quick_check: {result}")
-        Record(destination).replay()
+        verified = Record(destination)
+        verified.replay()
+        verified.invocation_history()
 
     def vacuum_snapshot_to(self, destination: str | Path) -> None:
         """
@@ -659,7 +661,9 @@ class Record:
             result = check.execute("PRAGMA integrity_check").fetchone()[0]
             if result != "ok":
                 raise IntegrityError(f"VACUUM INTO snapshot failed SQLite integrity_check: {result}")
-        Record(destination).replay()
+        verified = Record(destination)
+        verified.replay()
+        verified.invocation_history()
 
     def health(self) -> dict[str, int | float | str]:
         """
@@ -674,6 +678,7 @@ class Record:
         replay_ms = (time.perf_counter() - started) * 1000
         with self.connect() as connection:
             event_count = int(connection.execute("SELECT COUNT(*) FROM events").fetchone()[0])
+            invocation_event_count = len(self._verified_invocation_history(connection))
             page_size = int(connection.execute("PRAGMA page_size").fetchone()[0])
             page_count = int(connection.execute("PRAGMA page_count").fetchone()[0])
             free_pages = int(connection.execute("PRAGMA freelist_count").fetchone()[0])
@@ -682,6 +687,7 @@ class Record:
             "schema_version": SCHEMA_VERSION,
             "revision": revision,
             "event_count": event_count,
+            "invocation_event_count": invocation_event_count,
             "database_bytes": page_size * page_count,
             "free_bytes": page_size * free_pages,
             "replay_ms": round(replay_ms, 3),
@@ -710,6 +716,7 @@ class Record:
                 )
             )
             event_count = int(connection.execute("SELECT COUNT(*) FROM events").fetchone()[0])
+            invocation_event_count = len(self._verified_invocation_history(connection))
             page_size = int(connection.execute("PRAGMA page_size").fetchone()[0])
             page_count = int(connection.execute("PRAGMA page_count").fetchone()[0])
             free_pages = int(connection.execute("PRAGMA freelist_count").fetchone()[0])
@@ -719,6 +726,7 @@ class Record:
             "schema_version": SCHEMA_VERSION,
             "revision": revision,
             "event_count": event_count,
+            "invocation_event_count": invocation_event_count,
             "database_bytes": page_size * page_count,
             "free_bytes": page_size * free_pages,
             "replay_ms": round((time.perf_counter() - started) * 1000, 3),
