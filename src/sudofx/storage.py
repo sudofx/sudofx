@@ -74,6 +74,22 @@ class EventAppend:
 
 
 @dataclass(frozen=True)
+class ContextDeliveryReceipt:
+    """
+    Describe the exact bounded representation delivered across an intelligence boundary.
+
+    This is durable evidence about a derived view, never an alternate source of
+    semantic truth. payload_bytes measures the canonical JSON bytes actually
+    fingerprinted by Runtime; scope and included_categories make the boundedness
+    legible without copying the delivered state into a second durable representation.
+    """
+    policy_version: str
+    payload_bytes: int
+    included_categories: tuple[str, ...]
+    scope: dict[str, str]
+
+
+@dataclass(frozen=True)
 class InvocationEvent:
     """
     Carry one append-only provider/runtime lifecycle fact.
@@ -95,6 +111,7 @@ class InvocationEvent:
     source_revision: int
     context_digest: str
     provenance: dict[str, str] | None = None
+    context_receipt: ContextDeliveryReceipt | None = None
     proposal_id: str | None = None
     receipt_id: str | None = None
     detail: str = ""
