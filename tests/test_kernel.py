@@ -19,6 +19,7 @@ from sudofx import (
     ProviderError,
     ProviderQuotaError,
     ProviderTemporaryError,
+    SubmissionProvenance,
 )
 from sudofx.record import APPLICATION_ID, SCHEMA_VERSION, IntegrityError, Record, StorageVersionError
 from sudofx.continuity import (
@@ -738,6 +739,76 @@ json.dump({
             connection.commit()
         with self.assertRaises(IntegrityError):
             self.kernel.context()
+    def test_submission_provenance_is_durable_and_hash_bound(self) -> None:
+        """Trusted caller attribution must survive replay and detect later rewriting."""
+        provenance = SubmissionProvenance("human", "operator", "phone")
+        receipt = self.kernel.submit(
+            Proposal("attributed", 0, (Operation("set", "x", 1),)),
+            provenance=provenance,
+        )
+        self.assertEqual(receipt.status, "accepted")
+        event = self.kernel.record.history()[0]
+        self.assertEqual(
+            event["provenance"],
+            {"origin": "human", "actor": "operator", "source": "phone"},
+        )
+
+        # Provenance is semantic evidence, not mutable display metadata.
+        with closing(sqlite3.connect(self.path)) as connection:
+            connection.execute(
+                "UPDATE events SET provenance = ? WHERE sequence = 1",
+                (json.dumps({"origin": "model", "actor": "forged"}),),
+            )
+            connection.commit()
+        with self.assertRaises(IntegrityError):
+            self.kernel.context()
+
+    def test_v1_record_without_provenance_column_migrates_without_rehashing_history(self) -> None:
+        """Schema v2 adds attribution support without invalidating legacy event identity."""
+        legacy_path = Path(self.tempdir.name) / "legacy-v1.sqlite"
+        proposal = Proposal("legacy", 0, (Operation("set", "carried", True),)).to_dict()
+        material = {
+            "receipt_id": "legacy-receipt",
+            "proposal_id": "legacy",
+            "status": "accepted",
+            "revision_before": 0,
+            "revision_after": 1,
+            "payload": proposal,
+            "reasons": [],
+        }
+        event_hash = Record.hash_event("0" * 64, material)
+        with closing(sqlite3.connect(legacy_path)) as connection:
+            connection.execute(f"PRAGMA application_id = {APPLICATION_ID}")
+            connection.execute("PRAGMA user_version = 1")
+            connection.execute(
+                "CREATE TABLE events (sequence INTEGER PRIMARY KEY AUTOINCREMENT, "
+                "receipt_id TEXT NOT NULL UNIQUE, proposal_id TEXT NOT NULL UNIQUE, "
+                "status TEXT NOT NULL, revision_before INTEGER NOT NULL, "
+                "revision_after INTEGER NOT NULL, payload TEXT NOT NULL, reasons TEXT NOT NULL, "
+                "previous_hash TEXT NOT NULL, event_hash TEXT NOT NULL UNIQUE, "
+                "created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"
+            )
+            connection.execute(
+                "INSERT INTO events (receipt_id, proposal_id, status, revision_before, "
+                "revision_after, payload, reasons, previous_hash, event_hash) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    "legacy-receipt", "legacy", "accepted", 0, 1,
+                    json.dumps(proposal), json.dumps([]), "0" * 64, event_hash,
+                ),
+            )
+            connection.commit()
+
+        migrated = Record(legacy_path)
+        self.assertTrue(migrated.schema_changed)
+        revision, state = migrated.replay()
+        self.assertEqual(revision, 1)
+        self.assertEqual(state, {"carried": True})
+        self.assertIsNone(migrated.history()[0]["provenance"])
+        with closing(sqlite3.connect(legacy_path)) as connection:
+            columns = {row[1] for row in connection.execute("PRAGMA table_info(events)")}
+            self.assertIn("provenance", columns)
+            self.assertEqual(connection.execute("PRAGMA user_version").fetchone()[0], SCHEMA_VERSION)
 
     def test_static_report_exposes_state_and_receipt_provenance(self) -> None:
         """Pages is a public observer; GitHub Actions is the operator surface."""
@@ -1067,7 +1138,7 @@ json.dump({
         self.assertIn("<textarea data-manual-prompt>", page)
         self.assertNotIn("<textarea data-manual-prompt readonly>", page)
         self.assertIn("Packet ready. Copy it, then tap Open ", page)
-        self.assertIn("if(manualLaunch){{manualLaunch.hidden=false;manualLaunch.textContent='Open '+button.dataset.manualVendor;}}", page)
+        self.assertIn("if(manualLaunch){manualLaunch.hidden=false;manualLaunch.textContent='Open '+button.dataset.manualVendor;}", page)
         self.assertIn("if(!copied)copied=copyManualFromField();", page)
         self.assertIn("if(!value||!navigator.clipboard?.writeText)return false", page)
         self.assertIn("Packet generation failed: unresolved transport metadata.", page)

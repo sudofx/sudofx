@@ -44,6 +44,38 @@ from typing import Any, Literal
 
 JsonValue = str | int | float | bool | None | list["JsonValue"] | dict[str, "JsonValue"]
 
+# Submission provenance is supplied by the trusted runtime boundary, never by a
+# provider response. A model may describe itself in prose, but that claim cannot
+# become durable attribution unless the caller that actually invoked it records
+# the origin independently.
+@dataclass(frozen=True)
+class SubmissionProvenance:
+    """
+    Describe who or what delivered a proposal to the kernel.
+
+    Provenance is evidence, not permission. Governance must make the same
+    decision for identical state/proposal input regardless of whether the
+    proposal came from a human, model, runtime, application, or integration.
+
+    actor is a stable human-readable identity chosen by the trusted caller.
+    source optionally names a provider, application, transport, or other
+    execution boundary without embedding provider SDK objects in durable state.
+    """
+
+    origin: Literal["human", "model", "runtime", "application", "integration"]
+    actor: str
+    source: str = ""
+
+    def to_dict(self) -> dict[str, str]:
+        """Return validated provider-neutral provenance for durable hashing."""
+        if not self.actor.strip():
+            raise ValueError("provenance actor must not be empty")
+        data = {"origin": self.origin, "actor": self.actor}
+        if self.source:
+            data["source"] = self.source
+        return data
+
+
 # JsonValue is recursive by design. Durable work may contain structured lists
 # and objects, but every leaf remains provider-neutral JSON. This alias is a
 # documentation and static-analysis boundary; runtime shape enforcement belongs

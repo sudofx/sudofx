@@ -29,7 +29,7 @@ import uuid
 from dataclasses import dataclass
 
 from .governance import Governance, WORK_ACTIONS, work_key
-from .models import Context, Proposal, Receipt
+from .models import Context, Proposal, Receipt, SubmissionProvenance
 from .providers import Intelligence
 from .storage import EventAppend, RecordStore, hash_event
 
@@ -87,7 +87,13 @@ class Kernel:
             )
         return Context(revision=revision, state=state, recent_receipts=receipts)
 
-    def run(self, intelligence: Intelligence, *, work_id: str | None = None) -> RunResult:
+    def run(
+        self,
+        intelligence: Intelligence,
+        *,
+        work_id: str | None = None,
+        provenance: SubmissionProvenance | None = None,
+    ) -> RunResult:
         """
         Give one disposable intelligence a bounded context and submit its proposal.
 
@@ -96,10 +102,15 @@ class Kernel:
         """
         context = self.context(work_id=work_id)
         proposal = intelligence.propose(context)
-        receipt = self.submit(proposal)
+        receipt = self.submit(proposal, provenance=provenance)
         return RunResult(context=context, proposal=proposal, receipt=receipt)
 
-    def submit(self, proposal: Proposal) -> Receipt:
+    def submit(
+        self,
+        proposal: Proposal,
+        *,
+        provenance: SubmissionProvenance | None = None,
+    ) -> Receipt:
         """
         Govern and durably record one proposal as a single semantic transaction.
 
@@ -109,6 +120,7 @@ class Kernel:
         because silent idempotent replay could hide mismatched reused identity.
         """
         payload = proposal.to_dict()
+        provenance_payload = provenance.to_dict() if provenance is not None else None
 
         with self.record.write_transaction() as transaction:
             revision, state = transaction.replay()
@@ -139,6 +151,11 @@ class Kernel:
                 "payload": payload,
                 "reasons": list(decision.reasons),
             }
+            # Legacy events predate trusted provenance and intentionally omit the
+            # field from their hash material. New attributed events bind origin
+            # evidence into the same semantic hash chain as the proposal.
+            if provenance_payload is not None:
+                material["provenance"] = provenance_payload
             event_hash = hash_event(previous_hash, material)
 
             # Storage receives one complete event. Commit/rollback remains inside
@@ -153,6 +170,7 @@ class Kernel:
                     revision_after=revision_after,
                     payload=payload,
                     reasons=decision.reasons,
+                    provenance=provenance_payload,
                     previous_hash=previous_hash,
                     event_hash=event_hash,
                 )

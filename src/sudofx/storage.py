@@ -68,6 +68,7 @@ class EventAppend:
     revision_after: int
     payload: dict[str, Any]
     reasons: tuple[str, ...]
+    provenance: dict[str, str] | None
     previous_hash: str
     event_hash: str
 
