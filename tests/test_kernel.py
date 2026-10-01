@@ -19,9 +19,11 @@ from sudofx import (
     ProviderError,
     ProviderQuotaError,
     ProviderTemporaryError,
+    Runtime,
     SubmissionProvenance,
 )
 from sudofx.record import APPLICATION_ID, SCHEMA_VERSION, IntegrityError, Record, StorageVersionError
+from sudofx.storage import InvocationEvent
 from experiments.continuity import (
     run_compressed_model_continuity_probe,
     run_continuity_proof,
@@ -684,6 +686,77 @@ json.dump({
         with self.assertRaises(ProviderError):
             self.kernel.run(provider)
         self.assertEqual(self.kernel.record.history(), ())
+
+    def test_runtime_records_provider_failure_without_fabricating_proposal_receipt(self) -> None:
+        """Provider failure is durable invocation evidence but never a proposal event."""
+        runtime = Runtime(self.kernel, self.kernel.record)
+        provider = CommandIntelligence((sys.executable, "-c", "print('not json')"))
+        provenance = SubmissionProvenance("model", "test-provider", "unit-test")
+
+        with self.assertRaises(ProviderError):
+            runtime.run(provider, provenance=provenance)
+
+        self.assertEqual(self.kernel.record.history(), ())
+        lifecycle = self.kernel.record.invocation_history()
+        self.assertEqual(
+            [event["stage"] for event in lifecycle],
+            ["requested", "context_delivered", "attempt_started", "failed"],
+        )
+        self.assertEqual(lifecycle[-1]["provenance"], provenance.to_dict())
+        self.assertIn("ProviderError", lifecycle[-1]["detail"])
+        self.assertEqual(self.kernel.record.incomplete_invocations(), ())
+
+    def test_runtime_success_records_proposal_governance_and_completion(self) -> None:
+        """Successful provider execution must connect lifecycle evidence to its receipt."""
+        runtime = Runtime(self.kernel, self.kernel.record)
+        result = runtime.run(
+            FakeIntelligence(
+                [
+                    Proposal(
+                        "runtime-success",
+                        0,
+                        (Operation("set", "runtime", "recorded"),),
+                    )
+                ]
+            ),
+            provenance=SubmissionProvenance("model", "fake", "unit-test"),
+        )
+
+        self.assertEqual(result.run.receipt.status, "accepted")
+        lifecycle = self.kernel.record.invocation_history(result.invocation_id)
+        self.assertEqual(
+            [event["stage"] for event in lifecycle],
+            [
+                "requested",
+                "context_delivered",
+                "attempt_started",
+                "proposal_received",
+                "governed",
+                "completed",
+            ],
+        )
+        self.assertEqual(lifecycle[-1]["proposal_id"], "runtime-success")
+        self.assertEqual(lifecycle[-1]["receipt_id"], result.run.receipt.receipt_id)
+        self.assertEqual(self.kernel.context().state, {"runtime": "recorded"})
+
+    def test_incomplete_invocation_survives_process_reopen_without_guessing_success(self) -> None:
+        """A successor must see interrupted work as incomplete rather than completed."""
+        event = InvocationEvent(
+            invocation_id="interrupted-1",
+            stage="attempt_started",
+            source_revision=0,
+            context_digest="d" * 64,
+            provenance={"origin": "runtime", "actor": "test"},
+        )
+        self.kernel.record.append_invocation_event(event)
+
+        reopened = Record(self.path)
+        incomplete = reopened.incomplete_invocations()
+        self.assertEqual(len(incomplete), 1)
+        self.assertEqual(incomplete[0]["invocation_id"], "interrupted-1")
+        self.assertEqual(incomplete[0]["stage"], "attempt_started")
+        self.assertIsNone(incomplete[0]["proposal_id"])
+        self.assertIsNone(incomplete[0]["receipt_id"])
 
     def test_provider_exit_codes_classify_retryable_and_quota_failures(self) -> None:
         """Continuous runners can recover provider noise but must stop on exhausted quota."""
