@@ -780,6 +780,79 @@ json.dump({
             Kernel(Record(self.path)).context().state["app:notes"]["state"],
             ["alpha", "beta"],
         )
+    def test_event_log_application_persists_transition_not_full_state(self) -> None:
+        """Large apps may grow by governed inputs instead of whole-state snapshots."""
+        def append_item(current, payload):
+            items = list(current) if isinstance(current, list) else []
+            if not isinstance(payload, str):
+                return ApplicationDecision(False, reasons=("item must be text",))
+            return ApplicationDecision(True, [*items, payload])
+
+        definition = ApplicationDefinition(
+            "compact",
+            "1",
+            (ApplicationAction("append", append_item),),
+            state_storage="event_log",
+        )
+        registry = ApplicationRegistry((definition,))
+        kernel = Kernel(self.kernel.record, Governance(application_registry=registry))
+        host = ApplicationHost(kernel, registry, "compact")
+        self.assertEqual(
+            host.submit(ApplicationIntent("compact-1", 0, "append", "alpha")).status,
+            "accepted",
+        )
+        self.assertEqual(
+            host.submit(ApplicationIntent("compact-2", 1, "append", "beta")).status,
+            "accepted",
+        )
+        self.assertEqual(host.context().state, ["alpha", "beta"])
+
+        history = self.kernel.record.history()
+        for event in history:
+            value = event["proposal"]["operations"][0]["value"]
+            self.assertEqual(value["storage"], "event_log")
+            self.assertNotIn("next_state", value)
+            self.assertEqual(len(value["result_digest"]), 64)
+        generic = Kernel(Record(self.path)).context().state["app:compact"]
+        self.assertEqual(generic["storage"], "event_log")
+        self.assertEqual(len(generic["events"]), 2)
+        self.assertNotIn("state", generic)
+
+        reinstalled = ApplicationHost(
+            Kernel(Record(self.path), Governance(application_registry=registry)),
+            registry,
+            "compact",
+        )
+        self.assertEqual(reinstalled.context().state, ["alpha", "beta"])
+
+    def test_event_log_application_detects_same_version_policy_drift(self) -> None:
+        """Stored result digests make silent behavior changes under one version visible."""
+        original = ApplicationDefinition(
+            "drift",
+            "1",
+            (ApplicationAction("set", lambda current, payload: ApplicationDecision(True, payload)),),
+            state_storage="event_log",
+        )
+        registry = ApplicationRegistry((original,))
+        kernel = Kernel(self.kernel.record, Governance(application_registry=registry))
+        ApplicationHost(kernel, registry, "drift").submit(
+            ApplicationIntent("drift-1", 0, "set", "expected")
+        )
+
+        changed = ApplicationDefinition(
+            "drift",
+            "1",
+            (ApplicationAction("set", lambda current, payload: ApplicationDecision(True, "changed")),),
+            state_storage="event_log",
+        )
+        changed_registry = ApplicationRegistry((changed,))
+        changed_host = ApplicationHost(
+            Kernel(Record(self.path), Governance(application_registry=changed_registry)),
+            changed_registry,
+            "drift",
+        )
+        with self.assertRaisesRegex(ValueError, "replay drift detected"):
+            changed_host.context()
     def test_application_version_change_requires_explicit_migration(self) -> None:
         """Installing newer app code must not silently reinterpret older durable state."""
         v1 = ApplicationDefinition(
