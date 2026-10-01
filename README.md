@@ -189,7 +189,7 @@ src/sudofx/             kernel, record, governance, continuity, reporting
 scripts/                provider adapters, GitHub runtime, recovery runner
 .github/workflows/      governed cloud execution and continuation
 tests/                  invariant and failure-boundary proofs
-plugins/                optional development and application extensions
+experiments/            disposable development and continuity experiments
 site/                   generated public projection
 data/                   local runtime database path; live cloud authority is checkpointed separately
 docs/                   architecture, current status, and design notes
