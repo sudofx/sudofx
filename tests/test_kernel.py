@@ -711,6 +711,7 @@ json.dump({
         self.assertIsNone(lifecycle[0]["context_receipt"])
         self.assertIsNone(lifecycle[2]["context_receipt"])
         self.assertIn("ProviderError", lifecycle[-1]["detail"])
+        self.assertEqual(lifecycle[-1]["outcome"], "provider_failure")
         self.assertEqual(self.kernel.record.incomplete_invocations(), ())
 
     def test_runtime_success_records_proposal_governance_and_completion(self) -> None:
@@ -745,6 +746,7 @@ json.dump({
         self.assertEqual(lifecycle[-1]["proposal_id"], "runtime-success")
         self.assertEqual(lifecycle[-1]["receipt_id"], result.run.receipt.receipt_id)
         self.assertEqual(lifecycle[1]["context_receipt"]["scope"], {"kind": "global"})
+        self.assertEqual(lifecycle[-1]["outcome"], "success")
         self.assertEqual(self.kernel.context().state, {"runtime": "recorded"})
 
     def test_incomplete_invocation_survives_process_reopen_without_guessing_success(self) -> None:
@@ -765,6 +767,30 @@ json.dump({
         self.assertEqual(incomplete[0]["stage"], "attempt_started")
         self.assertIsNone(incomplete[0]["proposal_id"])
         self.assertIsNone(incomplete[0]["receipt_id"])
+
+    def test_runtime_accounting_classifies_quota_and_temporary_failures(self) -> None:
+        """Generic accounting must preserve outcomes without embedding vendor quota policy."""
+        runtime = Runtime(self.kernel, self.kernel.record)
+        provenance = SubmissionProvenance("model", "process-provider", "unit-test")
+        for exit_code, expected in ((75, "temporary_failure"), (78, "quota_exhausted")):
+            provider = CommandIntelligence(
+                (sys.executable, "-c", f"import sys; sys.exit({exit_code})")
+            )
+            with self.assertRaises(ProviderError):
+                runtime.run(provider, provenance=provenance)
+            self.assertEqual(
+                self.kernel.record.invocation_history()[-1]["outcome"],
+                expected,
+            )
+
+        accounting = self.kernel.record.invocation_accounting()
+        self.assertEqual(accounting["invocations"], 2)
+        self.assertEqual(accounting["attempts"], 2)
+        self.assertEqual(accounting["failed"], 2)
+        self.assertEqual(accounting["completed"], 0)
+        self.assertEqual(accounting["temporary_failures"], 1)
+        self.assertEqual(accounting["quota_exhausted"], 1)
+        self.assertEqual(accounting["provider_failures"], 0)
 
     def test_provider_exit_codes_classify_retryable_and_quota_failures(self) -> None:
         """Continuous runners can recover provider noise but must stop on exhausted quota."""
