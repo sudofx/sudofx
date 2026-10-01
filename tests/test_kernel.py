@@ -151,7 +151,7 @@ class KernelTests(unittest.TestCase):
 
     def test_restore_provider_failure_cannot_initialize_empty_authority(self) -> None:
         """A network or permission failure is not evidence that state is absent."""
-        import scripts.github_sudofx as adapter
+        import scripts.github_state as adapter
 
         original_git = adapter.git
         try:
@@ -165,7 +165,7 @@ class KernelTests(unittest.TestCase):
 
     def test_corrupt_restore_candidate_preserves_last_known_good_database(self) -> None:
         """Failed verification must leave the installed database bytes untouched."""
-        import scripts.github_sudofx as adapter
+        import scripts.github_state as adapter
 
         existing = Path(self.tempdir.name) / "installed.sqlite"
         source = Record(existing)
@@ -1233,6 +1233,19 @@ json.dump({
         self.assertIn('"push", "--force"', adapter)
         self.assertIn("sudofx-live/live.json", report)
         self.assertNotIn("fetch('./continuity-proof.json?ts='", report)
+
+    def test_github_state_transport_contains_no_experiment_semantics(self) -> None:
+        """Replaceable Git transport must move verified database bytes, not domain meaning."""
+        source = (
+            Path(__file__).parents[1] / "scripts" / "github_state.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn("def restore()", source)
+        self.assertIn("def checkpoint()", source)
+        self.assertIn("Record(DATA).backup_to(snapshot)", source)
+        self.assertNotIn("experiments.", source)
+        self.assertNotIn("Gemini", source)
+        self.assertNotIn("handoff", source.lower())
+        self.assertNotIn("semantic_review", source)
 
     def test_recovery_workflow_retains_verified_backup_outside_pages(self) -> None:
         """Recovery backup must be finite, authenticated by GitHub, and excluded from public output."""
