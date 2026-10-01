@@ -23,6 +23,7 @@ from .applications import (
     ApplicationDefinition,
     ApplicationHost,
     ApplicationIntent,
+    ApplicationPermissions,
     ApplicationRegistry,
     EffectRequest,
 )
@@ -46,6 +47,7 @@ __all__ = [
     "ApplicationDefinition",
     "ApplicationHost",
     "ApplicationIntent",
+    "ApplicationPermissions",
     "ApplicationRegistry",
     "EffectRequest",
     "Context",
