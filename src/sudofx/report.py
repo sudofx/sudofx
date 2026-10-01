@@ -91,6 +91,52 @@ def _public_model_response(proof: dict[str, object]) -> str:
     return raw
 
 
+def _conversation_panel(state: dict[str, object], repository: str) -> str:
+    """Render the durable conversation application as a readable browser projection."""
+    envelope = state.get("app:conversation")
+    if not isinstance(envelope, dict):
+        return ""
+    conversation = envelope.get("state")
+    if not isinstance(conversation, dict):
+        return ""
+    turns = conversation.get("turns", [])
+    if not isinstance(turns, list):
+        return ""
+    visible = turns[-20:]
+    omitted = max(0, len(turns) - len(visible))
+    rows: list[str] = []
+    for turn in visible:
+        if not isinstance(turn, dict):
+            continue
+        role = turn.get("role")
+        content = turn.get("content")
+        if role not in {"human", "assistant"} or not isinstance(content, str):
+            continue
+        label = "You" if role == "human" else "Gemini"
+        rows.append(
+            f'<div class="quality-block"><div class="quality-head"><b>{_escape(label)}</b>'
+            f'<span class="quality-verdict">{_escape(role.upper())}</span></div>'
+            f'<div>{_escape(content)}</div></div>'
+        )
+    transcript = "".join(rows) or '<div class="empty">No governed conversation turns yet.</div>'
+    omission = (
+        f'<div class="quality-provenance">{omitted} older turns remain durable in SQLite and are omitted from this page window.</div>'
+        if omitted
+        else ""
+    )
+    workflow_url = f"https://github.com/{repository}/actions/workflows/sudofx.yml"
+    return f"""
+    <section data-conversation>
+      <div class="toolbar">
+        <div><span class="eyebrow">Phase D proof</span><h2>Governed conversation</h2></div>
+        <a href="{_escape(workflow_url)}" target="_blank" rel="noopener">Send next message</a>
+      </div>
+      {omission}
+      <div>{transcript}</div>
+      <div class="quality-provenance">Use the GitHub Actions form: choose <b>conversation</b> and put your message in <b>value</b>. Each human turn is committed before Gemini is invoked.</div>
+    </section>
+    """
+
 def _work_cards(state: dict[str, object]) -> str:
     """
     Render governed work as human-readable lifecycle cards.
@@ -800,6 +846,7 @@ def render(
       </div>
       <div class="quality-provenance">Human judgment is recorded separately from protocol success and is bound to this exact run + digest.</div>
     </div>
+    {_conversation_panel(context.state, repository)}
     <section>
       <div class="toolbar"><div><span class="eyebrow">{open_work} open</span><h2>Current work</h2></div></div>
       <div class="work-grid">{_work_cards(context.state)}</div>
