@@ -52,7 +52,7 @@ from .storage import EventAppend, GENESIS_HASH, InvocationEvent, canonical_json,
 # sudofx record; user_version gives storage evolution one ordered owner instead
 # of scattering opportunistic CREATE/ALTER statements through runtime paths.
 APPLICATION_ID = 0x53444658  # "SDFX"
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 
 def apply_operation(state: dict[str, JsonValue], operation: dict[str, Any]) -> None:
@@ -339,6 +339,7 @@ class Record:
                         stage IN (
                             'requested',
                             'context_delivered',
+                            'provider_selected',
                             'attempt_started',
                             'proposal_received',
                             'governed',
@@ -352,10 +353,16 @@ class Record:
                     proposal_id TEXT,
                     receipt_id TEXT,
                     detail TEXT NOT NULL DEFAULT '',
+                    evidence TEXT,
                     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
                 )
                 """
             )
+            invocation_columns = {
+                row[1] for row in connection.execute("PRAGMA table_info(invocation_events)")
+            }
+            if "evidence" not in invocation_columns:
+                connection.execute("ALTER TABLE invocation_events ADD COLUMN evidence TEXT")
             connection.execute(
                 "CREATE INDEX IF NOT EXISTS invocation_events_id_sequence "
                 "ON invocation_events(invocation_id, sequence)"
@@ -388,8 +395,8 @@ class Record:
                 """
                 INSERT INTO invocation_events (
                     invocation_id, stage, source_revision, context_digest,
-                    provenance, proposal_id, receipt_id, detail
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    provenance, proposal_id, receipt_id, detail, evidence
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     event.invocation_id,
@@ -400,6 +407,7 @@ class Record:
                     event.proposal_id,
                     event.receipt_id,
                     event.detail,
+                    canonical_json(event.evidence) if event.evidence is not None else None,
                 ),
             )
             connection.commit()
@@ -436,6 +444,7 @@ class Record:
                 "proposal_id": row["proposal_id"],
                 "receipt_id": row["receipt_id"],
                 "detail": row["detail"],
+                "evidence": json.loads(row["evidence"]) if row["evidence"] else None,
                 "created_at": row["created_at"],
             }
             for row in rows
