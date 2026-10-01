@@ -956,13 +956,23 @@ const setManualStatus=(message)=>{{if(manualStatus)manualStatus.textContent=mess
 const copyManualFromField=()=>{{
   if(!manualPrompt?.value)return false;
   try{{
-    const wasReadonly=manualPrompt.hasAttribute('readonly');
-    if(wasReadonly)manualPrompt.removeAttribute('readonly');
-    manualPrompt.focus({{preventScroll:true}});
-    manualPrompt.select();
-    manualPrompt.setSelectionRange(0,manualPrompt.value.length);
+    // iOS Safari is unreliable when copying from readonly controls. Copy from
+    // a short-lived editable textarea instead, keeping the whole operation
+    // synchronous so provider deep-links can still use the same physical tap.
+    const helper=document.createElement('textarea');
+    helper.value=manualPrompt.value;
+    helper.setAttribute('aria-hidden','true');
+    helper.style.position='fixed';
+    helper.style.top='0';
+    helper.style.left='-9999px';
+    helper.style.opacity='0';
+    helper.style.fontSize='16px';
+    document.body.appendChild(helper);
+    helper.focus();
+    helper.select();
+    helper.setSelectionRange(0,helper.value.length);
     const copied=Boolean(document.execCommand('copy'));
-    if(wasReadonly)manualPrompt.setAttribute('readonly','');
+    helper.remove();
     return copied;
   }}catch{{return false;}}
 }};
@@ -997,7 +1007,7 @@ const prepareManualProvider=(link)=>{{
     }}
   }}catch{{}}
   if(!copyStarted)copyStarted=copyManualFromField();
-  setManualStatus((copyStarted?'Prompt copy started. ':'Prompt ready. ')+'Opening '+vendor+'. If paste is empty, return and tap Copy prompt once.');
+  setManualStatus((copyStarted?'Prompt copied. ':'Prompt ready. ')+'Opening '+vendor+'. If paste is empty, return and tap Copy prompt once.');
   const fallback=link.dataset.manualFallback||'';
   if(fallback){{
     setTimeout(()=>{{if(!document.hidden)location.href=fallback;}},1200);
