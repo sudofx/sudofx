@@ -181,6 +181,38 @@ class GeminiTransportTests(unittest.TestCase):
         self.assertNotIn("private-key", json.dumps(details))
 
 
+    def test_provider_error_redacts_credential_value_inside_strings(self) -> None:
+        body = {
+            "error": {
+                "code": 503,
+                "status": "UNAVAILABLE",
+                "message": "backend echoed private-deployment-key while failing",
+            }
+        }
+        error = urllib.error.HTTPError(
+            "https://example",
+            503,
+            "busy",
+            {},
+            None,
+        )
+        error.read = lambda maximum=None: json.dumps(body).encode()
+
+        provider = GeminiGenerationProvider(
+            "private-deployment-key",
+            timeout_seconds=5,
+        )
+        with patch("sudofx.generation.urllib.request.urlopen", side_effect=error):
+            with self.assertRaises(ProviderTemporaryError) as raised:
+                provider.generate(
+                    GenerationRequest(model="gemini-test", prompt="bounded")
+                )
+
+        serialized = json.dumps(raised.exception.details)
+        self.assertNotIn("private-deployment-key", serialized)
+        self.assertIn("[redacted]", serialized)
+
+
     def test_provider_returns_untrusted_text_without_exposing_secret(self) -> None:
         class Response:
             def __enter__(self):
