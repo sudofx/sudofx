@@ -84,3 +84,36 @@ receipt, or context meaning.
 
 Principle: one authoritative database -> everything else is a view, query, or
 export.
+
+
+## Current architectural vocabulary
+
+The active October 1 contract replaced the broad WAKE-as-plugin direction.
+
+Use these terms in code, comments, reviews, and documentation:
+
+- **kernel** — smallest durable authority boundary
+- **runtime** — execution, context, invocation, recovery, and effect coordination
+- **application** — complete domain behavior built on sudofx
+- **extension** — optional capability layered onto the engine or an application
+- **plugin** — only a technical loading/packaging mechanism if dynamic installation is actually implemented
+
+WAKE✳︎ is an application migration, not a reason to move research-specific policy into the sudofx kernel.
+
+## Presentation is read-only authority-wise
+
+Generated HTML, Pages publication, reports, workflow summaries, browser state, and exported JSON/Markdown are projections or transport.
+
+A presentation-only path may reconstruct a disposable local view of database state, but it must not commit migrations, advance revisions, write receipts, or otherwise gain authority merely because rendering encountered older stored bytes. Durable schema migration belongs to an authorized stateful path.
+
+## Documentation synchronization
+
+When a change materially alters authority, storage, replay, application semantics, operator workflows, or migration status, update the canonical documentation in the same work:
+
+- `README.md` for the repository-level current picture
+- `docs/STATUS.md` for phase/frontier status
+- `docs/ARCHITECTURE.md` for implemented authority boundaries
+- `docs/APPLICATION_ARCHITECTURE.md` for application contract changes
+- `100126-CONTRACT.md` only when the human-approved execution contract itself changes
+
+Historical experiment notes may remain historical, but they must be clearly labeled so they cannot be mistaken for current operating instructions.
