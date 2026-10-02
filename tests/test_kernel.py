@@ -1272,6 +1272,19 @@ print(json.dumps(state["turns"]))
         self.assertIn("group: sudofx-authority-v4", workflow)
         self.assertIn("preserving operator Stop", workflow)
 
+    def test_github_adapter_has_no_unreachable_legacy_diagnostics(self) -> None:
+        """One-off diagnostic flags without workflow callers must stay retired."""
+        root = Path(__file__).parents[1]
+        adapter = (root / "scripts" / "github_sudofx.py").read_text(encoding="utf-8")
+        for retired in (
+            "--prove-model-uncompressed",
+            "--prove-model-compressed",
+            "--prove-vacuum-recovery",
+            "run_compressed_model_continuity_probe",
+            "run_model_continuity_probe",
+        ):
+            self.assertNotIn(retired, adapter)
+
     def test_core_package_is_free_of_experiment_specific_dependencies(self) -> None:
         """Reusable sudofx code must not depend on continuity/manual-handoff experiments."""
         root = Path(__file__).parents[1]
