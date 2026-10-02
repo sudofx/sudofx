@@ -268,8 +268,11 @@ class Runtime:
                 effect_barrier()
             except Exception as error:
                 lifecycle.fail(
-                    outcome="effect_barrier_failure",
-                    detail=type(error).__name__,
+                    # The external provider was never called, so this is not a
+                    # provider outcome. Keep outcome null and preserve the failed
+                    # durability boundary in detail for recovery/audit.
+                    outcome=None,
+                    detail=f"effect_barrier:{type(error).__name__}",
                 )
                 raise
 
