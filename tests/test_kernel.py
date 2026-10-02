@@ -1331,6 +1331,10 @@ print(json.dumps(state["turns"]))
         self.assertIn("scripts/conversation_sudofx.py", dedicated)
         self.assertFalse((root / "scripts" / "run-sudofx-cycles.sh").exists())
 
+    def test_kernel_has_no_provider_execution_entry_point(self) -> None:
+        """Disposable intelligence execution belongs to Runtime, never Kernel."""
+        self.assertFalse(hasattr(Kernel, "run"))
+
     def test_fresh_intelligences_continue_from_durable_context(self) -> None:
         """A second provider instance must derive progress only from durable context."""
         first = FakeIntelligence(
