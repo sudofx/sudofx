@@ -6,9 +6,8 @@ import json
 import os
 import sys
 import urllib.error
-import urllib.request
 
-from gemini_transport import build_generate_request, extract_text
+from gemini_transport import build_generate_request, extract_text, request_json
 
 
 def _prompt(context: dict[str, object]) -> str:
@@ -38,8 +37,7 @@ def main() -> int:
         temperature=0.4,
     )
     try:
-        with urllib.request.urlopen(request, timeout=80) as response:
-            payload = json.loads(response.read().decode("utf-8"))
+        payload = request_json(request, timeout=80)
     except urllib.error.HTTPError as error:
         if error.code == 429:
             return 78
