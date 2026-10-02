@@ -109,3 +109,17 @@ h3{font-size:1.35rem;letter-spacing:-.025em}
 .conversation-popout-mode .conversation-messages{height:auto;min-height:0;max-height:none;flex:1}
 .conversation-popout-mode .conversation-compose{background:var(--surface)}
 @media(max-width:600px){.conversation-actions{gap:6px}.conversation-popout{font-size:.78rem;padding:8px 10px}}
+
+
+/* Conversation clipboard affordances and Safari/iOS text selection. */
+.conversation-messages,
+.conversation-bubble,
+.conversation-bubble p,
+.conversation-compose textarea{
+  -webkit-user-select:text;
+  user-select:text;
+}
+.conversation-bubble{position:relative;padding-bottom:34px}
+.conversation-copy{position:absolute;right:10px;bottom:8px;border:0;background:transparent;color:var(--primary);font:700 .72rem var(--mono);cursor:pointer;padding:4px 6px}
+.conversation-copy:focus-visible{outline:2px solid var(--primary);outline-offset:2px;border-radius:6px}
+.conversation-compose-actions{display:flex;align-items:center;gap:8px;flex:0 0 auto}
