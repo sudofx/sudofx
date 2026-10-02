@@ -1356,14 +1356,17 @@ print(json.dumps(state["turns"]))
         self.assertIn("Send next message", page)
         self.assertIn("actions/workflows/conversation.yml", page)
 
-    def test_dedicated_workflow_exposes_governed_conversation_browser_path(self) -> None:
-        """The zero-cost browser proof is a one-message authenticated workflow surface."""
+    def test_dedicated_workflow_uses_encrypted_conversation_transport(self) -> None:
+        """Cloud workflow transport must never expose a plaintext message input."""
         workflow = (
             Path(__file__).parents[1] / ".github" / "workflows" / "conversation.yml"
         ).read_text(encoding="utf-8")
-        self.assertIn("message:", workflow)
-        self.assertIn("applications.conversation.runtime", workflow)
-        self.assertIn("--summary-file \"$GITHUB_STEP_SUMMARY\"", workflow)
+        self.assertIn("request_id:", workflow)
+        self.assertIn("payload:", workflow)
+        self.assertNotIn("\n      message:", workflow)
+        self.assertIn("CONVERSATION_TRANSPORT_KEY", workflow)
+        self.assertIn("applications.conversation.transport decrypt", workflow)
+        self.assertIn("conversation-live", workflow)
         self.assertIn("group: sudofx-authority-v4", workflow)
         self.assertIn("preserving operator Stop", workflow)
 
