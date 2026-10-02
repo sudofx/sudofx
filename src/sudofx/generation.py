@@ -173,7 +173,7 @@ def extract_gemini_text(response: dict[str, Any]) -> str:
     return text
 
 
-def _safe_error_payload(error: urllib.error.HTTPError) -> dict[str, Any]:
+def _safe_error_payload(\n    error: urllib.error.HTTPError,\n    *,\n    secret_values: tuple[str, ...] = (),\n) -> dict[str, Any]:
     """Retain bounded provider diagnostics while excluding credential-shaped fields."""
 
     try:
@@ -274,7 +274,7 @@ class GeminiGenerationProvider:
                 timeout=self.timeout_seconds,
             )
         except urllib.error.HTTPError as error:
-            provider_error = _safe_error_payload(error)
+            provider_error = _safe_error_payload(\n                error,\n                secret_values=(self._api_key,),\n            )
             details = {
                 **base,
                 "http_status": error.code,
