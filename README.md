@@ -131,7 +131,7 @@ SQLite
 derived browser projection
 ```
 
-Tests replace the kernel, application host, and provider process between turns and reconstruct the next turn only from SQLite. The public projection links to the dedicated `conversation.yml` workflow for one-message browser input.
+Tests now run separate Python interpreters for successive conversation rounds and reconstruct the final transcript in a third fresh process using only SQLite. The public projection links to the dedicated `conversation.yml` workflow for one-message browser input.
 
 The browser is transport and presentation, not memory.
 
@@ -177,7 +177,7 @@ Basic kernel commands remain available through the `sudofx` CLI.
 
 The core loop, application boundary, and database-derived continuity mechanics are implemented.
 
-The immediate engineering frontier is to finish hardening the Phase D human interaction proof, then continue Phase E by moving WAKE✳︎ domain execution onto sudofx without importing research-specific semantics into the kernel.
+Phase D is complete at the contract level: multiple governed conversation rounds now survive separate Python interpreter replacement because continuity is reconstructed from SQLite alone. The immediate engineering frontier is Phase E: continue moving WAKE✳︎ execution responsibility onto sudofx without importing research-specific semantics into the kernel.
 
 The larger experiment remains open:
 
