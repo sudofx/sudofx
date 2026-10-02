@@ -1,7 +1,7 @@
 # Project status
 
 **Date:** October 2, 2026  
-**Scope:** current implementation on `master` plus the active WAKE✳︎ migration path in `sudofx/wake`
+**Scope:** current implementation on `master` plus the completed Phase E application boundary on WAKE✳︎ `master` in `sudofx/wake`
 
 ## Objective
 
@@ -13,7 +13,7 @@ The success condition is not that one model remembers. The success condition is 
 
 | Phase | Current status | Evidence |
 | --- | --- | --- |
-| A — reusable sudofx boundary | Substantially complete | Kernel/runtime/application separation, invocation lifecycle, provenance, bounded context, provider boundary, and research-specific exclusions are explicit in code and docs. |
+| A — reusable sudofx boundary | **Complete at the current contract boundary** | Kernel/runtime/application separation, invocation lifecycle, provenance, bounded context, provider/effect boundaries, and research-specific exclusions are explicit in code, docs, and executable invariants. |
 | B — harden and sanitize | **Complete at the current contract boundary** | Provider execution is runtime-only; experiments are quarantined outside `src/sudofx`; Pages is read-only; `app:*` and `work:*` namespaces are sealed; duplicate conversation/local-cycle entry points and unreachable diagnostic flags are retired; Gemini HTTP success transport is consolidated without importing vendor policy into the engine. |
 | C — application contract | **Complete at the current contract boundary** | `ApplicationDefinition`, registry/host, deterministic policy re-evaluation, sealed namespaced state, migration/version checks, bounded capabilities, compact event-log storage, and removal tests are implemented and covered by executable invariants. |
 | D — minimal human conversation proof | **Complete at contract level** | Governed human and assistant turns, bounded database-derived context, provider invocation, dedicated browser workflow, and derived Pages projection are implemented. CI now proves two back-and-forth rounds across separate Python interpreters sharing only the authoritative SQLite record, followed by a third fresh-process reconstruction of the four-turn transcript. |
@@ -94,10 +94,6 @@ The original continuity experiment succeeded strongly enough to justify the Octo
 
 sudofx is now better described as a **working governed engine with an implemented application boundary** than as a continuity prototype.
 
-The immediate test is no longer “can a fresh model continue from external state?”
+The question “can materially different applications use the same authority boundary without forcing the kernel to absorb their domain assumptions?” now has two concrete implementation proofs: conversation and WAKE✳︎.
 
-It is:
-
-> Can materially different applications use the same authority boundary without forcing the kernel to absorb their domain assumptions?
-
-The conversation application and the WAKE✳︎ migration are the first two concrete tests of that claim. The A–E execution contract is now satisfied at its stated architectural exit conditions; future work should begin from a new explicit frontier rather than silently extending the kernel.
+The A–E execution contract is satisfied at its stated architectural exit conditions. Remaining items are operational hardening, compatibility retirement, provider breadth, storage/privacy evolution, and long-horizon semantic research—not unfinished A–E architecture. Any new kernel or product semantics should begin from a new explicit frontier rather than silently extending the completed contract.
