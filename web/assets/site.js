@@ -1,5 +1,6 @@
 (() => {
   const LIVE_URL='https://raw.githubusercontent.com/sudofx/sudofx/sudofx-live/live.json';
+  const APPLICATION_SOURCES='application-sources.json';
   const q=s=>document.querySelector(s);
   const fmtBytes=n=>{n=Number(n);if(!Number.isFinite(n)||n<0)return '—';if(n===0)return '0 B';const u=['B','KB','MB','GB'];let i=0;while(n>=1024&&i<u.length-1){n/=1024;i++}return (n>=100||i===0?n.toFixed(0):n.toFixed(1))+' '+u[i]};
   const fmtMs=n=>{n=Number(n);return Number.isFinite(n)?(n<1?n.toFixed(2):n.toFixed(1))+' ms':'—'};
@@ -29,9 +30,28 @@
       projectionSchema:raw.projection_schema
     };
   };
+  const loadFederatedApplications=()=>fetch(APPLICATION_SOURCES+'?v='+Date.now(),{cache:'no-store'})
+    .then(r=>r.ok?r.json():{sources:[]})
+    .then(config=>Promise.allSettled((Array.isArray(config.sources)?config.sources:[]).map(source=>
+      fetch(source.projection_url+'?v='+Date.now(),{cache:'no-store'}).then(r=>{
+        if(!r.ok)throw new Error('application projection unavailable');return r.json();
+      }).then(raw=>{
+        const observed=raw.application_observability;
+        if(!observed||!Array.isArray(observed.applications))return [];
+        return observed.applications.map(app=>({...app,projection_source:source.id||''}));
+      })
+    )))
+    .then(results=>results.flatMap(result=>result.status==='fulfilled'?result.value:[]))
+    .catch(()=>[]);
 
   fetch(LIVE_URL+'?v='+Date.now(),{cache:'no-store'})
     .then(r=>{if(!r.ok)throw new Error('live projection unavailable');return r.json()})
+    .then(async raw=>{
+      const local=raw.application_observability?.applications||[];
+      const external=await loadFederatedApplications();
+      raw.application_observability={...(raw.application_observability||{}),applications:[...local,...external]};
+      return raw;
+    })
     .then(raw=>{
       const d=normalize(raw);
       const summary=q('[data-live-summary] p');
