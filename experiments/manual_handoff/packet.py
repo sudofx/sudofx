@@ -7,8 +7,8 @@ import json
 from pathlib import Path
 from typing import Any
 
-from .kernel import Kernel
-from .storage import GENESIS_HASH, canonical_json
+from sudofx.kernel import Kernel
+from sudofx.storage import GENESIS_HASH, canonical_json
 
 
 HANDOFF_VERSION = 1
