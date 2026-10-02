@@ -1278,10 +1278,10 @@ json.dump({
             invocation_id="application-lifecycle-1",
         )
         lifecycle.proposal_received("application-response-1")
-        lifecycle.governed("application-response-1", "application-receipt-1", "accepted")
+        lifecycle.governed("application-response-1", None, "accepted")
         lifecycle.complete(
             proposal_id="application-response-1",
-            receipt_id="application-receipt-1",
+            receipt_id=None,
             detail="accepted",
         )
 
@@ -1302,6 +1302,7 @@ json.dump({
             {"kind": "application", "application_id": "test"},
         )
         self.assertEqual(events[-1]["outcome"], "success")
+        self.assertIsNone(events[-1]["receipt_id"])
         self.assertEqual(self.kernel.record.history(), ())
 
     def test_runtime_effect_barrier_must_succeed_before_provider_call(self) -> None:
