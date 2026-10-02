@@ -33,6 +33,7 @@ The success condition is not that one model remembers. The success condition is 
 - GitHub Actions, providers, browser surfaces, and generated Pages output remain replaceable infrastructure.
 - The conversation proof survives complete Python interpreter replacement across multiple rounds; continuity is reconstructed from SQLite alone.
 - The private Conversation server runs the same governed path end-to-end while raw browser transcript text remains transient.
+- Handoff packet/scoring/evaluation semantics now live in `applications/handoff/`; new evaluations persist under `app:handoff` rather than as handoff-specific generic work operations.
 - WAKE✳︎ domain migration preserves its own policy above the generic sudofx authority boundary.
 - WAKE✳︎ provider attempts share sudofx invocation IDs/evidence, survive fresh-process recovery, and use the generic pre-effect durability barrier without importing Gemini-specific exception types into the engine.
 
@@ -55,6 +56,7 @@ runtime
     ↓
 applications
     ├─ conversation
+    ├─ handoff
     └─ WAKE✳︎ migration
     ↓
 derived presentation / external infrastructure
@@ -79,7 +81,7 @@ Implemented and verified:
 - GitHub Pages now publishes a lightweight static shell rather than replaying SQLite to regenerate the whole site.
 - Home, Applications, Technical, and Metrics are separate public surfaces.
 - The homepage leads with a natural explanation and ELI15 summaries rather than raw technical telemetry.
-- Applications currently presented are WAKE✳︎ and Conversation.
+- Applications currently presented are WAKE✳︎, Conversation, and Handoff.
 - Technical and metric pages fetch changing public-safe data from the disposable `sudofx-live` projection branch at runtime.
 - Pages rebuild triggers are limited to shell/product-surface source changes; operational state changes do not trigger a site rebuild.
 - The new shell has deployed successfully through GitHub Pages.
@@ -97,7 +99,7 @@ Implemented and verified:
 3. Before internet-hosting Conversation, deploy an authenticated private gateway/state path; public Pages and public Git refs remain unsuitable as a private chat authority.
 4. Prove broader provider substitution when deliberately authorized.
 5. Continue long-horizon semantic tests; mechanical replay alone does not prove that compressed context preserves useful meaning indefinitely.
-6. Define a new explicit contract before adding another substantial product surface or new kernel semantics.
+6. Continue retiring the pre-application manual-handoff compatibility path after existing authoritative records no longer depend on it; do not remove historical replay support prematurely.
 
 ## Open risks
 
