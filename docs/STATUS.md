@@ -117,6 +117,6 @@ The original continuity experiment succeeded strongly enough to justify the Octo
 
 sudofx is now better described as a **working governed engine with an implemented application boundary** than as a continuity prototype.
 
-The question “can materially different applications use the same authority boundary without forcing the kernel to absorb their domain assumptions?” now has two concrete implementation proofs: conversation and WAKE✳︎.
+The question “can materially different applications use the same authority boundary without forcing the kernel to absorb their domain assumptions?” now has three concrete implementation proofs: Conversation, Handoff, and WAKE✳︎.
 
 The A–E execution contract is satisfied at its stated architectural exit conditions. Remaining items are operational hardening, compatibility retirement, provider breadth, storage/privacy evolution, and long-horizon semantic research—not unfinished A–E architecture. Any new kernel or product semantics should begin from a new explicit frontier rather than silently extending the completed contract.
