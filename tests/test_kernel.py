@@ -47,9 +47,12 @@ from experiments.continuity import (
     run_work_continuity_probe,
 )
 from sudofx.report import _format_bytes, export_site, render
-from experiments.manual_handoff.packet import build_handoff_packet, build_manual_prompt, export_handoff_packet
-from experiments.manual_handoff.scoring import (
+from applications.handoff import (
     DIMENSIONS,
+    HandoffService,
+    build_handoff_packet,
+    build_manual_prompt,
+    export_handoff_packet,
     evaluate_handoff_response,
     handoff_packet_digest,
     handoff_work_id,
@@ -2551,11 +2554,9 @@ json.dump({
         }
         result = evaluate_handoff_response(json.dumps(response), packet)
         self.assertEqual(result["score"], 7)
-        receipt = self.kernel.submit(
-            Proposal("record-handoff-evaluation", 1, (Operation("record_handoff_evaluation", "handoff-v1", result),))
-        )
+        receipt = HandoffService(self.kernel).record_evaluation("handoff-v1", result)
         self.assertEqual(receipt.status, "accepted")
-        saved = self.kernel.context().state["work:handoff-v1"]["handoff_evaluations"][0]
+        saved = self.kernel.context().state["app:handoff"]["projection_state"]["targets"]["handoff-v1"]["evaluations"][0]
         self.assertEqual(saved["test_id"], response["test_id"])
         self.assertEqual(saved["work_id"], response["work_id"])
         self.assertEqual(saved["scorer_version"], 2)
@@ -2566,13 +2567,7 @@ json.dump({
         second_response["nonce"] = "HANDOFF-UUID-333333"
         second_response["vendor"] = "DeepSeek"
         second_result = evaluate_handoff_response(json.dumps(second_response), packet)
-        second_receipt = self.kernel.submit(
-            Proposal(
-                "record-second-handoff-evaluation",
-                2,
-                (Operation("record_handoff_evaluation", "handoff-v1", second_result),),
-            )
-        )
+        second_receipt = HandoffService(self.kernel).record_evaluation("handoff-v1", second_result)
         self.assertEqual(second_receipt.status, "accepted")
 
         page = render(self.kernel)
