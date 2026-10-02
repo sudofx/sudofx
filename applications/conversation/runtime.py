@@ -15,7 +15,14 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from .application import CONVERSATION_APPLICATION, bounded_context
+from .application import (
+    CONVERSATION_APPLICATION,
+    bounded_context,
+    private_assistant_descriptor,
+    private_bounded_context,
+    private_message_descriptor,
+    validate_private_message,
+)
 from scripts.github_state import DATA, checkpoint, restore
 from sudofx import (
     ApplicationHost,
@@ -52,9 +59,17 @@ class ProjectedKernel:
 class ConversationIntelligence:
     """Call one semantic provider, then shape its text into a governed app proposal."""
 
-    def __init__(self, *, current_state, provider_command: tuple[str, ...]) -> None:
+    def __init__(
+        self,
+        *,
+        current_state,
+        provider_command: tuple[str, ...],
+        private_mode: bool = False,
+    ) -> None:
         self.current_state = current_state
         self.provider_command = provider_command
+        self.private_mode = private_mode
+        self.last_content: str | None = None
 
     def propose(self, context: Context) -> Proposal:
         request = json.dumps(
@@ -88,10 +103,23 @@ class ConversationIntelligence:
         content = response.get("content") if isinstance(response, dict) else None
         if not isinstance(content, str) or not content.strip():
             raise ProviderError("conversation provider returned no assistant content")
+        self.last_content = content.strip()
 
-        action = CONVERSATION_APPLICATION.action("assistant_message")
+        if self.private_mode:
+            observations = response.get("observations", [])
+            try:
+                payload = private_assistant_descriptor(self.last_content, observations)
+            except ValueError as error:
+                raise ProviderError(str(error)) from error
+            action_name = "private_assistant_message"
+        else:
+            # Legacy proof path retained for existing replay/process-replacement tests.
+            payload = self.last_content
+            action_name = "assistant_message"
+
+        action = CONVERSATION_APPLICATION.action(action_name)
         assert action is not None
-        decision = action.evaluate(self.current_state, content.strip())
+        decision = action.evaluate(self.current_state, payload)
         if not decision.accepted:
             raise ProviderError("assistant response violated conversation application policy")
         return Proposal(
@@ -104,8 +132,8 @@ class ConversationIntelligence:
                     {
                         "application_id": CONVERSATION_APPLICATION.application_id,
                         "application_version": CONVERSATION_APPLICATION.version,
-                        "action": "assistant_message",
-                        "input": content.strip(),
+                        "action": action_name,
+                        "input": payload,
                         "next_state": decision.next_state,
                     },
                 ),
@@ -124,19 +152,22 @@ def commit_human_turn(
     *,
     data_path: Path = DATA,
     provenance: SubmissionProvenance | None = None,
+    private_mode: bool = False,
 ) -> None:
     """Commit one human-origin turn without invoking a provider."""
     kernel, registry = _kernel(data_path)
     host = ApplicationHost(kernel, registry, CONVERSATION_APPLICATION.application_id)
+    payload = private_message_descriptor(message) if private_mode else message
+    action = "private_human_message" if private_mode else "human_message"
     human = host.submit(
         ApplicationIntent(
             proposal_id=str(uuid.uuid4()),
             based_on_revision=host.context().revision,
-            action="human_message",
-            payload=message,
+            action=action,
+            payload=payload,
             rationale="Authenticated operator conversation input",
         ),
-        provenance=provenance or SubmissionProvenance("human", "operator", "github-actions"),
+        provenance=provenance or SubmissionProvenance("human", "operator", "conversation"),
     )
     if human.status != "accepted":
         raise RuntimeError(f"human conversation turn was rejected: {'; '.join(human.reasons)}")
@@ -148,12 +179,23 @@ def commit_assistant_turn(
     provider_command: tuple[str, ...] | None = None,
     provenance: SubmissionProvenance | None = None,
     effect_barrier: Callable[[], None] | None = None,
+    private_message: str | None = None,
 ) -> str:
     """Reopen SQLite, derive bounded context, invoke one provider, and govern its reply."""
     kernel, registry = _kernel(data_path)
     host = ApplicationHost(kernel, registry, CONVERSATION_APPLICATION.application_id)
     app_context = host.context()
-    projection = bounded_context(app_context.state)
+
+    if private_message is None:
+        projection = bounded_context(app_context.state)
+    else:
+        current = validate_private_message(private_message)
+        projection = private_bounded_context(app_context.state)
+        # The message crosses the intelligence boundary exactly once and is
+        # included in the transient context fingerprint/byte receipt, but the
+        # message body is never copied into authoritative semantic state.
+        projection = {**projection, "current_message": current}
+
     bounded = Context(
         revision=app_context.revision,
         state={"app:conversation": projection},
@@ -167,9 +209,10 @@ def commit_assistant_turn(
     intelligence = ConversationIntelligence(
         current_state=app_context.state,
         provider_command=command,
+        private_mode=private_message is not None,
     )
     runtime = Runtime(ProjectedKernel(kernel, bounded), kernel.record)
-    result = runtime.run(
+    runtime.run(
         intelligence,
         provenance=provenance or SubmissionProvenance(
             "model",
@@ -179,45 +222,47 @@ def commit_assistant_turn(
         context_scope={"kind": "application", "application_id": "conversation"},
         effect_barrier=effect_barrier,
     )
-    operation = result.run.proposal.operations[0]
-    assert isinstance(operation.value, dict)
-    content = operation.value.get("input")
-    assert isinstance(content, str)
-    return content
+    if intelligence.last_content is None:
+        raise RuntimeError("conversation provider completed without a response")
+    return intelligence.last_content
 
 
 def run_turn(message: str, *, provider_command: tuple[str, ...] | None = None) -> str:
+    """Run the production privacy-bounded turn.
+
+    Raw human/assistant text is transient. SQLite receives only message
+    fingerprints, lengths, compact observations, governance receipts, and
+    invocation lifecycle evidence.
+    """
+    message = validate_private_message(message)
     restored, schema_changed = restore()
     _ = restored
     if schema_changed:
         checkpoint()
 
-    commit_human_turn(message, data_path=DATA)
-    # Human intent becomes remote durable state before any external model call.
+    commit_human_turn(message, data_path=DATA, private_mode=True)
     checkpoint()
     try:
         response = commit_assistant_turn(
             data_path=DATA,
             provider_command=provider_command,
             effect_barrier=checkpoint,
+            private_message=message,
         )
     except Exception:
-        # Runtime lifecycle rows are already committed to SQLite. Preserve them
-        # even when no assistant proposal was produced or accepted.
         checkpoint()
         raise
     checkpoint()
     return response
 
 
-def _write_summary(path: str | None, message: str, response: str) -> None:
+def _write_summary(path: str | None) -> None:
     if not path:
         return
     Path(path).write_text(
         "# Governed conversation\n\n"
-        f"**You:** {message}\n\n"
-        f"**Assistant:** {response}\n\n"
-        "_Both turns are derived from the authoritative sudofx database; this summary is disposable._\n",
+        "One privacy-bounded Conversation turn completed. Message and response "
+        "contents are intentionally omitted from this disposable workflow summary.\n",
         encoding="utf-8",
     )
 
@@ -226,10 +271,16 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--message", required=True)
     parser.add_argument("--summary-file")
+    parser.add_argument(
+        "--print-response",
+        action="store_true",
+        help="Print the transient response. Do not use on public/shared CI logs.",
+    )
     args = parser.parse_args()
     response = run_turn(args.message)
-    _write_summary(args.summary_file, args.message, response)
-    print(response)
+    _write_summary(args.summary_file)
+    if args.print_response:
+        print(response)
     return 0
 
 
