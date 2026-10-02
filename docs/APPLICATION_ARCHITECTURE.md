@@ -29,6 +29,10 @@ As of October 2, 2026:
 
 These are implementation facts, not a claim that the application contract is permanently frozen. WAKE migration remains the larger stress test.
 
+The conversation application is the first small concrete proof of this contract. Its human and assistant turns are governed application actions, its provider context is bounded and database-derived, and tests replace process-local kernel/application/provider objects between rounds before reconstructing the next turn from SQLite alone.
+
+WAKE✳︎ is the larger Phase E proof: preserve its domain semantics while moving operational authority onto the same generic sudofx boundary.
+
 ## Authority boundary
 
 Applications never become authority merely because they are installed.
