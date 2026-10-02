@@ -52,6 +52,15 @@
 
 <section class="section shell">
   <div class="metric-section">
+    <div><div class="eyebrow">Live application traffic</div><h2>A privacy-safe window through the sudofx boundary.</h2><p class="muted">Shows lifecycle evidence only: which application used sudofx, when it happened, which boundary stages completed, and bounded context size. Prompt, response, research content, and payload data are never shown here.</p></div>
+    <div data-traffic-window>
+      <article class="panel"><div class="tag">Traffic</div><h3>Waiting for application invocation evidence…</h3><p>The next governed application invocation will appear here without exposing its contents.</p></article>
+    </div>
+  </div>
+</section>
+
+<section class="section shell">
+  <div class="metric-section">
     <div><div class="eyebrow">Application use</div><h2>Which applications are using the engine, and how?</h2><p class="muted">Derived from generic governed application actions and invocation lifecycle evidence. This view is disposable; SQLite remains authoritative.</p></div>
     <div class="grid two" data-application-observability>
       <article class="panel"><div class="tag">Applications</div><h3>Waiting for durable application evidence…</h3><p>No application-specific meaning is inferred here.</p></article>
