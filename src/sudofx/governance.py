@@ -48,6 +48,7 @@ from .models import GovernanceDecision, JsonValue, Proposal
 from .storage import canonical_json
 
 WORK_ACTIONS = {"create_work", "advance_work", "record_assessment", "record_handoff_evaluation", "complete_work"}
+WORK_PREFIX = "work:"
 
 # Work state occupies an explicit namespace inside the generic JSON state map.
 # The prefix prevents a work identifier from colliding with an operator's plain
@@ -57,7 +58,7 @@ WORK_ACTIONS = {"create_work", "advance_work", "record_assessment", "record_hand
 
 def work_key(work_id: str) -> str:
     """Return the canonical state key for a governed work identifier."""
-    return f"work:{work_id}"
+    return f"{WORK_PREFIX}{work_id}"
 
 
 class Governance:
@@ -136,14 +137,15 @@ class Governance:
                 reasons.append(f"duplicate key in proposal: {operation.key}")
             seen.add(operation.key)
 
-            # Application namespaces are sealed from generic set/delete. Domain
-            # state can move only through apply_application, where current policy
-            # is independently recomputed before acceptance.
-            if (
-                operation.action in {"set", "delete"}
-                and operation.key.startswith(APPLICATION_PREFIX)
-            ):
-                reasons.append("application namespace requires apply_application")
+            # Governed namespaces are sealed from generic set/delete.
+            # Application state and work lifecycle state can move only through
+            # their dedicated actions, where current policy/lifecycle rules are
+            # independently checked before acceptance.
+            if operation.action in {"set", "delete"}:
+                if operation.key.startswith(APPLICATION_PREFIX):
+                    reasons.append("application namespace requires apply_application")
+                if operation.key.startswith(WORK_PREFIX):
+                    reasons.append("work namespace requires governed work actions")
 
             # Multiple operations targeting one key are rejected above because
             # their internal ordering would become an additional mini-language.
