@@ -20,6 +20,7 @@ from .application import (
     bounded_context,
     private_assistant_descriptor,
     private_bounded_context,
+    enforce_response_commitments,
     private_message_descriptor,
     validate_private_message,
 )
@@ -107,8 +108,18 @@ class ConversationIntelligence:
 
         if self.private_mode:
             observations = response.get("observations", [])
+            commitment_updates = response.get("commitment_updates", [])
             try:
-                payload = private_assistant_descriptor(self.last_content, observations)
+                self.last_content = enforce_response_commitments(
+                    self.current_state,
+                    self.last_content,
+                    commitment_updates,
+                )
+                payload = private_assistant_descriptor(
+                    self.last_content,
+                    observations,
+                    commitment_updates,
+                )
             except ValueError as error:
                 raise ProviderError(str(error)) from error
             action_name = "private_assistant_message"
