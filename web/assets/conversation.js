@@ -11,12 +11,18 @@
   const send=root.querySelector('[data-conversation-send]');
   const help=root.querySelector('[data-conversation-help]');
   const clear=root.querySelector('[data-conversation-clear]');
+  const popout=root.querySelector('[data-conversation-popout]');
   const auth=root.querySelector('[data-conversation-auth]');
   const login=root.querySelector('[data-conversation-login]');
   let gateway='';
   let codespacesUrl='';
   let localMode=false;
   let busy=false;
+  const popoutMode=new URLSearchParams(location.search).get('popout')==='1';
+  if(popoutMode){
+    document.body.classList.add('conversation-popout-mode');
+    if(popout)popout.hidden=true;
+  }
 
   const setState=(label,kind='idle')=>{
     state.textContent=label;
@@ -191,6 +197,14 @@
       setEnabled(localMode||(Boolean(gateway)&&auth.hidden));
     }
   });
+
+  if(popout){
+    popout.addEventListener('click',()=>{
+      const target=new URL(location.href);
+      target.searchParams.set('popout','1');
+      window.open(target.toString(),'sudofx-conversation','popup=yes,width=760,height=900,resizable=yes,scrollbars=yes');
+    });
+  }
 
   clear.addEventListener('click',()=>{
     messages.querySelectorAll('.conversation-bubble').forEach(node=>node.remove());
