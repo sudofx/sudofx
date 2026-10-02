@@ -227,6 +227,27 @@ def commit_assistant_turn(
     return intelligence.last_content
 
 
+def run_private_turn(
+    message: str,
+    *,
+    data_path: Path,
+    provider_command: tuple[str, ...] | None = None,
+) -> str:
+    """Run one privacy-bounded turn against an explicitly supplied authority DB.
+
+    This is the host-neutral Conversation execution seam used by private HTTP
+    deployments. It performs no GitHub restore/checkpoint transport; the caller
+    owns durability of the supplied SQLite database itself.
+    """
+    message = validate_private_message(message)
+    commit_human_turn(message, data_path=data_path, private_mode=True)
+    return commit_assistant_turn(
+        data_path=data_path,
+        provider_command=provider_command,
+        private_message=message,
+    )
+
+
 def run_turn(message: str, *, provider_command: tuple[str, ...] | None = None) -> str:
     """Run the production privacy-bounded turn.
 
