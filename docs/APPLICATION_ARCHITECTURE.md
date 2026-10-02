@@ -24,6 +24,7 @@ As of October 2, 2026:
 
 - `src/sudofx/applications.py` implements the application registry/host, deterministic action evaluation, version checks, and compact event-log storage.
 - `applications/conversation/` provides the first small non-WAKE application proof.
+- `applications/handoff/` owns portable handoff packet policy, grounding scoring, target registration, and evaluation evidence; the former manual-handoff experiment is now a compatibility shim.
 - process-replacement tests reconstruct multiple conversation rounds from SQLite alone.
 - `applications/conversation/server.py` provides a private same-origin end-to-end chat transport while `web/conversation.html` remains disposable presentation.
 - the WAKE repository contains a versioned `WAKE_APPLICATION`, a sudofx-backed transitional Store, verified legacy import/archive logic, and Phase E rehearsal workflows.
@@ -32,6 +33,8 @@ As of October 2, 2026:
 These are implementation facts, not a claim that the application contract is permanently frozen. WAKE remains the larger stress test, and its explicitly promoted `wake-runtime` branch may intentionally lag verified `master` while continuous research is active.
 
 The conversation application is the first small concrete proof of this contract. Its human and assistant turns are governed application actions, its provider context contains the transient current message plus bounded database-derived observations, and raw transcript text is not durable Conversation state. Tests replace process-local kernel/application/provider objects between rounds and also exercise the private HTTP transport against one SQLite authority.
+
+Handoff is a second native sudofx application with materially different semantics. It reads generic governed work through public kernel context, creates bounded export views, deterministically scores returned packet-grounding evidence, and commits new evaluations through `apply_application` under `app:handoff`. Historical `record_handoff_evaluation` work events remain replay compatibility only and are rejected for new submissions.
 
 WAKE✳︎ is the larger Phase E proof: preserve its domain semantics while moving operational authority onto the same generic sudofx boundary.
 
