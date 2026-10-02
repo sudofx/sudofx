@@ -1,0 +1,10 @@
+{
+  "schema": 1,
+  "kind": "disposable-application-projection-sources",
+  "sources": [
+    {
+      "id": "wake",
+      "projection_url": "https://raw.githubusercontent.com/sudofx/wake/wake-live/live.json"
+    }
+  ]
+}
