@@ -47,7 +47,15 @@ The model that proposes a change does not decide whether the change is valid.
 
 Owns transport to an intelligence provider.
 
-It receives bounded context and returns a provider-neutral structured proposal. It receives no SQLite path, GitHub credentials, kernel mutation callback, or governance authority.
+It receives bounded context and returns an untrusted result shaped for its application/runtime boundary. It receives no SQLite path, GitHub credentials, kernel mutation callback, or governance authority.
+
+### Invocation and external-effect boundary
+
+The append-only invocation journal records provider/runtime attempts separately from governed semantic receipts.
+
+`InvocationLifecycle` owns generic request/context/attempt evidence, interruption recovery, and external-effect ordering. `invoke()` runs a caller-supplied durability barrier before the external effect and records provider failure classes without granting the provider authority. Applications may supply an error classifier for provider-specific exceptions; they may not bypass the durability barrier or mutate the journal directly.
+
+This allows WAKE✳︎ to keep Gemini-specific fallback and quota policy above the kernel while reusing the same provider-attempt and effect-ordering contract as other applications.
 
 ### GitHub Actions
 
