@@ -16,7 +16,7 @@ The success condition is not that one model remembers. The success condition is 
 | A — reusable sudofx boundary | **Complete at the current contract boundary** | Kernel/runtime/application separation, invocation lifecycle, provenance, bounded context, provider/effect boundaries, and research-specific exclusions are explicit in code, docs, and executable invariants. |
 | B — harden and sanitize | **Complete at the current contract boundary** | Provider execution is runtime-only; experiments are quarantined outside `src/sudofx`; Pages is read-only; `app:*` and `work:*` namespaces are sealed; duplicate conversation/local-cycle entry points and unreachable diagnostic flags are retired; Gemini HTTP success transport is consolidated without importing vendor policy into the engine. |
 | C — application contract | **Complete at the current contract boundary** | `ApplicationDefinition`, registry/host, deterministic policy re-evaluation, sealed namespaced state, migration/version checks, bounded capabilities, compact event-log storage, and removal tests are implemented and covered by executable invariants. |
-| D — minimal human conversation proof | **Complete at contract level** | Governed human and assistant turns, bounded database-derived context, provider invocation, dedicated browser workflow, and derived Pages projection are implemented. CI now proves two back-and-forth rounds across separate Python interpreters sharing only the authoritative SQLite record, followed by a third fresh-process reconstruction of the four-turn transcript. |
+| D — minimal human conversation proof | **Complete at private end-to-end proof level** | Governed human and assistant turns, privacy-bounded database-derived observations, fresh provider invocation, and a mobile-first chat surface are implemented. A private same-origin server provides the runnable path today; public Pages stays presentation-only until an authenticated gateway is configured. |
 | E — WAKE✳︎ migration | **Complete at architectural exit condition on WAKE `master`** | `wake-state` carries only `data/sudofx.sqlite`; fresh initialization is native sudofx; WAKE policy is a versioned application; generic invocation lifecycle, interruption recovery, external-effect ordering, and aggregate invocation accounting use sudofx; legacy SQLite persistence is quarantined to migration/compatibility code. The explicitly promoted `wake-runtime` branch may lag while research is active. |
 
 ## What is already proven mechanically
@@ -32,6 +32,7 @@ The success condition is not that one model remembers. The success condition is 
 - Large applications can use compact event-log storage without duplicating full state on every transition.
 - GitHub Actions, providers, browser surfaces, and generated Pages output remain replaceable infrastructure.
 - The conversation proof survives complete Python interpreter replacement across multiple rounds; continuity is reconstructed from SQLite alone.
+- The private Conversation server runs the same governed path end-to-end while raw browser transcript text remains transient.
 - WAKE✳︎ domain migration preserves its own policy above the generic sudofx authority boundary.
 - WAKE✳︎ provider attempts share sudofx invocation IDs/evidence, survive fresh-process recovery, and use the generic pre-effect durability barrier without importing Gemini-specific exception types into the engine.
 
@@ -93,7 +94,7 @@ Implemented and verified:
 
 1. Preserve the now-hardened boundary: providers execute only through runtime lifecycle/effect seams; experiments remain outside the reusable package; application/work namespaces stay sealed.
 2. Treat further WAKE legacy-store cleanup as compatibility retirement, not as a missing Phase E authority cutover; preserve replay/equivalence while removing dead migration-only coupling.
-3. Move authoritative cloud state away from a public Git ref before private or identifying durable material is allowed.
+3. Before internet-hosting Conversation, deploy an authenticated private gateway/state path; public Pages and public Git refs remain unsuitable as a private chat authority.
 4. Prove broader provider substitution when deliberately authorized.
 5. Continue long-horizon semantic tests; mechanical replay alone does not prove that compressed context preserves useful meaning indefinitely.
 6. Define a new explicit contract before adding another substantial product surface or new kernel semantics.
