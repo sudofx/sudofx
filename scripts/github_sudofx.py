@@ -480,9 +480,16 @@ def main() -> int:
     DATA.parent.mkdir(parents=True, exist_ok=True)
     record = Record(DATA)
     kernel = Kernel(record)
-    if restored and (restored_schema_changed or record.schema_changed):
-        # Storage migrations are system-owned authority changes. Persist them
-        # before any projection or semantic operation uses the newer schema.
+    if restored and (restored_schema_changed or record.schema_changed) and not args.publish_only:
+        # Storage migrations are system-owned authority changes, so stateful
+        # execution persists them before performing another semantic operation.
+        #
+        # A publish-only render is different: Pages is presentation and has
+        # intentionally read-only repository permission. Record(DATA) may migrate
+        # this disposable workspace copy so current code can replay it, but a
+        # renderer must never acquire authority merely because stored bytes use an
+        # older schema. The next authorized stateful path will checkpoint the same
+        # deterministic migration before it mutates durable work.
         checkpoint()
         record = Record(DATA)
         kernel = Kernel(record)
