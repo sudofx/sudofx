@@ -7,10 +7,12 @@ Allowed shape:
 ```text
 applications/
   conversation/
+    ...
+  handoff/
+    ...
+  <future-application>/
     __init__.py
     application.py
-    runtime.py
-    provider.py
     README.md
 ```
 
