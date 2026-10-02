@@ -18,6 +18,8 @@ class ConversationSurfaceTests(unittest.TestCase):
         self.assertIn("data-conversation-form", page)
         self.assertIn("/api/conversation/status", script)
         self.assertIn("sendLocal", script)
+        self.assertIn("await useLocalTransport()", script)
+        self.assertNotIn("location.hostname===\'localhost\'", script)
         self.assertIn("conversation-config.json", script)
         self.assertIn("codespaces_url", script)
         self.assertIn("codespaces.new/sudofx/sudofx", config)
