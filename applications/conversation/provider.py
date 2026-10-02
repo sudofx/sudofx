@@ -16,7 +16,7 @@ def _prompt(context: dict[str, object]) -> str:
         "memory or hidden conversation beyond the bounded durable context below. "
         "Reply to the latest human message. If older turns were omitted, do not "
         "pretend to know their contents. Return ONLY JSON with exactly one field: "
-        "{\\\"content\\\":\\\"your reply\\\"}.\\n\\nBOUNDED CONTEXT:\\n"
+        "{\\\"content\\\":\\\"your reply\\\"}.\n\nBOUNDED CONTEXT:\n"
         + json.dumps(context, ensure_ascii=False, sort_keys=True)
     )
 
