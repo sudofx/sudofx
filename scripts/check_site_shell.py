@@ -13,7 +13,7 @@ SITE = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "web"
 if not SITE.is_absolute():
     SITE = ROOT / SITE
 
-PAGES = ("index.html", "applications.html", "technical.html", "metrics.html")
+PAGES = ("index.html", "applications.html", "conversation.html", "technical.html", "metrics.html")
 MAX_HTML_BYTES = 12_000
 MAX_CSS_BYTES = 20_000
 MAX_JS_BYTES = 24_000
