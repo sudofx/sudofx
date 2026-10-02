@@ -39,7 +39,7 @@ class HandoffService:
         scoped = self.kernel.context(work_id=work_id)
         if f"work:{work_id}" not in scoped.state:
             raise ValueError(f"work item does not exist: {work_id}")
-            state = self.host.context().state
+        state = self.host.context().state
         targets = state.get("targets", {}) if isinstance(state, dict) else {}
         if isinstance(targets, dict) and work_id in targets:
             return
