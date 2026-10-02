@@ -23,7 +23,7 @@
       cm,
       sem,
       experiment:continuity.overnight_trial||raw.overnight_trial||{},
-      applications:raw.applications||[],
+      applications:(raw.application_observability&&Array.isArray(raw.application_observability.applications))?raw.application_observability.applications:(raw.applications||[]),
       verification:raw.verification||{},
       projectionKind:raw.projection_kind||'',
       projectionSchema:raw.projection_schema
@@ -65,6 +65,27 @@
         d.summary.accepted_results??'—',
         d.summary.conversation_turns??'—'
       ]);
+
+      const appView=q('[data-application-observability]');
+      if(appView){
+        appView.replaceChildren();
+        if(!d.applications.length){
+          const empty=document.createElement('article');empty.className='panel';
+          empty.innerHTML='<div class="tag">Applications</div><h3>No governed application evidence yet.</h3><p>Applications appear automatically when generic sudofx evidence identifies them.</p>';
+          appView.append(empty);
+        } else d.applications.forEach(app=>{
+          const actions=app.actions||{},inv=app.invocations||{};
+          const card=document.createElement('article');card.className='panel';
+          const tag=document.createElement('div');tag.className='tag';tag.textContent='Application · '+String(app.id||'unknown');
+          const title=document.createElement('h3');title.textContent=String(app.id||'unknown')+' uses sudofx';
+          const detail=document.createElement('p');
+          detail.textContent=(actions.accepted??0)+' accepted / '+(actions.rejected??0)+' rejected governed actions · '+(inv.total??0)+' invocations · '+(inv.completed??0)+' completed · '+(inv.failed??0)+' failed.';
+          const context=document.createElement('p');context.className='muted';
+          const recent=Array.isArray(inv.recent)?inv.recent:[],last=recent.at(-1),ctx=last&&last.context||{};
+          context.textContent=last?'Latest: '+pretty(last.latest_stage||'unknown')+' · context '+fmtBytes(ctx.payload_bytes)+' · '+(Array.isArray(ctx.included_categories)?ctx.included_categories.join(', '):''):'No scoped invocation evidence recorded.';
+          card.append(tag,title,detail,context);appView.append(card);
+        });
+      }
 
       const context=d.cm.context_bytes??d.cm.compressed_context_bytes??d.continuity.context_bytes;
       const full=d.cm.full_context_bytes??d.continuity.full_context_bytes;
