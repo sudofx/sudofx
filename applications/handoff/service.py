@@ -21,7 +21,9 @@ class HandoffService:
 
     def __init__(self, kernel: Kernel, registry: ApplicationRegistry | None = None) -> None:
         self.kernel = kernel
-        self.registry = registry or ApplicationRegistry((HANDOFF_APPLICATION,))
+        self.registry = registry or kernel.governance.application_registry
+        if self.registry.get(HANDOFF_APPLICATION.application_id) is None:
+            self.registry.register(HANDOFF_APPLICATION)
         self.host = ApplicationHost(kernel, self.registry, HANDOFF_APPLICATION.application_id)
 
     def ensure_target(
@@ -85,8 +87,8 @@ class HandoffService:
         work = self.kernel.context().state.get(f"work:{work_id}", {})
         legacy = work.get("handoff_evaluations", []) if isinstance(work, dict) else []
         legacy_clean = [dict(item) for item in legacy if isinstance(item, dict)] if isinstance(legacy, list) else []
-        known = {str(item.get("test_id", "")) for item in current}
-        return [*legacy_clean, *(item for item in current if str(item.get("test_id", "")) not in known or not known)]
+        legacy_ids = {str(item.get("test_id", "")) for item in legacy_clean if str(item.get("test_id", ""))}
+        return [*legacy_clean, *(item for item in current if str(item.get("test_id", "")) not in legacy_ids)]
 
 
 def build_manual_evaluation_projection(
