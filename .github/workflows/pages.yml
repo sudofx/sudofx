@@ -1,18 +1,16 @@
-name: sudofx — publish Pages
+name: sudofx — publish public shell
 
+# Pages contains presentation framework only.
+# Changing authoritative state or live metrics must NOT trigger this workflow.
 on:
   push:
     branches: [master]
     paths:
-      # Publication must rerun when either rendering code or the verified
-      # restore/projection adapter changes. A prior schema-migration fix lived
-      # in github_sudofx.py and therefore never exercised Pages automatically.
-      - 'src/sudofx/report.py'
-      - 'src/sudofx/record.py'
-      - 'src/sudofx/applications.py'
-      - 'scripts/github_sudofx.py'
-      - 'scripts/github_state.py'
+      - 'web/**'
+      - 'scripts/build_site_shell.py'
       - '.github/workflows/pages.yml'
+      - '100226-WEBSITE-CONTRACT.md'
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -26,7 +24,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 3
     steps:
       - uses: actions/checkout@v7
         with:
@@ -34,9 +32,14 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: '3.13'
-      # Re-render only from authoritative state; an empty state branch is revision 0.
-      - name: Render verified projection
-        run: PYTHONPATH=src python scripts/github_sudofx.py --publish-only
+      - name: Build lightweight public shell
+        run: python scripts/build_site_shell.py
+      - name: Confirm shell
+        run: |
+          test -f site/index.html
+          test -f site/applications.html
+          test -f site/technical.html
+          test -f site/metrics.html
       - name: Configure Pages
         uses: actions/configure-pages@v6
         with:
@@ -53,6 +56,6 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Publish interface
+      - name: Publish shell
         id: deployment
         uses: actions/deploy-pages@v5

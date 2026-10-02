@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#0b1020">
+  <meta name="description" content="Technical architecture and current public-safe state for sudofx.">
+  <title>Technical — sudofx</title>
+  <link rel="stylesheet" href="assets/site.css"><script defer src="assets/site.js"></script>
+</head>
+<body data-page="technical">
+<header class="nav-wrap"><nav class="nav shell" aria-label="Primary">
+<a class="brand" href="index.html">sudo<span>f(x)</span></a>
+<div class="nav-links"><a href="index.html">Home</a><a href="applications.html">Applications</a><a class="active" href="technical.html">Technical</a><a href="metrics.html">Metrics</a><a href="https://github.com/sudofx/sudofx">GitHub ↗</a></div>
+</nav></header>
+<main>
+<section class="page-hero shell">
+  <div class="eyebrow">Technical</div>
+  <h1>Authority, replay,<br><span>runtime, evidence.</span></h1>
+  <p class="lede">This is where the machinery lives. The browser is read-only. SQLite is the current authoritative storage implementation. Kernel semantics remain backend-independent.</p>
+</section>
+
+<section class="section shell">
+  <div class="architecture-stack">
+    <article><span>01</span><div><h3>SQLite record</h3><p>Durable operational truth: governed events, receipts, provenance, application state, and invocation lifecycle evidence.</p></div></article>
+    <article><span>02</span><div><h3>Kernel</h3><p>Deterministic governance, transition sequencing, receipts, replay, and atomic commit boundaries.</p></div></article>
+    <article><span>03</span><div><h3>Runtime</h3><p>Bounded context, provider execution, invocation lifecycle, effect ordering, recovery, and accounting.</p></div></article>
+    <article><span>04</span><div><h3>Applications</h3><p>Domain meaning and policy. Applications do not receive unrestricted database authority or governance bypass.</p></div></article>
+    <article><span>05</span><div><h3>Presentation</h3><p>Pages, metrics, reports, browser state, and exports are projections. They are never read back as operational truth.</p></div></article>
+  </div>
+</section>
+
+<section class="section shell">
+  <div class="section-head"><div class="eyebrow">Current public-safe state</div><h2>Live technical snapshot</h2></div>
+  <div class="metric-grid" data-technical-metrics>
+    <div class="metric-card"><span>Record revision</span><strong>—</strong><small>Loading live projection</small></div>
+    <div class="metric-card"><span>Database</span><strong>—</strong><small>Verified projection only</small></div>
+    <div class="metric-card"><span>Replay</span><strong>—</strong><small>Current bounded health</small></div>
+    <div class="metric-card"><span>Applications</span><strong>2</strong><small>WAKE✳︎ + Conversation</small></div>
+  </div>
+  <div class="source-note" data-live-source>Live data is fetched from the disposable <code>sudofx-live</code> projection branch, not from GitHub Pages and never from raw browser authority.</div>
+</section>
+
+<section class="section shell">
+  <div class="grid two">
+    <article class="panel"><div class="tag">ELI15</div><h3>The database is the official notebook.</h3><p>Web pages, summaries, prompts, and charts are copies made for specific jobs. A copy never becomes the official record just because it is convenient.</p></article>
+    <article class="panel"><div class="tag">Failure model</div><h3>Stop rather than guess.</h3><p>Stale revisions reject. Malformed provider output is not governed. Provider failure causes no authoritative mutation. Checkpoint conflict fails visibly rather than silently selecting a winner.</p></article>
+  </div>
+</section>
+
+<section class="section shell">
+  <div class="link-row"><a class="button primary" href="https://github.com/sudofx/sudofx/blob/master/docs/ARCHITECTURE.md">Architecture source</a><a class="button" href="https://github.com/sudofx/sudofx/blob/master/docs/APPLICATION_ARCHITECTURE.md">Application contract</a><a class="button" href="https://github.com/sudofx/sudofx/blob/master/docs/STATUS.md">Project status</a></div>
+</section>
+</main>
+<footer class="footer shell"><div><b>sudofx</b><span>Presentation is a projection, not authority.</span></div><div><a href="index.html">Home</a><a href="metrics.html">Metrics</a></div></footer>
+</body></html>
