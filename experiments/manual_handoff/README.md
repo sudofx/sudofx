@@ -1,33 +1,17 @@
-# Manual handoff experiment
+# Manual handoff compatibility path
 
-**Status:** development experiment; not sudofx runtime architecture.
+**Deprecated:** Handoff is now the first-class `applications/handoff/` sudofx
+application.
 
-This directory contains the human-transported continuity scorer used to test a
-bounded sudofx handoff across consumer AI surfaces.
+These modules remain only as import shims so old scripts, historical tests, and
+external references do not break abruptly. They own no policy or durable state.
 
-It deliberately sits under `experiments/` because it is evidence-gathering
-machinery, not a plugin, application contract, provider abstraction, or durable
-authority surface.
+New development belongs in:
 
-## What it does
+```text
+applications/handoff/
+```
 
-- parses a human-transported model response;
-- binds the response to the exact frozen handoff packet;
-- validates test IDs, nonce, vendor, and work identity;
-- scores seven deterministic packet-grounding dimensions;
-- produces a governance-ready evaluation payload.
-
-A browser-local score is evidence only. Recording an evaluation still crosses
-the normal sudofx kernel/governance boundary.
-
-## What it does not own
-
-- SQLite authority;
-- kernel transitions;
-- application loading;
-- provider authority;
-- model memory;
-- a second event store.
-
-If this experiment disappears, authoritative sudofx history and replay remain
-valid. That is the boundary this location is meant to make obvious.
+The application owns packet construction, deterministic grounding scoring,
+target registration, governed evaluation state, and disposable projections.
+SQLite remains authoritative through the ordinary sudofx application boundary.
