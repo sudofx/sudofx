@@ -101,9 +101,13 @@ record becomes sensitive or operationally valuable.
 
 ### GitHub Pages
 
-Owns presentation only.
+Owns the lightweight presentation shell only.
 
-HTML, JSON proof artifacts, optional experiment projections, and telemetry are generated views. They are never read back as authoritative work state. Continuation is workflow-owned; Pages no longer publishes a runner disposition file as a second coordination signal.
+The public shell contains navigation, product explanation, accessibility structure, and client-side rendering logic. It does not restore SQLite or rebuild merely because operational state changed.
+
+Changing public-safe technical/metric data is fetched at runtime from the historyless `sudofx-live` projection branch. That branch is disposable and replaceable from verified state. Neither Pages nor `sudofx-live` is ever read back into governance, replay, recovery, or provider context.
+
+This separates publication cadence from state cadence: website source changes rebuild Pages; state changes refresh only the bounded live projection.
 
 ### GitHub Actions operator boundary
 
@@ -135,9 +139,14 @@ WAKE✳︎ is the first substantial migration onto this boundary. WAKE-specific 
 
 Presentation is strictly derived.
 
-Pages, reports, workflow summaries, browser state, JSON exports, and Markdown exports may be generated from verified state, but they do not acquire mutation authority. A publish-only path may migrate a disposable local copy enough to interpret it, but durable schema migration/checkpointing belongs to an authorized stateful path.
+The current website uses two disposable layers:
 
-This distinction prevents a renderer from becoming an accidental database writer.
+1. **GitHub Pages shell** — versioned HTML/CSS/JavaScript that changes only when the product surface changes.
+2. **`sudofx-live` projection** — a bounded, public-safe, historyless JSON view refreshed from verified state by authorized runtime paths.
+
+The browser may combine those layers for display, but neither gains mutation authority. Raw authoritative SQLite is never shipped to the browser. Durable schema migration/checkpointing belongs only to authorized stateful paths.
+
+This distinction prevents a renderer, chart, cache, or live feed from becoming an accidental database writer or a competing system of record.
 
 ## Continuous chain
 
@@ -156,7 +165,7 @@ Gemini proposal
         ↓
 isolated governance
         ↓
-publish observer
+refresh disposable observer projection
         ↓
 dispatch exactly one successor
 ```
