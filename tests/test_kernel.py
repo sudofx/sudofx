@@ -31,6 +31,7 @@ from sudofx import (
     ProviderTemporaryError,
     Runtime,
     SubmissionProvenance,
+    build_application_observability,
 )
 from sudofx.record import APPLICATION_ID, SCHEMA_VERSION, IntegrityError, Record, StorageVersionError
 from sudofx.cli import main as cli_main
@@ -117,6 +118,84 @@ class KernelTests(unittest.TestCase):
             provenance=provenance
             or SubmissionProvenance("runtime", "test-intelligence", "unit-test"),
         ).run
+
+    def test_application_observability_is_generic_bounded_and_payload_free(self) -> None:
+        """A generic app view exposes shared boundaries without leaking domain payloads."""
+        definition = ApplicationDefinition(
+            "observer-test",
+            "1",
+            (
+                ApplicationAction(
+                    "replace",
+                    lambda current, payload: ApplicationDecision(True, payload),
+                ),
+            ),
+        )
+        registry = ApplicationRegistry((definition,))
+        kernel = Kernel(self.kernel.record, Governance(application_registry=registry))
+        host = ApplicationHost(kernel, registry, "observer-test")
+
+        accepted = host.submit(
+            ApplicationIntent(
+                "observer-accepted",
+                0,
+                "replace",
+                {"secret": "must-not-leave-authority", "visible": True},
+            ),
+            provenance=SubmissionProvenance("application", "fixture", "unit-test"),
+        )
+        self.assertEqual(accepted.status, "accepted")
+        rejected = host.submit(
+            ApplicationIntent(
+                "observer-rejected",
+                1,
+                "unknown-action",
+                {"secret": "also-private"},
+            ),
+            provenance=SubmissionProvenance("application", "fixture", "unit-test"),
+        )
+        self.assertEqual(rejected.status, "rejected")
+
+        bounded = Context(
+            revision=kernel.context().revision,
+            state={"app:observer-test": {"summary": "bounded only"}},
+            recent_receipts=(),
+        )
+        lifecycle = InvocationLifecycle.begin(
+            kernel.record,
+            bounded,
+            provenance=SubmissionProvenance("model", "fixture-provider", "unit-test"),
+            context_scope={"kind": "application", "application_id": "observer-test"},
+            invocation_id="observer-invocation",
+        )
+        lifecycle.proposal_received("observer-provider-proposal")
+        lifecycle.governed("observer-provider-proposal", None, "accepted")
+        lifecycle.complete(proposal_id="observer-provider-proposal", detail="accepted")
+
+        projection = build_application_observability(kernel.record)
+        self.assertFalse(projection["authoritative"])
+        self.assertEqual(projection["projection_kind"], "sudofx-application-observability")
+        self.assertEqual(projection["record_revision"], 1)
+        self.assertEqual(len(projection["applications"]), 1)
+        app = projection["applications"][0]
+        self.assertEqual(app["id"], "observer-test")
+        self.assertEqual(app["version"], "1")
+        self.assertEqual(app["actions"]["accepted"], 1)
+        self.assertEqual(app["actions"]["rejected"], 1)
+        self.assertEqual(app["invocations"]["total"], 1)
+        self.assertEqual(app["invocations"]["attempts"], 1)
+        self.assertEqual(app["invocations"]["completed"], 1)
+        latest = app["invocations"]["recent"][-1]
+        self.assertEqual(latest["invocation_id"], "observer-invocation")
+        self.assertEqual(
+            latest["stages"],
+            ["requested", "context_delivered", "attempt_started", "proposal_received", "governed", "completed"],
+        )
+        self.assertGreater(latest["context"]["payload_bytes"], 0)
+        serialized = json.dumps(projection)
+        self.assertNotIn("must-not-leave-authority", serialized)
+        self.assertNotIn("also-private", serialized)
+        self.assertNotIn("fixture-provider", serialized)
 
     def test_database_size_uses_compact_units_at_binary_thresholds(self) -> None:
         """The phone readout should scale without changing the authoritative byte count."""
