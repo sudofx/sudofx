@@ -14,6 +14,7 @@
   const auth=root.querySelector('[data-conversation-auth]');
   const login=root.querySelector('[data-conversation-login]');
   let gateway='';
+  let codespacesUrl='';
   let localMode=false;
   let busy=false;
 
@@ -74,14 +75,25 @@
     if(!configResponse.ok)throw new Error('Conversation gateway configuration is unavailable.');
     const config=await configResponse.json();
     gateway=String(config.gateway_url||'').replace(/\/$/,'');
+    codespacesUrl=String(config.codespaces_url||'');
     if(!gateway){
       const localHost=location.hostname==='127.0.0.1'||location.hostname==='localhost'||location.hostname==='::1';
       if(localHost){
         await useLocalTransport();
         return;
       }
-      setState('Private gateway not connected','offline');
-      help.textContent='The chat UI is ready, but no authenticated private gateway is configured on this public deployment.';
+      if(codespacesUrl){
+        setState('Private GitHub launch available','ready');
+        auth.hidden=false;
+        login.href=codespacesUrl;
+        login.textContent='Launch private Conversation →';
+        login.target='_blank';
+        login.rel='noopener noreferrer';
+        help.textContent='GitHub Codespaces will authenticate the private forwarded port. The public Pages site receives no token.';
+      }else{
+        setState('Private gateway not connected','offline');
+        help.textContent='The chat UI is ready, but no authenticated private runtime is configured on this public deployment.';
+      }
       setEnabled(false);
       return;
     }
