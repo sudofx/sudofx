@@ -14,8 +14,8 @@ The success condition is not that one model remembers. The success condition is 
 | Phase | Current status | Evidence |
 | --- | --- | --- |
 | A — reusable sudofx boundary | Substantially complete | Kernel/runtime/application separation, invocation lifecycle, provenance, bounded context, provider boundary, and research-specific exclusions are explicit in code and docs. |
-| B — harden and sanitize | Substantially complete | Experiments are quarantined, replay/failure/invocation tests are extensive, schema identity is explicit, Pages is read-only, conversation now uses the generic pre-effect durability barrier, reserved `app:*` and `work:*` namespaces are sealed from generic mutation, and duplicate conversation/local-cycle entry points have been removed. |
-| C — application contract | Substantially complete | `ApplicationDefinition`, registry/host, deterministic policy re-evaluation, namespaced state, migration/version checks, and compact event-log storage are implemented and tested. |
+| B — harden and sanitize | **Complete at the current contract boundary** | Provider execution is runtime-only; experiments are quarantined outside `src/sudofx`; Pages is read-only; `app:*` and `work:*` namespaces are sealed; duplicate conversation/local-cycle entry points and unreachable diagnostic flags are retired; Gemini HTTP success transport is consolidated without importing vendor policy into the engine. |
+| C — application contract | **Complete at the current contract boundary** | `ApplicationDefinition`, registry/host, deterministic policy re-evaluation, sealed namespaced state, migration/version checks, bounded capabilities, compact event-log storage, and removal tests are implemented and covered by executable invariants. |
 | D — minimal human conversation proof | **Complete at contract level** | Governed human and assistant turns, bounded database-derived context, provider invocation, dedicated browser workflow, and derived Pages projection are implemented. CI now proves two back-and-forth rounds across separate Python interpreters sharing only the authoritative SQLite record, followed by a third fresh-process reconstruction of the four-turn transcript. |
 | E — WAKE✳︎ migration | **Complete at architectural exit condition on WAKE `master`** | `wake-state` carries only `data/sudofx.sqlite`; fresh initialization is native sudofx; WAKE policy is a versioned application; generic invocation lifecycle, interruption recovery, external-effect ordering, and aggregate invocation accounting use sudofx; legacy SQLite persistence is quarantined to migration/compatibility code. The explicitly promoted `wake-runtime` branch may lag while research is active. |
 
@@ -71,13 +71,12 @@ This preserves the contract:
 
 ## Remaining work
 
-1. Finish the remaining Phase B/C audit for provider execution paths and compatibility code that can now be retired or quarantined; application/work namespace bypasses and duplicate conversation/local-cycle entry points are now sealed.
-2. Keep invocation/effect boundaries generic and avoid importing WAKE✳︎ research policy into the kernel.
-3. Treat further WAKE legacy-store cleanup as compatibility retirement, not as a missing Phase E authority cutover; preserve replay/equivalence while removing dead migration-only coupling.
-4. Keep the legacy WAKE Store quarantined to verified migration/compatibility machinery; it is no longer an operational authority path.
-5. Move authoritative cloud state away from a public Git ref before private or identifying durable material is allowed.
-6. Prove broader provider substitution when deliberately authorized.
-7. Continue long-horizon semantic tests; mechanical replay alone does not prove that compressed context preserves useful meaning indefinitely.
+1. Preserve the now-hardened boundary: providers execute only through runtime lifecycle/effect seams; experiments remain outside the reusable package; application/work namespaces stay sealed.
+2. Treat further WAKE legacy-store cleanup as compatibility retirement, not as a missing Phase E authority cutover; preserve replay/equivalence while removing dead migration-only coupling.
+3. Move authoritative cloud state away from a public Git ref before private or identifying durable material is allowed.
+4. Prove broader provider substitution when deliberately authorized.
+5. Continue long-horizon semantic tests; mechanical replay alone does not prove that compressed context preserves useful meaning indefinitely.
+6. Define the next contract or product frontier before adding new kernel semantics; A–E are now complete at their stated architectural exit conditions.
 
 ## Open risks
 
@@ -101,4 +100,4 @@ It is:
 
 > Can materially different applications use the same authority boundary without forcing the kernel to absorb their domain assumptions?
 
-The conversation application and the WAKE✳︎ migration are the first two concrete tests of that claim.
+The conversation application and the WAKE✳︎ migration are the first two concrete tests of that claim. The A–E execution contract is now satisfied at its stated architectural exit conditions; future work should begin from a new explicit frontier rather than silently extending the kernel.
