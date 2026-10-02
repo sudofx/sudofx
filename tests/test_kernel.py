@@ -1270,6 +1270,16 @@ print(json.dumps(state["turns"]))
         self.assertIn("group: sudofx-authority-v4", workflow)
         self.assertIn("preserving operator Stop", workflow)
 
+    def test_conversation_has_one_production_browser_entry_point(self) -> None:
+        """Conversation must not drift back into the broad operator workflow."""
+        root = Path(__file__).parents[1]
+        operator = (root / ".github" / "workflows" / "sudofx.yml").read_text(encoding="utf-8")
+        dedicated = (root / ".github" / "workflows" / "conversation.yml").read_text(encoding="utf-8")
+        self.assertNotIn("inputs.action == 'conversation'", operator)
+        self.assertNotIn("backup, conversation,", operator)
+        self.assertIn("scripts/conversation_sudofx.py", dedicated)
+        self.assertFalse((root / "scripts" / "run-sudofx-cycles.sh").exists())
+
     def test_fresh_intelligences_continue_from_durable_context(self) -> None:
         """A second provider instance must derive progress only from durable context."""
         first = FakeIntelligence(
