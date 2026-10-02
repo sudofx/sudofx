@@ -110,6 +110,43 @@
     setEnabled(true);
   };
 
+  const sendLocal=async message=>{
+    const response=await fetch('/api/conversation',{
+      method:'POST',
+      credentials:'same-origin',
+      headers:{'Content-Type':'application/json'},
+      cache:'no-store',
+      body:JSON.stringify({message})
+    });
+    const data=await response.json().catch(()=>({}));
+    if(!response.ok)throw new Error(data.error||'Conversation request failed.');
+    if(!data||typeof data.content!=='string')throw new Error('Conversation transport returned an invalid reply.');
+    return data.content;
+  };
+
+  const sendRemote=async message=>{
+    const response=await fetch(gateway+'/api/conversation',{
+      method:'POST',
+      credentials:'include',
+      headers:{'Content-Type':'application/json'},
+      cache:'no-store',
+      body:JSON.stringify({message})
+    });
+    if(response.status===401){
+      auth.hidden=false;
+      login.href=gateway+'/login?return_to='+encodeURIComponent(location.href);
+      throw new Error('Operator sign in expired.');
+    }
+    if(!response.ok){
+      let detail='Conversation request failed.';
+      try{const data=await response.json();if(data&&data.error)detail=data.error}catch{}
+      throw new Error(detail);
+    }
+    const data=await response.json();
+    if(!data||typeof data.request_id!=='string')throw new Error('Conversation gateway did not return a request ID.');
+    return poll(data.request_id);
+  };
+
   form.addEventListener('submit',async event=>{
     event.preventDefault();
     if(busy)return;
@@ -124,28 +161,7 @@
       ?'Reconstructing bounded context and invoking a fresh provider.'
       :'Encrypting transport, reconstructing bounded context, and invoking a fresh provider.';
     try{
-      const response=await fetch((localMode?'':gateway)+'/api/conversation',{
-        method:'POST',
-        credentials:localMode?'same-origin':'include',
-        headers:{'Content-Type':'application/json'},
-        cache:'no-store',
-        body:JSON.stringify({message})
-      });
-      if(!localMode&&response.status===401){
-        auth.hidden=false;
-        login.href=gateway+'/login?return_to='+encodeURIComponent(location.href);
-        throw new Error('Operator sign in expired.');
-      }
-      if(!response.ok){
-        let detail='Conversation request failed.';
-        try{const data=await response.json();if(data&&data.error)detail=data.error}catch{}
-        throw new Error(detail);
-      }
-      const data=await response.json();
-      const reply=localMode
-        ?(data&&typeof data.content==='string'?data.content:null)
-        :(data&&typeof data.request_id==='string'?await poll(data.request_id):null);
-      if(typeof reply!=='string')throw new Error('Conversation transport returned an invalid reply.');
+      const reply=localMode?await sendLocal(message):await sendRemote(message);
       bubble('assistant',reply);
       setState('Ready · next turn will use a fresh provider invocation','ready');
       help.textContent='Continuity is reconstructed from governed observations, not this screen.';
