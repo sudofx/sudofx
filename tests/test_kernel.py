@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import io
 import json
 import sqlite3
 import subprocess
 import sys
 import tempfile
 import unittest
-from contextlib import closing
+from contextlib import closing, redirect_stdout
 from pathlib import Path
 
 from sudofx import (
@@ -32,6 +33,7 @@ from sudofx import (
     SubmissionProvenance,
 )
 from sudofx.record import APPLICATION_ID, SCHEMA_VERSION, IntegrityError, Record, StorageVersionError
+from sudofx.cli import main as cli_main
 from sudofx.governance import Governance
 from applications.conversation import CONVERSATION_APPLICATION, bounded_context
 from scripts.conversation_sudofx import ConversationIntelligence, ProjectedKernel, commit_assistant_turn
@@ -1333,6 +1335,64 @@ json.dump({
             replacement.context().state["work:external"]["accepted_results"],
             ["External process continued the work"],
         )
+
+    def test_cli_external_provider_uses_runtime_invocation_journal(self) -> None:
+        """The public CLI provider path must not bypass generic runtime evidence."""
+        created = self.kernel.submit(
+            Proposal(
+                "cli-runtime-create",
+                0,
+                (
+                    Operation(
+                        "create_work",
+                        "cli-runtime",
+                        {"objective": "Exercise CLI runtime evidence", "constraints": []},
+                    ),
+                ),
+            )
+        )
+        self.assertEqual(created.status, "accepted")
+        helper = (
+            "import json,sys; c=json.load(sys.stdin); "
+            "w=c['state']['work:cli-runtime']; "
+            "json.dump({'proposal_id':'cli-provider-result',"
+            "'based_on_revision':c['revision'],"
+            "'operations':[{'action':'advance_work','key':w['id'],"
+            "'value':{'result':'CLI provider crossed Runtime','open_obligations':[]}}],"
+            "'rationale':'bounded CLI context'},sys.stdout)"
+        )
+        output = io.StringIO()
+        with redirect_stdout(output):
+            status = cli_main(
+                [
+                    "--record",
+                    str(self.path),
+                    "run",
+                    "--work-id",
+                    "cli-runtime",
+                    "--",
+                    sys.executable,
+                    "-c",
+                    helper,
+                ]
+            )
+        self.assertEqual(status, 0)
+        work = Kernel(Record(self.path)).context(work_id="cli-runtime").state["work:cli-runtime"]
+        self.assertEqual(work["accepted_results"], ["CLI provider crossed Runtime"])
+        lifecycle = Record(self.path).invocation_history()
+        self.assertEqual(
+            [event["stage"] for event in lifecycle],
+            [
+                "requested",
+                "context_delivered",
+                "attempt_started",
+                "proposal_received",
+                "governed",
+                "completed",
+            ],
+        )
+        self.assertEqual(lifecycle[-1]["proposal_id"], "cli-provider-result")
+        self.assertEqual(lifecycle[-1]["outcome"], "success")
 
     def test_invalid_external_output_never_creates_a_receipt(self) -> None:
         """Provider transport failure must not fabricate durable proposal history."""
