@@ -36,7 +36,7 @@ from sudofx.record import APPLICATION_ID, SCHEMA_VERSION, IntegrityError, Record
 from sudofx.cli import main as cli_main
 from sudofx.governance import Governance
 from applications.conversation import CONVERSATION_APPLICATION, bounded_context
-from scripts.conversation_sudofx import ConversationIntelligence, ProjectedKernel, commit_assistant_turn
+from applications.conversation.runtime import ConversationIntelligence, ProjectedKernel, commit_assistant_turn
 from sudofx.storage import InvocationEvent
 from experiments.continuity import (
     run_compressed_model_continuity_probe,
@@ -1158,7 +1158,7 @@ json.dump({
         first_round = r"""
 from pathlib import Path
 import json, sys
-from scripts.conversation_sudofx import commit_human_turn, commit_assistant_turn
+from applications.conversation.runtime import commit_human_turn, commit_assistant_turn
 from sudofx import SubmissionProvenance
 
 path = Path(sys.argv[1])
@@ -1183,7 +1183,7 @@ assert reply == "First process answer"
         second_round = r"""
 from pathlib import Path
 import sys
-from scripts.conversation_sudofx import commit_human_turn, commit_assistant_turn
+from applications.conversation.runtime import commit_human_turn, commit_assistant_turn
 from sudofx import SubmissionProvenance
 
 path = Path(sys.argv[1])
@@ -1283,7 +1283,7 @@ print(json.dumps(state["turns"]))
             Path(__file__).parents[1] / ".github" / "workflows" / "conversation.yml"
         ).read_text(encoding="utf-8")
         self.assertIn("message:", workflow)
-        self.assertIn("scripts/conversation_sudofx.py", workflow)
+        self.assertIn("applications.conversation.runtime", workflow)
         self.assertIn("--summary-file \"$GITHUB_STEP_SUMMARY\"", workflow)
         self.assertIn("group: sudofx-authority-v4", workflow)
         self.assertIn("preserving operator Stop", workflow)
@@ -1328,7 +1328,7 @@ print(json.dumps(state["turns"]))
         dedicated = (root / ".github" / "workflows" / "conversation.yml").read_text(encoding="utf-8")
         self.assertNotIn("inputs.action == 'conversation'", operator)
         self.assertNotIn("backup, conversation,", operator)
-        self.assertIn("scripts/conversation_sudofx.py", dedicated)
+        self.assertIn("applications.conversation.runtime", dedicated)
         self.assertFalse((root / "scripts" / "run-sudofx-cycles.sh").exists())
 
     def test_kernel_has_no_provider_execution_entry_point(self) -> None:
