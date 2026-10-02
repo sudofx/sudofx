@@ -1,0 +1,12 @@
+{
+  "name": "sudofx Conversation",
+  "image": "mcr.microsoft.com/devcontainers/python:1-3.13-bookworm",
+  "forwardPorts": [8765],
+  "portsAttributes": {
+    "8765": {
+      "label": "sudofx Conversation",
+      "onAutoForward": "openBrowser"
+    }
+  },
+  "postStartCommand": "bash .devcontainer/start-conversation.sh"
+}
