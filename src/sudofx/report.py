@@ -124,7 +124,10 @@ def _conversation_panel(state: dict[str, object], repository: str) -> str:
         if omitted
         else ""
     )
-    workflow_url = f"https://github.com/{repository}/actions/workflows/sudofx.yml"
+    # The link points to a dedicated one-purpose workflow rather than the broad
+    # operator form. GitHub supplies authenticated transport, but the workflow
+    # still cannot bypass application governance or make browser state durable.
+    workflow_url = f"https://github.com/{repository}/actions/workflows/conversation.yml"
     return f"""
     <section data-conversation>
       <div class="toolbar">
@@ -133,7 +136,7 @@ def _conversation_panel(state: dict[str, object], repository: str) -> str:
       </div>
       {omission}
       <div>{transcript}</div>
-      <div class="quality-provenance">Use the GitHub Actions form: choose <b>conversation</b> and put your message in <b>value</b>. Each human turn is committed before Gemini is invoked.</div>
+      <div class="quality-provenance">Enter one message in the dedicated GitHub Actions form. Each human turn is committed before Gemini is invoked, and this page is regenerated from SQLite rather than browser memory.</div>
     </section>
     """
 
