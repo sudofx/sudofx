@@ -9,6 +9,7 @@
   const form=root.querySelector('[data-conversation-form]');
   const input=root.querySelector('[data-conversation-input]');
   const send=root.querySelector('[data-conversation-send]');
+  const paste=root.querySelector('[data-conversation-paste]');
   const help=root.querySelector('[data-conversation-help]');
   const clear=root.querySelector('[data-conversation-clear]');
   const popout=root.querySelector('[data-conversation-popout]');
@@ -31,6 +32,7 @@
   const setEnabled=enabled=>{
     input.disabled=!enabled;
     send.disabled=!enabled;
+    if(paste)paste.disabled=!enabled;
     if(enabled)input.focus();
   };
   const bubble=(role,text)=>{
@@ -41,7 +43,24 @@
     meta.textContent=role==='human'?'You':'Assistant';
     const body=document.createElement('p');
     body.textContent=text;
-    article.append(meta,body);
+    const copy=document.createElement('button');
+    copy.type='button';
+    copy.className='conversation-copy';
+    copy.textContent='Copy';
+    copy.addEventListener('click',async()=>{
+      try{
+        await navigator.clipboard.writeText(text);
+        copy.textContent='Copied';
+        setTimeout(()=>{copy.textContent='Copy'},1200);
+      }catch{
+        const selection=window.getSelection();
+        const range=document.createRange();
+        range.selectNodeContents(body);
+        selection.removeAllRanges();
+        selection.addRange(range);
+      }
+    });
+    article.append(meta,body,copy);
     messages.append(article);
     messages.scrollTop=messages.scrollHeight;
   };
@@ -163,6 +182,21 @@
     if(!data||typeof data.request_id!=='string')throw new Error('Conversation gateway did not return a request ID.');
     return poll(data.request_id);
   };
+
+  if(paste){
+    paste.addEventListener('click',async()=>{
+      input.focus();
+      try{
+        const text=await navigator.clipboard.readText();
+        const start=input.selectionStart??input.value.length;
+        const end=input.selectionEnd??input.value.length;
+        input.setRangeText(text,start,end,'end');
+        input.dispatchEvent(new Event('input',{bubbles:true}));
+      }catch{
+        help.textContent='Clipboard permission was blocked. Tap and hold in the message box, then choose Paste.';
+      }
+    });
+  }
 
   input.addEventListener('keydown',event=>{
     if(event.key!=='Enter'||event.shiftKey||event.isComposing)return;
