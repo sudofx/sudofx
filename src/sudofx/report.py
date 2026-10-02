@@ -147,6 +147,22 @@ def _work_cards(state: dict[str, object]) -> str:
     remain visually distinct so presentation does not flatten different semantic
     roles into an attractive but ambiguous blob.
     """
+    handoff_targets: dict[str, list[dict[str, object]]] = {}
+    handoff_envelope = state.get("app:handoff")
+    if isinstance(handoff_envelope, dict):
+        handoff_state = handoff_envelope.get("projection_state") or handoff_envelope.get("state")
+        if isinstance(handoff_state, dict):
+            raw_targets = handoff_state.get("targets", {})
+            if isinstance(raw_targets, dict):
+                for target_id, target in raw_targets.items():
+                    if not isinstance(target_id, str) or not isinstance(target, dict):
+                        continue
+                    evaluations = target.get("evaluations", [])
+                    if isinstance(evaluations, list):
+                        handoff_targets[target_id] = [
+                            item for item in evaluations if isinstance(item, dict)
+                        ]
+
     work_items = [
         value for key, value in sorted(state.items())
         if key.startswith("work:") and isinstance(value, dict)
@@ -205,7 +221,18 @@ def _work_cards(state: dict[str, object]) -> str:
                 <div class="quality-provenance">{_escape(provider)} · {_escape(model)}{f' · run {_escape(run_id)}' if run_id else ''}</div>
               </div>
             """
-        handoff_evaluations = work.get("handoff_evaluations", [])
+        legacy_handoff = work.get("handoff_evaluations", [])
+        legacy_handoff = legacy_handoff if isinstance(legacy_handoff, list) else []
+        application_handoff = handoff_targets.get(str(work.get("id", "")), [])
+        legacy_ids = {
+            str(item.get("test_id", ""))
+            for item in legacy_handoff
+            if isinstance(item, dict) and str(item.get("test_id", ""))
+        }
+        handoff_evaluations = [
+            *legacy_handoff,
+            *(item for item in application_handoff if str(item.get("test_id", "")) not in legacy_ids),
+        ]
         handoff_evaluation_html = ""
         if isinstance(handoff_evaluations, list) and handoff_evaluations:
             latest_handoff_evaluation = handoff_evaluations[-1]
