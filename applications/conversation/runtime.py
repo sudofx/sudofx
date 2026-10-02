@@ -214,10 +214,10 @@ def _write_summary(path: str | None, message: str, response: str) -> None:
     if not path:
         return
     Path(path).write_text(
-        "# Governed conversation\\n\\n"
-        f"**You:** {message}\\n\\n"
-        f"**Gemini:** {response}\\n\\n"
-        "_Both turns are derived from the authoritative sudofx database; this summary is disposable._\\n",
+        "# Governed conversation\n\n"
+        f"**You:** {message}\n\n"
+        f"**Assistant:** {response}\n\n"
+        "_Both turns are derived from the authoritative sudofx database; this summary is disposable._\n",
         encoding="utf-8",
     )
 
