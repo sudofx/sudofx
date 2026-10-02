@@ -21,6 +21,8 @@ DEFAULT_CONTEXT_TURNS = 8
 MAX_OBSERVATION_CHARS = 240
 MAX_OBSERVATIONS_PER_TURN = 4
 MAX_DURABLE_OBSERVATIONS = 32
+MAX_ACTIVE_COMMITMENTS = 8
+MAX_COMMITMENT_CHARS = 240
 
 _DIRECT_IDENTIFIER_PATTERNS = (
     re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.I),
@@ -122,6 +124,7 @@ def _privacy_state(current: JsonValue) -> dict[str, JsonValue]:
             "turn_count": 0,
             "next_role": "human",
             "observations": [],
+            "commitments": [],
         }
     if not isinstance(current, dict):
         raise ValueError("conversation state must be an object")
@@ -131,22 +134,37 @@ def _privacy_state(current: JsonValue) -> dict[str, JsonValue]:
             "turn_count": 0,
             "next_role": "human",
             "observations": [],
+            "commitments": [],
         }
     if not isinstance(raw, dict):
         raise ValueError("conversation privacy state must be an object")
     turn_count = raw.get("turn_count")
     next_role = raw.get("next_role")
     observations = raw.get("observations")
+    commitments = raw.get("commitments", [])
     if not isinstance(turn_count, int) or turn_count < 0:
         raise ValueError("conversation privacy turn count is invalid")
     if next_role not in {"human", "assistant"}:
         raise ValueError("conversation privacy next role is invalid")
     if not isinstance(observations, list) or any(not isinstance(item, str) for item in observations):
         raise ValueError("conversation privacy observations are invalid")
+    if not isinstance(commitments, list):
+        raise ValueError("conversation privacy commitments are invalid")
+    normalized_commitments: list[dict[str, str]] = []
+    for commitment in commitments:
+        if (
+            not isinstance(commitment, dict)
+            or commitment.get("kind") != "response_suffix"
+            or not isinstance(commitment.get("text"), str)
+            or not commitment["text"].strip()
+        ):
+            raise ValueError("conversation privacy commitments are invalid")
+        normalized_commitments.append({"kind": "response_suffix", "text": commitment["text"]})
     return {
         "turn_count": turn_count,
         "next_role": next_role,
         "observations": list(observations),
+        "commitments": normalized_commitments,
     }
 
 
@@ -201,6 +219,72 @@ def _normalize_observations(values: object) -> tuple[list[str], str | None]:
     return normalized, None
 
 
+def _normalize_commitment_updates(values: object) -> tuple[list[dict[str, str]], str | None]:
+    if not isinstance(values, list):
+        return [], "assistant commitment updates must be a list"
+    if len(values) > 2:
+        return [], "assistant may propose at most 2 commitment updates per turn"
+    normalized: list[dict[str, str]] = []
+    for value in values:
+        if not isinstance(value, dict):
+            return [], "assistant commitment update must be an object"
+        op = value.get("op")
+        kind = value.get("kind")
+        if kind != "response_suffix" or op not in {"upsert", "clear"}:
+            return [], "assistant commitment update is invalid"
+        if op == "clear":
+            normalized.append({"op": "clear", "kind": "response_suffix"})
+            continue
+        text = value.get("text")
+        if not isinstance(text, str) or not text.strip():
+            return [], "assistant response suffix commitment must contain text"
+        text = text.strip()
+        if len(text) > MAX_COMMITMENT_CHARS:
+            return [], f"assistant commitment exceeds {MAX_COMMITMENT_CHARS} characters"
+        for pattern in _DIRECT_IDENTIFIER_PATTERNS:
+            if pattern.search(text):
+                return [], "assistant commitment contains a direct identifier"
+        normalized.append({"op": "upsert", "kind": "response_suffix", "text": text})
+    return normalized, None
+
+
+def _apply_commitment_updates(
+    commitments: list[dict[str, str]],
+    updates: list[dict[str, str]],
+) -> list[dict[str, str]]:
+    active = [dict(item) for item in commitments]
+    for update in updates:
+        if update["op"] == "clear":
+            active = [item for item in active if item["kind"] != update["kind"]]
+            continue
+        active = [item for item in active if item["kind"] != update["kind"]]
+        active.append({"kind": update["kind"], "text": update["text"]})
+    return active[-MAX_ACTIVE_COMMITMENTS:]
+
+
+def enforce_response_commitments(
+    current: JsonValue,
+    response: str,
+    commitment_updates: object,
+) -> str:
+    """Deterministically enforce active/new response obligations on transient output."""
+    privacy = _privacy_state(current)
+    updates, error = _normalize_commitment_updates(commitment_updates)
+    if error is not None:
+        raise ValueError(error)
+    commitments = _apply_commitment_updates(
+        [dict(item) for item in privacy["commitments"]],
+        updates,
+    )
+    content = response.strip()
+    for commitment in commitments:
+        if commitment["kind"] == "response_suffix":
+            suffix = commitment["text"]
+            if not content.endswith(suffix):
+                content = content.rstrip() + "\n\n" + suffix
+    return content
+
+
 def private_assistant_message(current: JsonValue, payload: JsonValue) -> ApplicationDecision:
     """Commit response metadata plus compact observations, never response text."""
     if not isinstance(payload, dict):
@@ -213,6 +297,11 @@ def private_assistant_message(current: JsonValue, payload: JsonValue) -> Applica
     observations, error = _normalize_observations(payload.get("observations", []))
     if error is not None:
         return ApplicationDecision(False, reasons=(error,))
+    commitment_updates, commitment_error = _normalize_commitment_updates(
+        payload.get("commitment_updates", [])
+    )
+    if commitment_error is not None:
+        return ApplicationDecision(False, reasons=(commitment_error,))
     try:
         privacy = _privacy_state(current)
     except ValueError as state_error:
@@ -233,6 +322,10 @@ def private_assistant_message(current: JsonValue, payload: JsonValue) -> Applica
         "turn_count": int(privacy["turn_count"]) + 1,
         "next_role": "human",
         "observations": merged,
+        "commitments": _apply_commitment_updates(
+            [dict(item) for item in privacy["commitments"]],
+            commitment_updates,
+        ),
         "last_assistant": {
             "message_digest": payload["message_digest"],
             "message_chars": message_chars,
@@ -287,12 +380,15 @@ def private_bounded_context(state: JsonValue) -> dict[str, JsonValue]:
         "next_role": privacy["next_role"],
         "observations": observations,
         "observation_count": len(observations),
+        "active_commitments": [dict(item) for item in privacy["commitments"]],
+        "active_commitment_count": len(privacy["commitments"]),
     }
 
 
 def private_assistant_descriptor(
     response: str,
     observations: object,
+    commitment_updates: object = (),
 ) -> dict[str, JsonValue]:
     """Build safe durable assistant metadata after provider output validation."""
     if not isinstance(response, str) or not response.strip():
@@ -301,8 +397,12 @@ def private_assistant_descriptor(
     normalized, error = _normalize_observations(observations)
     if error is not None:
         raise ValueError(error)
+    normalized_updates, update_error = _normalize_commitment_updates(list(commitment_updates))
+    if update_error is not None:
+        raise ValueError(update_error)
     return {
         "message_digest": hashlib.sha256(content.encode("utf-8")).hexdigest(),
         "message_chars": len(content),
         "observations": normalized,
+        "commitment_updates": normalized_updates,
     }
