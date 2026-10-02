@@ -34,7 +34,7 @@ from sudofx import (
 from sudofx.record import APPLICATION_ID, SCHEMA_VERSION, IntegrityError, Record, StorageVersionError
 from sudofx.governance import Governance
 from applications.conversation import CONVERSATION_APPLICATION, bounded_context
-from scripts.conversation_sudofx import ConversationIntelligence, ProjectedKernel
+from scripts.conversation_sudofx import ConversationIntelligence, ProjectedKernel, commit_assistant_turn
 from sudofx.storage import InvocationEvent
 from experiments.continuity import (
     run_compressed_model_continuity_probe,
@@ -932,6 +932,49 @@ json.dump({
             lifecycle[1]["context_receipt"]["scope"],
             {"kind": "application", "application_id": "conversation"},
         )
+
+    def test_conversation_effect_barrier_sees_attempt_before_provider(self) -> None:
+        """Conversation cloud effects must checkpoint generic attempt evidence first."""
+        registry = ApplicationRegistry((CONVERSATION_APPLICATION,))
+        kernel = Kernel(self.kernel.record, Governance(application_registry=registry))
+        host = ApplicationHost(kernel, registry, "conversation")
+        human = host.submit(
+            ApplicationIntent(
+                "conversation-barrier-human",
+                0,
+                "human_message",
+                "Checkpoint this before calling the provider",
+            ),
+            provenance=SubmissionProvenance("human", "operator", "unit-test"),
+        )
+        self.assertEqual(human.status, "accepted")
+
+        observed_stages: list[str] = []
+
+        def barrier() -> None:
+            history = Record(self.path).invocation_history()
+            observed_stages.extend(event["stage"] for event in history)
+            self.assertEqual(
+                observed_stages[-3:],
+                ["requested", "context_delivered", "attempt_started"],
+            )
+
+        provider = (
+            sys.executable,
+            "-c",
+            "import json,sys; json.load(sys.stdin); "
+            "json.dump({'content':'Barrier observed'}, sys.stdout)",
+        )
+        reply = commit_assistant_turn(
+            data_path=self.path,
+            provider_command=provider,
+            provenance=SubmissionProvenance("model", "fixture", "unit-test"),
+            effect_barrier=barrier,
+        )
+        self.assertEqual(reply, "Barrier observed")
+        self.assertTrue(observed_stages)
+        lifecycle = Record(self.path).invocation_history()
+        self.assertEqual(lifecycle[-1]["stage"], "completed")
 
     def test_conversation_quota_failure_preserves_human_turn_and_failure_evidence(self) -> None:
         """Provider quota exhaustion must not erase already-governed human input."""
