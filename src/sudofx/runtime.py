@@ -152,6 +152,44 @@ class InvocationLifecycle:
             )
         )
 
+    def invoke(
+        self,
+        effect: Callable[[], object],
+        *,
+        effect_barrier: Callable[[], None] | None = None,
+        classify_error: Callable[[Exception], str | None] | None = None,
+    ) -> object:
+        """Execute one external effect after its durability barrier.
+
+        Generic sequencing lives here so applications cannot accidentally call
+        a provider before request/attempt evidence is durably checkpointed.
+        Applications may classify provider-specific exceptions, but the
+        classifier receives only the exception and cannot perform the effect.
+        """
+        if effect_barrier is not None:
+            try:
+                effect_barrier()
+            except Exception as error:
+                self.fail(
+                    outcome=None,
+                    detail=f"effect_barrier:{type(error).__name__}",
+                )
+                raise
+
+        try:
+            return effect()
+        except Exception as error:
+            if classify_error is not None:
+                outcome = classify_error(error)
+            elif isinstance(error, ProviderQuotaError):
+                outcome = "quota_exhausted"
+            elif isinstance(error, ProviderTemporaryError):
+                outcome = "temporary_failure"
+            else:
+                outcome = "provider_failure"
+            self.fail(outcome=outcome, detail=type(error).__name__)
+            raise
+
     def proposal_received(self, proposal_id: str) -> None:
         self._event("proposal_received", proposal_id=proposal_id)
 
@@ -255,38 +293,10 @@ class Runtime:
             context_scope=context_scope,
         )
 
-        # Some execution hosts must make the already-recorded request/attempt
-        # evidence durable outside the current process before an irreversible
-        # external effect begins. For example, a cloud runner may checkpoint the
-        # authoritative database before spending a provider quota slot.
-        #
-        # The barrier receives no database or provider capability. It may only
-        # confirm that the caller's durability boundary succeeded. Failure means
-        # the provider is never invoked.
-        if effect_barrier is not None:
-            try:
-                effect_barrier()
-            except Exception as error:
-                lifecycle.fail(
-                    # The external provider was never called, so this is not a
-                    # provider outcome. Keep outcome null and preserve the failed
-                    # durability boundary in detail for recovery/audit.
-                    outcome=None,
-                    detail=f"effect_barrier:{type(error).__name__}",
-                )
-                raise
-
-        try:
-            proposal = intelligence.propose(context)
-        except Exception as error:
-            if isinstance(error, ProviderQuotaError):
-                outcome = "quota_exhausted"
-            elif isinstance(error, ProviderTemporaryError):
-                outcome = "temporary_failure"
-            else:
-                outcome = "provider_failure"
-            lifecycle.fail(outcome=outcome, detail=type(error).__name__)
-            raise
+        proposal = lifecycle.invoke(
+            lambda: intelligence.propose(context),
+            effect_barrier=effect_barrier,
+        )
 
         lifecycle.proposal_received(proposal.proposal_id)
         try:
