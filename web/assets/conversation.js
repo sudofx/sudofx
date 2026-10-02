@@ -77,11 +77,10 @@
     gateway=String(config.gateway_url||'').replace(/\/$/,'');
     codespacesUrl=String(config.codespaces_url||'');
     if(!gateway){
-      const localHost=location.hostname==='127.0.0.1'||location.hostname==='localhost'||location.hostname==='::1';
-      if(localHost){
+      try{
         await useLocalTransport();
         return;
-      }
+      }catch{}
       if(codespacesUrl){
         setState('Private GitHub launch available','ready');
         auth.hidden=false;
