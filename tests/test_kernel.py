@@ -1272,6 +1272,26 @@ print(json.dumps(state["turns"]))
         self.assertIn("group: sudofx-authority-v4", workflow)
         self.assertIn("preserving operator Stop", workflow)
 
+    def test_core_package_is_free_of_experiment_specific_dependencies(self) -> None:
+        """Reusable sudofx code must not depend on continuity/manual-handoff experiments."""
+        root = Path(__file__).parents[1]
+        core = root / "src" / "sudofx"
+        offenders = {}
+        forbidden = (
+            "from experiments",
+            "import experiments",
+            "handoff-v1",
+            "overnight-continuity-v1",
+            "manual_handoff",
+        )
+        for path in sorted(core.glob("*.py")):
+            text = path.read_text(encoding="utf-8")
+            hits = [token for token in forbidden if token in text]
+            if hits:
+                offenders[path.name] = hits
+        self.assertEqual(offenders, {})
+        self.assertFalse((core / "handoff.py").exists())
+
     def test_conversation_has_one_production_browser_entry_point(self) -> None:
         """Conversation must not drift back into the broad operator workflow."""
         root = Path(__file__).parents[1]
