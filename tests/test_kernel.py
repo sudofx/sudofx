@@ -21,6 +21,7 @@ from sudofx import (
     Context,
     FakeIntelligence,
     FakeWorkIntelligence,
+    InvocationLifecycle,
     Kernel,
     Operation,
     Proposal,
@@ -1259,6 +1260,48 @@ json.dump({
         provider = CommandIntelligence((sys.executable, "-c", "print('not json')"))
         with self.assertRaises(ProviderError):
             self.kernel.run(provider)
+        self.assertEqual(self.kernel.record.history(), ())
+
+    def test_invocation_lifecycle_can_record_application_specific_provider_boundary(self) -> None:
+        """Applications may reuse generic invocation evidence without yielding a sudofx Proposal."""
+        context = Context(
+            revision=0,
+            state={"app:test": {"request": "application-specific"}},
+            recent_receipts=(),
+        )
+        provenance = SubmissionProvenance("model", "application-provider", "unit-test")
+        lifecycle = InvocationLifecycle.begin(
+            self.kernel.record,
+            context,
+            provenance=provenance,
+            context_scope={"kind": "application", "application_id": "test"},
+            invocation_id="application-lifecycle-1",
+        )
+        lifecycle.proposal_received("application-response-1")
+        lifecycle.governed("application-response-1", "application-receipt-1", "accepted")
+        lifecycle.complete(
+            proposal_id="application-response-1",
+            receipt_id="application-receipt-1",
+            detail="accepted",
+        )
+
+        events = self.kernel.record.invocation_history("application-lifecycle-1")
+        self.assertEqual(
+            [event["stage"] for event in events],
+            [
+                "requested",
+                "context_delivered",
+                "attempt_started",
+                "proposal_received",
+                "governed",
+                "completed",
+            ],
+        )
+        self.assertEqual(
+            events[1]["context_receipt"]["scope"],
+            {"kind": "application", "application_id": "test"},
+        )
+        self.assertEqual(events[-1]["outcome"], "success")
         self.assertEqual(self.kernel.record.history(), ())
 
     def test_runtime_records_provider_failure_without_fabricating_proposal_receipt(self) -> None:
