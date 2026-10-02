@@ -13,6 +13,7 @@ from applications.conversation import (
     validate_private_message,
 )
 from applications.conversation.runtime import commit_assistant_turn, commit_human_turn
+from applications.conversation.server import ConversationService
 from sudofx import ApplicationHost, ApplicationRegistry, Kernel, SubmissionProvenance
 from sudofx.governance import Governance
 from sudofx.record import Record
@@ -37,6 +38,29 @@ class ConversationPrivacyTests(unittest.TestCase):
         self.assertEqual(descriptor["message_chars"], len(message))
         self.assertEqual(len(descriptor["message_digest"]), 64)
         self.assertNotIn(message, json.dumps(descriptor))
+
+    def test_private_http_service_uses_one_sqlite_authority_without_transcript(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "conversation.sqlite"
+            provider = (
+                sys.executable,
+                "-c",
+                "import json,sys; data=json.load(sys.stdin); "
+                "json.dump({'content':'Recovered continuity','observations':['The user is testing continuity across fresh provider calls.']}, sys.stdout)",
+            )
+            service = ConversationService(path, provider_command=provider)
+            result = service.converse("Are we still testing continuity?")
+            self.assertEqual(result["content"], "Recovered continuity")
+            self.assertEqual(result["status"]["turn_count"], 2)
+            self.assertEqual(result["status"]["provider_invocations"], 1)
+            self.assertFalse(result["status"]["transcript_persisted"])
+
+            registry = ApplicationRegistry((CONVERSATION_APPLICATION,))
+            kernel = Kernel(Record(path), Governance(application_registry=registry))
+            state = ApplicationHost(kernel, registry, "conversation").context().state
+            serialized = json.dumps(state, sort_keys=True)
+            self.assertNotIn("Are we still testing continuity?", serialized)
+            self.assertNotIn("Recovered continuity", serialized)
 
     def test_full_private_turn_persists_observations_not_transcript(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
