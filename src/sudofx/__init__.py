@@ -28,7 +28,7 @@ from .applications import (
     EffectRequest,
 )
 from .kernel import Kernel, RunResult
-from .runtime import InvocationLifecycle, InvocationResult, Runtime
+from .runtime import InvocationBarrierError, InvocationLifecycle, InvocationResult, Runtime
 from .models import Context, Operation, Proposal, Receipt, SubmissionProvenance
 from .providers import (
     CommandIntelligence,
@@ -55,6 +55,7 @@ __all__ = [
     "FakeIntelligence",
     "FakeWorkIntelligence",
     "Intelligence",
+    "InvocationBarrierError",
     "InvocationLifecycle",
     "InvocationResult",
     "Kernel",
