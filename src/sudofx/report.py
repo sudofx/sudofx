@@ -20,7 +20,6 @@ import html
 import json
 from pathlib import Path
 
-from .handoff import HANDOFF_WORK_ID, build_handoff_packet, export_handoff_packet
 from .kernel import Kernel
 from .models import Context
 
@@ -453,6 +452,7 @@ def render(
     repository: str = "sudofx/sudofx",
     verification: dict[str, str] | None = None,
     continuity_proof: dict[str, object] | None = None,
+    manual_prompt: str | None = None,
 ) -> str:
     """
     Produce one complete HTML document from a verified kernel snapshot.
@@ -501,40 +501,9 @@ def render(
     )
     semantic_run = str(continuity_proof.get("artifact_run_id", ""))
     semantic_digest = str(continuity_proof.get("context_digest", ""))
-    # Pages is intentionally public. The manual exchange is a derived,
-    # provider-neutral view of the same bounded handoff used for continuity
-    # testing. It may be copied and evaluated by anyone, but browser-side work
-    # never mutates authoritative SQLite state.
-    manual_prompt = ""
-    try:
-        manual_packet = build_handoff_packet(kernel, HANDOFF_WORK_ID)
-        manual_prompt = (
-            "SUDOFX MANUAL CONTINUITY TEST\n"
-            "You are a fresh intelligence with no prior conversation, memory, files, tools, or hidden context.\n"
-            "Use only the bounded durable packet below. Treat digests as unreadable commitments, not readable history.\n"
-            "Do not claim you performed work or inspected anything outside the packet.\n\n"
-            "TRANSPORT METADATA\n"
-            "vendor: __SUDOFX_VENDOR__\n"
-            "test_id: __SUDOFX_TEST_ID__\n"
-            "nonce: __SUDOFX_NONCE__\n"
-            f"work_id: {manual_packet['work_id']}\n"
-            f"packet_digest: {manual_packet['packet_digest']}\n\n"
-            "Return only one JSON object. Do not use Markdown fences or add prose before or after it.\n"
-            "The object must contain exactly these top-level fields: test_id, nonce, vendor, work_id, packet_digest, answers.\n"
-            "Copy the transport metadata above exactly into those fields.\n"
-            "answers must contain exactly: objective_fidelity, authority_fidelity, history_fidelity, constraint_fidelity, frontier_fidelity, epistemic_discipline, transfer_usability.\n"
-            "Each answer must be an object with non-empty answer and evidence fields.\n"
-            "Every evidence value must be an exact quote of at least 8 characters from the COMPLETE JSON PACKET below.\n"
-            "Do not cite CURRENT OPERATOR AUTHORIZATION or TRANSPORT METADATA as evidence; they are transport context, not packet evidence.\n"
-            "If the packet does not support a claim, say that in answer and quote packet text that establishes the limit.\n\n"
-            "COMPLETE JSON PACKET\n"
-            + json.dumps(manual_packet, indent=2, sort_keys=True)
-        )
-    except ValueError:
-        # A projection without the experiment work item remains valid; the
-        # public manual workbench stays unavailable instead of inventing a
-        # prompt from unrelated state.
-        pass
+    # Optional experiment presentation arrives already constructed by the caller.
+    # The reusable report never imports experiment code or chooses packet policy.
+    manual_prompt = manual_prompt or ""
     observer_continuous = continuity_proof.get("assessment_status") == "semantic_review_pending"
     # A semantic review result remains evidence rather than authoritative state,
     # but continuous test authorization means it no longer pauses the observer.
@@ -1304,6 +1273,7 @@ def export_site(
     repository: str = "sudofx/sudofx",
     verification: dict[str, str] | None = None,
     continuity_proof: dict[str, object] | None = None,
+    manual_prompt: str | None = None,
 ) -> Path:
     """
     Write the derived Pages artifact and disable Jekyll processing.
@@ -1320,6 +1290,7 @@ def export_site(
             repository=repository,
             verification=verification,
             continuity_proof=continuity_proof,
+            manual_prompt=manual_prompt,
         ),
         encoding="utf-8",
     )
@@ -1337,45 +1308,5 @@ def export_site(
         json.dumps(kernel.record.health(), indent=2, sort_keys=True),
         encoding="utf-8",
     )
-    try:
-        # The Shortcut fetches this replaceable, public-safe projection. The
-        # packet is never read back as authority; submission is checked against
-        # a freshly reconstructed packet before SQLite accepts the evidence.
-        export_handoff_packet(kernel, destination, HANDOFF_WORK_ID)
-    except ValueError:
-        pass
     (destination / ".nojekyll").write_text("", encoding="utf-8")
-    # The local operator loop must make its continuation decision from the same
-    # verified artifact the human sees, never from workflow success alone. A
-    # green workflow proves execution; it does not prove that more work is safe.
-    # Keeping this as a derived file also prevents runner coordination from
-    # becoming a second authority beside the SQLite record.
-    proof = continuity_proof or {}
-    assessment_status = proof.get("assessment_status")
-    if assessment_status == "semantic_review_pending":
-        disposition = "CONTINUE"
-        reason = "The verified cycle is complete and continuous testing is authorized."
-    elif assessment_status == "safe_work_available":
-        disposition = "CONTINUE"
-        reason = "The verified observer artifact identifies another safe bounded cycle."
-    elif proof.get("passed") is True:
-        disposition = "NO MORE SAFE WORK"
-        reason = "The verified cycle completed without identifying another safe operation."
-    else:
-        disposition = "FAILED"
-        reason = "The observer artifact did not establish a successful governed cycle."
-    (destination / "runner-state.json").write_text(
-        json.dumps(
-            {
-                "schema_version": 1,
-                "disposition": disposition,
-                "reason": reason,
-                "artifact_run_id": proof.get("artifact_run_id", ""),
-                "artifact_commit": proof.get("artifact_commit", ""),
-            },
-            indent=2,
-            sort_keys=True,
-        ),
-        encoding="utf-8",
-    )
     return index
