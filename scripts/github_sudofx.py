@@ -933,7 +933,14 @@ def main() -> int:
     # Stateful GitHub runs refresh only the disposable public projection. Pages
     # is intentionally not rebuilt when the database changes. A projection
     # failure cannot undo an authoritative commit and is reported separately.
-    if os.environ.get("GITHUB_ACTIONS") == "true" and not args.publish_only:
+    should_publish_live = (
+        os.environ.get("GITHUB_ACTIONS") == "true"
+        and not args.publish_only
+        and not prove_work_id
+        and not prove_model_id
+        and not args.backup
+    )
+    if should_publish_live:
         try:
             publish_live_projection(
                 build_public_site_projection(kernel, record, continuity_proof, verification),
