@@ -20,239 +20,154 @@ Record → Context → Proposal → Governance → Transition → Receipt → Re
 
 **Models propose. The system governs.**
 
-## Current status — September 26, 2026
+## Current status — October 2, 2026
 
-The initial kernel is implemented and runnable. The project has moved beyond a fake-provider-only proof into live bounded Gemini continuity experiments and an operator-visible cloud runtime.
+The project has moved beyond the original continuity proof into a reusable engine/application architecture.
 
-Implemented and exercised:
+Implemented and exercised on `master`:
 
-- SQLite authoritative record
-- append-only, hash-linked receipts
-- deterministic governance
-- controlled transitions
-- state replay
-- bounded context construction
-- durable work items with revisions, constraints, accepted results, obligations, and lifecycle
-- provider-neutral process boundary
-- deterministic fake intelligence for testing
-- live Google Gemini adapter
-- isolated model-continuity probes that cannot mutate authoritative state
-- GitHub-hosted durable-state checkpointing on the `sudofx-state` branch
-- GitHub Pages observer generated as a disposable projection
-- continuous success-only Gemini cycle chaining
-- sequential workflow concurrency
-- visible stop-on-failure behavior
-- local recovery runner
-- GitHub-native Start/Stop controls modeled after WAKE
-- phone-first observer UI
-- handoff export artifacts for bounded continuity experiments
+- SQLite as the single authoritative operational store
+- deterministic governance and atomic transitions
+- append-only accountable receipts and provenance
+- verified replay plus explicit full-history audit paths
+- durable provider invocation lifecycle and resource accounting
+- bounded context with explicit omission evidence
+- provider-neutral execution boundaries
+- application identity, versioning, actions, policy re-evaluation, migration boundaries, and event-log storage
+- a governed conversation application that survives process replacement from SQLite alone
+- a dedicated GitHub Actions conversation input surface
+- GitHub Pages as a derived, read-only projection
+- phone-first operator workflows and explicit Start/Stop control
+- quarantined continuity/overnight/manual-handoff experiments under `experiments/`
+- WAKE✳︎ migration work underway as a sudofx application in the separate `sudofx/wake` repository
 
-The central architectural claim is therefore no longer hypothetical: a fresh intelligence can receive explicit context reconstructed from durable state and produce a governed proposal without inheriting a previous model session.
+The active execution direction is defined by [100126-CONTRACT.md](100126-CONTRACT.md).
 
-What is **not** yet proven is the larger product claim: that this mechanism preserves enough useful context across repeated provider/model replacement, long time spans, and broader real work to become durable infrastructure rather than a successful kernel experiment.
-
-See [docs/STATUS.md](docs/STATUS.md) for the current objective-by-objective assessment and
-[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the implemented boundaries.
+See [docs/STATUS.md](docs/STATUS.md) for the phase-by-phase state,
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for authority boundaries, and
+[docs/APPLICATION_ARCHITECTURE.md](docs/APPLICATION_ARCHITECTURE.md) for the application contract.
 
 ## Authority model
 
-sudofx has intentionally separate layers:
-
 ```text
-master branch
-  └─ implementation + workflow definitions
+master
+  └─ source, tests, workflows, documentation
 
-sudofx-state branch
-  └─ authoritative SQLite database
+sudofx-state
+  └─ authoritative SQLite checkpoint
 
-GitHub Actions
-  └─ disposable execution environment
+kernel
+  └─ governance, transitions, receipts, replay
 
-Gemini / other provider
-  └─ disposable intelligence
+runtime
+  └─ bounded context, invocation lifecycle, provider/effect coordination
 
-GitHub Pages
-  └─ derived observer projection
+applications
+  └─ domain behavior built above the kernel
+
+GitHub Actions / providers / browser
+  └─ replaceable execution and presentation infrastructure
 ```
 
 Only the SQLite record is operational truth.
 
-Pages, JSON proof artifacts, workflow status, reports, and handoff exports are views or transport artifacts. They must never become competing durable state.
+Pages, workflow state, JSON, Markdown, reports, summaries, handoff packets, and browser state are views, transport, evidence, or exports. They must never become a competing authoritative store.
 
-## The boundary
+## Applications, not plugins
 
-An intelligence may:
+A complete domain system built on sudofx is an **application**.
 
-- inspect bounded context
-- reason about current work
-- return a structured proposal
+Applications may define domain state, deterministic policy, context projection, presentation, and requested capabilities. They may not bypass governance, write arbitrary database state, create an independent authoritative event store, or gain authority merely because their code is installed.
 
-It may not:
+WAKE✳︎ is the first substantial application migration. The older broad “WAKE as plugin” framing is retired; [docs/PLUGIN_ARCHITECTURE.md](docs/PLUGIN_ARCHITECTURE.md) is retained only as a historical redirect.
 
-- write the SQLite record directly
-- bypass governance
-- decide that its own output is authoritative
-- treat Pages or exported JSON as durable truth
-- inherit hidden continuity as a requirement
+## Governed conversation proof
 
-Accepted proposals become explicit transitions. Rejected proposals leave authoritative state unchanged. Meaningful governed operations leave receipts.
+The first small non-WAKE application is `applications/conversation.py`.
 
-## Durable work
+Its flow is:
 
-The first concrete workflow carries one work item across disposable intelligence invocations.
-
-A work item contains explicit:
-
-- objective
-- constraints
-- accepted results
-- open obligations
-- lifecycle status
-- revision
-
-A fresh invocation receives only the bounded representation needed for that work item.
-
-```bash
-.venv/bin/sudofx work-create launch "Launch the first governed workflow" \
-  --constraint "Every transition leaves a receipt"
-
-.venv/bin/sudofx work-advance launch "Defined the lifecycle" \
-  --obligation "Complete the interface"
-
-.venv/bin/sudofx work-show launch
-.venv/bin/sudofx work-complete launch "Workflow delivered and verified"
+```text
+human input
+  ↓
+governed human-origin application transition
+  ↓
+SQLite
+  ↓
+bounded database-derived context
+  ↓
+provider invocation
+  ↓
+governed assistant application transition
+  ↓
+SQLite
+  ↓
+derived browser projection
 ```
 
-Completed work cannot be advanced again. Rejection remains visible while authoritative state remains unchanged.
+Tests replace the kernel, application host, and provider process between turns and reconstruct the next turn only from SQLite. The public projection links to the dedicated `conversation.yml` workflow for one-message browser input.
 
-## Continuous Gemini experiment
-
-The `sudofx — continue` GitHub workflow performs one bounded cycle:
-
-1. check out current source
-2. run the proof suite
-3. restore authoritative SQLite state
-4. construct bounded context
-5. ask Gemini
-6. govern the returned proposal on an isolated verification snapshot
-7. publish the human-readable observer
-8. dispatch exactly one successor after successful publication
-
-The continuous observer does **not** append every Gemini experiment to durable history. That separation is intentional: an indefinitely running experiment must not manufacture authoritative state merely because a provider returned another answer.
-
-A failed test, provider call, governance step, or deployment stops the chain visibly rather than recursively spending calls in a broken state.
-
-## Phone-first operation
-
-The GitHub Pages interface is a live observer, not an authority surface.
-
-It exposes:
-
-- current execution state
-- the bounded context sent to Gemini
-- Gemini's response
-- the governed interpretation
-- accepted/rejected receipt history
-- exact workflow/run provenance
-- a public manual continuity workbench that can launch/copy a bounded test prompt and score returned JSON locally
-- a public contribution path through GitHub Issues for useful manual test results
-- direct access to the repository's GitHub Actions operator surface for governed recording and runtime control
-
-## Operator control boundary
-
-GitHub Actions is the operator surface.
-
-The public Pages artifact contains no GitHub credentials, OAuth flow, control backend, or operator session. The status light links directly to this repository's Actions page. **Start** opens the GitHub-native continuation latch and dispatches one runtime cycle; **Stop** closes the latch before cancelling active cycles.
-
-`sudofx-runtime` remains the live-code branch, so development changes on `master` do not alter an already-running experiment until explicitly promoted.
-
+The browser is transport and presentation, not memory.
 
 ## Database-first storage
 
 The database is the single authoritative source of operational truth.
 
-Durable events, proposals, governance decisions, transitions, receipts, provenance, commitments, and derived state belong in SQLite. Persistent JSON, Markdown, HTML, and Pages artifacts are not alternate stores.
-
-The storage contract should remain backend-independent so SQLite can later be replaced by PostgreSQL or another durable database without changing the kernel's authority model.
+Durable events, proposals, governance decisions, transitions, receipts, provenance, commitments, application state, invocation lifecycle, and derived authoritative state belong in SQLite.
 
 **One authoritative database → everything else is a view, query, or export.**
 
-The current `sudofx-state` branch is public because the repository is public.
-GitHub authentication protects repository Actions and retained recovery artifacts, not Git
-branch visibility. Until state moves to private persistence, durable proposal
-content must be treated as public data.
+SQLite is the current implementation, not the semantic contract. A future PostgreSQL or other backend must be able to replace it without redefining proposal, governance, transition, receipt, provenance, or application semantics.
+
+The current `sudofx-state` Git ref is public. Do not place private or identifying durable material in it until authority is moved to private storage.
 
 ## Repository structure
 
 ```text
-src/sudofx/             reusable engine: kernel, record, governance, reporting
-scripts/                provider adapters, GitHub runtime, recovery runner
-.github/workflows/      governed cloud execution and continuation
-tests/                  invariant and failure-boundary proofs
-experiments/            disposable development and continuity experiments
-site/                   generated public projection
-data/                   local runtime database path; live cloud authority is checkpointed separately
-docs/                   architecture, current status, and design notes
-AGENTS.md               implementation and commentary discipline
+src/sudofx/             reusable engine: kernel, storage, governance, runtime, applications
+applications/           concrete sudofx applications; conversation is the first small proof
+scripts/                provider, GitHub runtime, recovery, conversation adapters
+.github/workflows/      CI, operator control, conversation, runtime, Pages
+tests/                  invariant, replay, failure, lifecycle, and application proofs
+experiments/            quarantined continuity and handoff experiment machinery
+docs/                   current architecture/status plus historical design notes
+AGENTS.md               implementation and documentation discipline
+100126-CONTRACT.md      active execution direction
 ```
 
-## Try the kernel locally
+## Local verification
 
-Python 3.11+ is required.
+Python 3.11+:
 
 ```bash
 python -m venv .venv
 .venv/bin/pip install -e .
-.venv/bin/sudofx init
-.venv/bin/sudofx set objective '"prove durable continuity"'
-.venv/bin/sudofx show
-.venv/bin/sudofx history
-.venv/bin/sudofx serve
+PYTHONPATH=src:. .venv/bin/python -m unittest discover -s tests -v
 ```
 
-Run the proof suite:
+Basic kernel commands remain available through the `sudofx` CLI.
 
-```bash
-.venv/bin/python -m unittest discover -s tests -v
-```
+## Current frontier
 
-The local continuous runner remains an operator recovery tool:
+The core loop, application boundary, and database-derived continuity mechanics are implemented.
 
-```bash
-scripts/run-sudofx-cycles.sh
-```
+The immediate engineering frontier is to finish hardening the Phase D human interaction proof, then continue Phase E by moving WAKE✳︎ domain execution onto sudofx without importing research-specific semantics into the kernel.
 
-Pass a positive integer to cap recovery cycles, for example:
+The larger experiment remains open:
 
-```bash
-scripts/run-sudofx-cycles.sh 3
-```
+> **Can enough governed context survive model, vendor, session, device, person, and time replacement that useful work continues without hidden continuity?**
 
 ## What sudofx is not
 
 The kernel is deliberately not:
 
-- an autonomous-agent platform
+- an autonomous-agent authority
 - a chatbot memory layer
-- a multi-agent simulation
 - a model identity preservation system
 - a dashboard as system of record
-- a pile of persistent JSON state
+- a pile of persistent flat-file state
+- WAKE✳︎ with renamed modules
 - a provider-specific orchestration framework
-
-Those things may exist around the kernel. They are not the kernel.
-
-## Current frontier
-
-The immediate frontier is no longer "can the loop run?"
-
-It can.
-
-The frontier is:
-
-> **Can enough governed context survive model, vendor, session, device, and time replacement that useful work continues without either side depending on hidden continuity?**
-
-That is the experiment now underway.
 
 ## License
 
