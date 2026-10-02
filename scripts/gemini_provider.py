@@ -23,10 +23,9 @@ import json
 import os
 import sys
 import urllib.error
-import urllib.request
 from typing import Any
 
-from gemini_transport import build_generate_request, extract_text
+from gemini_transport import build_generate_request, extract_text, request_json
 
 
 def _bounded_work(context: dict[str, Any]) -> tuple[str, dict[str, Any]]:
@@ -119,8 +118,7 @@ def main() -> int:
         temperature=0.2,
     )
     try:
-        with urllib.request.urlopen(request, timeout=80) as response:
-            payload = json.loads(response.read().decode("utf-8"))
+        payload = request_json(request, timeout=80)
     except urllib.error.HTTPError as error:
         detail = error.read().decode("utf-8", errors="replace")[:1000]
         raise RuntimeError(f"Gemini API HTTP {error.code}: {detail}") from error
