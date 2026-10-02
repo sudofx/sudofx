@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="color-scheme" content="dark light">
+  <meta name="theme-color" content="#0b1020" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f6f8fc" media="(prefers-color-scheme: light)">
+  <meta name="description" content="A privacy-bounded stateless-provider Conversation proof powered by sudofx.">
+  <title>Conversation — sudofx</title>
+  <script>try{const saved=localStorage.getItem("sudofx-theme");if(saved==="dark"||saved==="light")document.documentElement.dataset.theme=saved}catch{}</script>
+  <link rel="stylesheet" href="assets/site.css">
+  <script defer src="assets/site.js"></script>
+  <script defer src="assets/conversation.js"></script>
+</head>
+<body data-page="conversation">
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="nav-wrap"><nav class="nav shell" aria-label="Primary">
+  <a class="brand" href="index.html">sudo<span>f(x)</span></a>
+  <div class="nav-links"><a href="index.html">Home</a><a href="applications.html">Applications</a><a class="active" aria-current="page" href="conversation.html">Conversation</a><a href="technical.html">Technical</a><a href="metrics.html">Metrics</a><a href="https://github.com/sudofx/sudofx" target="_blank" rel="noopener noreferrer">GitHub ↗</a></div>
+  <div class="header-tools"><label class="theme-switch" title="Toggle light/dark theme"><input data-theme-toggle type="checkbox" role="switch" aria-label="Use dark theme"><span class="theme-switch-track" aria-hidden="true"><i></i></span></label><span class="runtime-light" data-runtime-light data-state="checking" role="status" aria-label="sudofx status: checking" title="sudofx status: checking"><span class="runtime-light-track" aria-hidden="true"><i></i></span></span></div>
+</nav></header>
+
+<main id="main">
+<section class="page-hero shell conversation-hero">
+  <div class="eyebrow">Conversation proof</div>
+  <h1>Talk normally.<br><span>Memory stays governed.</span></h1>
+  <p class="lede">Every Gemini call starts fresh. sudofx reconstructs bounded observations from SQLite so continuity can survive even though the provider keeps no chat session.</p>
+  <article class="panel eli compact"><div class="tag">What is different?</div><p>Your screen can look like a normal chat, but the durable record is not a transcript. Raw human and assistant text stays transient; SQLite keeps only governed message fingerprints, bounded observations, receipts, and lifecycle evidence.</p></article>
+</section>
+
+<section class="section shell conversation-section">
+  <div class="conversation-shell" data-conversation-app>
+    <div class="conversation-bar">
+      <div><span class="status-dot" data-conversation-dot></span><strong data-conversation-state>Checking private gateway…</strong></div>
+      <button class="button conversation-clear" type="button" data-conversation-clear>Clear screen</button>
+    </div>
+
+    <div class="conversation-messages" data-conversation-messages aria-live="polite" aria-label="Conversation messages">
+      <article class="conversation-intro" data-conversation-intro>
+        <strong>This screen is disposable.</strong>
+        <p>Reloading or clearing it removes the visible transcript from your browser. It does not erase governed continuity in sudofx.</p>
+      </article>
+    </div>
+
+    <form class="conversation-compose" data-conversation-form>
+      <label for="conversation-message">Message</label>
+      <textarea id="conversation-message" data-conversation-input rows="3" maxlength="4000" placeholder="Ask something…" disabled></textarea>
+      <div class="conversation-compose-row">
+        <small data-conversation-help>Waiting for the authenticated gateway.</small>
+        <button class="button primary" data-conversation-send type="submit" disabled>Send</button>
+      </div>
+    </form>
+
+    <div class="conversation-auth" data-conversation-auth hidden>
+      <p>Conversation requires the existing sudofx operator OAuth session. No PAT is stored in this page.</p>
+      <a class="button primary" data-conversation-login href="#">Operator sign in</a>
+    </div>
+  </div>
+</section>
+
+<section class="section shell">
+  <div class="grid two">
+    <article class="panel"><div class="tag">Each turn</div><h3>Human → sudofx → fresh Gemini</h3><p>The current message crosses the provider boundary once. Previous raw turns are not replayed. The provider receives only the current transient message plus bounded durable observations.</p></article>
+    <article class="panel"><div class="tag">Continuity test</div><h3>Try losing the screen</h3><p>After several turns, reload the page and ask what you were trying to figure out earlier. A coherent answer should come from reconstructed sudofx observations, not provider session memory.</p></article>
+  </div>
+</section>
+</main>
+
+<footer class="footer shell"><div><b>sudofx</b><span>Fresh intelligence. Governed continuity.</span></div><div><a href="applications.html">Applications</a><a href="metrics.html">Metrics</a></div></footer>
+</body></html>
