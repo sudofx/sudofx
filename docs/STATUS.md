@@ -69,6 +69,20 @@ This preserves the contract:
 
 > presentation is a projection, not an authority surface.
 
+## Active product-surface contract
+
+The completed A–E architecture contract is no longer the active implementation frontier. The current execution direction is `100226-WEBSITE-CONTRACT.md`.
+
+Implemented in the first website slice:
+
+- GitHub Pages now publishes a lightweight static shell rather than replaying SQLite to regenerate the whole site.
+- Home, Applications, Technical, and Metrics are separate public surfaces.
+- The homepage leads with a natural explanation and ELI15 summaries rather than raw technical telemetry.
+- Applications currently presented are WAKE✳︎ and Conversation.
+- Technical and metric pages fetch changing public-safe data from the disposable `sudofx-live` projection branch at runtime.
+- Pages rebuild triggers are limited to shell/product-surface source changes; operational state changes do not trigger a site rebuild.
+- The new shell has deployed successfully through GitHub Pages.
+
 ## Remaining work
 
 1. Preserve the now-hardened boundary: providers execute only through runtime lifecycle/effect seams; experiments remain outside the reusable package; application/work namespaces stay sealed.
@@ -76,7 +90,7 @@ This preserves the contract:
 3. Move authoritative cloud state away from a public Git ref before private or identifying durable material is allowed.
 4. Prove broader provider substitution when deliberately authorized.
 5. Continue long-horizon semantic tests; mechanical replay alone does not prove that compressed context preserves useful meaning indefinitely.
-6. Define the next contract or product frontier before adding new kernel semantics; A–E are now complete at their stated architectural exit conditions.
+6. Finish the active website contract: harden public metrics provenance/freshness, complete accessibility/performance checks, retire or redirect the old monolithic report surface, and finish cutover documentation without expanding kernel semantics.
 
 ## Open risks
 
