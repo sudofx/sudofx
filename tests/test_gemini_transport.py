@@ -57,6 +57,7 @@ class GeminiTransportTests(unittest.TestCase):
                 prompt="bounded application request",
                 temperature=0.1,
                 response_schema={"type": "object"},
+                reasoning_effort="low",
                 max_output_tokens=512,
             ),
         )
@@ -75,6 +76,7 @@ class GeminiTransportTests(unittest.TestCase):
             {"type": "object"},
         )
         self.assertEqual(body["generationConfig"]["maxOutputTokens"], 512)
+        self.assertEqual(body["generationConfig"]["thinkingConfig"], {"thinkingLevel": "low"})
         self.assertNotIn("deployment-secret", request.full_url)
         self.assertNotIn("deployment-secret", request.data.decode("utf-8"))
 
@@ -94,7 +96,7 @@ class GeminiTransportTests(unittest.TestCase):
             temperature=0.1,
         )
         with patch("sudofx.generation.urllib.request.urlopen", return_value=Response()) as opened:
-            self.assertEqual(request_json(request, timeout=12), {"candidates": []})
+            self.assertEqual(request_json(request, timeout=12), ({"candidates": []}, 200))
         opened.assert_called_once_with(request, timeout=12)
 
     def test_request_json_rejects_non_object_json(self) -> None:
@@ -166,6 +168,8 @@ class GeminiTransportTests(unittest.TestCase):
         self.assertEqual(response.provider, "google-gemini")
         self.assertEqual(response.model, "gemini-test")
         self.assertEqual(response.text, '{"ok":true}')
+        self.assertEqual(response.metadata["http_status"], 200)
+        self.assertGreater(response.metadata["request_payload_bytes"], 0)
         self.assertNotIn("private-deployment-key", repr(response))
 
 
