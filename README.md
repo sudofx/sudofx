@@ -65,7 +65,7 @@ Implemented and exercised on `master`:
 - GitHub Pages as a derived, read-only projection
 - phone-first operator workflows and explicit Start/Stop control
 - quarantined continuity/overnight/manual-handoff experiments under `experiments/`
-- WAKE✳︎ migration work underway as a sudofx application in the separate `sudofx/wake` repository
+- WAKE✳︎ Phase E architectural migration complete on the separate `sudofx/wake` repository's `master`: sudofx owns operational authority/runtime primitives while WAKE retains research policy
 
 The active execution direction is defined by [100126-CONTRACT.md](100126-CONTRACT.md).
 
@@ -177,7 +177,7 @@ Basic kernel commands remain available through the `sudofx` CLI.
 
 The core loop, application boundary, and database-derived continuity mechanics are implemented.
 
-Phase D is complete at the contract level: multiple governed conversation rounds now survive separate Python interpreter replacement because continuity is reconstructed from SQLite alone. The immediate engineering frontier is Phase E: continue moving WAKE✳︎ execution responsibility onto sudofx without importing research-specific semantics into the kernel.
+Phase D is complete at the contract level: multiple governed conversation rounds now survive separate Python interpreter replacement because continuity is reconstructed from SQLite alone. Phase E's architectural exit condition is now satisfied on WAKE `master`. The immediate engineering frontier is hardening and compatibility retirement: keep legacy migration code quarantined, preserve replay/equivalence, and avoid pulling WAKE research semantics into the generic kernel. The promoted `wake-runtime` branch remains a separate operational maintenance decision and may lag while research is active.
 
 The larger experiment remains open:
 
