@@ -46,7 +46,7 @@ from experiments.continuity import (
     run_work_continuity_probe,
 )
 from sudofx.report import _format_bytes, export_site, render
-from experiments.manual_handoff.packet import build_handoff_packet, export_handoff_packet
+from experiments.manual_handoff.packet import build_handoff_packet, build_manual_prompt, export_handoff_packet
 from experiments.manual_handoff.scoring import (
     DIMENSIONS,
     evaluate_handoff_response,
@@ -2007,14 +2007,8 @@ json.dump({
         self.assertNotIn("344/343", page)
         self.assertNotIn("100.3%", page)
 
-    def test_exported_runner_state_continues_after_bounded_model_review(self) -> None:
-        """
-        The cloud chain must continue from verified artifact meaning, not run color.
-
-        Continuous testing is explicitly authorized, while the model proposal is
-        still isolated from durable state. A completed review proof therefore
-        authorizes another test cycle without authorizing the proposed mutation.
-        """
+    def test_static_export_contains_no_obsolete_runner_coordination_state(self) -> None:
+        """Continuation is workflow-owned; Pages must not publish a second coordination signal."""
         destination = Path(self.tempdir.name) / "site"
         export_site(
             self.kernel,
@@ -2026,12 +2020,7 @@ json.dump({
                 "artifact_commit": "abcdef",
             },
         )
-        state = json.loads(
-            (destination / "runner-state.json").read_text(encoding="utf-8")
-        )
-        self.assertEqual(state["schema_version"], 1)
-        self.assertEqual(state["disposition"], "CONTINUE")
-        self.assertEqual(state["artifact_run_id"], "456")
+        self.assertFalse((destination / "runner-state.json").exists())
 
     def test_continuation_workflow_is_a_single_success_only_cloud_chain(self) -> None:
         """Continuous operation must self-dispatch once and stop on any failed gate."""
@@ -2225,7 +2214,7 @@ json.dump({
             self.assertTrue(prompt_path.exists())
             self.assertIn("SUDOFX_HANDOFF v1", prompt_path.read_text())
 
-        page = render(self.kernel)
+        page = render(self.kernel, manual_prompt=build_manual_prompt(packet))
         self.assertIn("Manual AI continuity test", page)
         self.assertIn('data-manual-vendor="ChatGPT"', page)
         self.assertIn('data-manual-vendor="Claude"', page)
