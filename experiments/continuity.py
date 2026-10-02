@@ -37,6 +37,7 @@ from sudofx.kernel import Kernel
 from sudofx.models import Context, Operation, Proposal, SubmissionProvenance
 from sudofx.providers import CommandIntelligence
 from sudofx.record import Record
+from sudofx.runtime import Runtime
 from sudofx.storage import GENESIS_HASH, canonical_json
 
 WORK_ID = "continuity-proof"
@@ -135,13 +136,13 @@ json.dump(
 
         replacement = Kernel(Record(path))
         before = replacement.context(work_id=WORK_ID, receipt_limit=100)
-        result = replacement.run(
+        result = Runtime(replacement, replacement.record).run(
             CommandIntelligence((sys.executable, "-c", provider)),
             work_id=WORK_ID,
             provenance=SubmissionProvenance(
                 "runtime", "deterministic-continuity-provider", "synthetic-process"
             ),
-        )
+        ).run
         if result.receipt.status != "accepted":
             raise AssertionError(f"fresh-process proposal was {result.receipt.status}")
 
@@ -301,13 +302,13 @@ json.dump(
 )
 """
         probe_kernel = Kernel(Record(snapshot_path))
-        result = probe_kernel.run(
+        result = Runtime(probe_kernel, probe_kernel.record).run(
             CommandIntelligence((sys.executable, "-c", provider)),
             work_id=work_id,
             provenance=SubmissionProvenance(
                 "runtime", "deterministic-continuity-provider", "snapshot-probe"
             ),
-        )
+        ).run
         if result.receipt.status != "accepted":
             raise AssertionError(f"real-record probe proposal was {result.receipt.status}")
 
@@ -417,11 +418,11 @@ def run_model_continuity_probe(
         snapshot_path = Path(temporary) / "model-probe.sqlite"
         _sqlite_snapshot(record_path, snapshot_path)
         probe_kernel = Kernel(Record(snapshot_path))
-        result = probe_kernel.run(
+        result = Runtime(probe_kernel, probe_kernel.record).run(
             CommandIntelligence(provider_command, timeout_seconds=90),
             work_id=work_id,
             provenance=SubmissionProvenance("model", provider, model),
-        )
+        ).run
         if result.receipt.status != "accepted":
             raise AssertionError(f"real-model probe proposal was {result.receipt.status}")
 
