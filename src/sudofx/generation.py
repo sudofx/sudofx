@@ -173,8 +173,12 @@ def extract_gemini_text(response: dict[str, Any]) -> str:
     return text
 
 
-def _safe_error_payload(\n    error: urllib.error.HTTPError,\n    *,\n    secret_values: tuple[str, ...] = (),\n) -> dict[str, Any]:
-    """Retain bounded provider diagnostics while excluding credential-shaped fields."""
+def _safe_error_payload(
+    error: urllib.error.HTTPError,
+    *,
+    secret_values: tuple[str, ...] = (),
+) -> dict[str, Any]:
+    """Retain bounded provider diagnostics while excluding credentials."""
 
     try:
         raw = error.read(64_001)
@@ -199,7 +203,11 @@ def _safe_error_payload(\n    error: urllib.error.HTTPError,\n    *,\n    secret
         if isinstance(value, list):
             return [clean(v, depth + 1) for v in value[:20]]
         if isinstance(value, str):
-            return value[:1000]
+            cleaned = value[:1000]
+            for secret in secret_values:
+                if secret:
+                    cleaned = cleaned.replace(secret, "[redacted]")
+            return cleaned
         if isinstance(value, (int, float, bool)) or value is None:
             return value
         return str(value)[:1000]
@@ -208,7 +216,6 @@ def _safe_error_payload(\n    error: urllib.error.HTTPError,\n    *,\n    secret
     if isinstance(cleaned, dict) and isinstance(cleaned.get("error"), dict):
         return cleaned["error"]
     return cleaned if isinstance(cleaned, dict) else {}
-
 
 def _quota_ids(payload: dict[str, Any]) -> list[str]:
     """Extract quota identifiers without requiring an application to parse vendor JSON."""
@@ -274,7 +281,10 @@ class GeminiGenerationProvider:
                 timeout=self.timeout_seconds,
             )
         except urllib.error.HTTPError as error:
-            provider_error = _safe_error_payload(\n                error,\n                secret_values=(self._api_key,),\n            )
+            provider_error = _safe_error_payload(
+                error,
+                secret_values=(self._api_key,),
+            )
             details = {
                 **base,
                 "http_status": error.code,
