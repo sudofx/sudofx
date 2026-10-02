@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Callable
 import json
 import os
 import subprocess
@@ -146,6 +147,7 @@ def commit_assistant_turn(
     data_path: Path = DATA,
     provider_command: tuple[str, ...] | None = None,
     provenance: SubmissionProvenance | None = None,
+    effect_barrier: Callable[[], None] | None = None,
 ) -> str:
     """Reopen SQLite, derive bounded context, invoke one provider, and govern its reply."""
     kernel, registry = _kernel(data_path)
@@ -174,6 +176,7 @@ def commit_assistant_turn(
             os.environ.get("GEMINI_MODEL", ""),
         ),
         context_scope={"kind": "application", "application_id": "conversation"},
+        effect_barrier=effect_barrier,
     )
     operation = result.run.proposal.operations[0]
     assert isinstance(operation.value, dict)
@@ -195,6 +198,7 @@ def run_turn(message: str, *, provider_command: tuple[str, ...] | None = None) -
         response = commit_assistant_turn(
             data_path=DATA,
             provider_command=provider_command,
+            effect_barrier=checkpoint,
         )
     except Exception:
         # Runtime lifecycle rows are already committed to SQLite. Preserve them
