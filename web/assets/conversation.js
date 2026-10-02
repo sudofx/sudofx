@@ -14,6 +14,7 @@
   const auth=root.querySelector('[data-conversation-auth]');
   const login=root.querySelector('[data-conversation-login]');
   let gateway='';
+  let mode='none';
   let busy=false;
 
   const setState=(label,kind='idle')=>{
@@ -57,20 +58,41 @@
     throw new Error('Conversation reply did not arrive before the polling window closed.');
   };
 
-  const checkSession=async()=>{
+  const useLocalServer=async()=>{
+    try{
+      const response=await fetch('/api/conversation/status',{cache:'no-store'});
+      if(!response.ok)return false;
+      const status=await response.json();
+      if(!status||status.transcript_persisted!==false)return false;
+      mode='local';
+      auth.hidden=true;
+      setState('Private local server connected · provider remains stateless','ready');
+      help.textContent='This visible transcript exists only in this page. SQLite stores governed observations, not transcript text.';
+      setEnabled(true);
+      return true;
+    }catch{
+      return false;
+    }
+  };
+
+  const checkGateway=async()=>{
+    if(await useLocalServer())return;
+
     const configResponse=await fetch('conversation-config.json?v='+Date.now(),{cache:'no-store'});
     if(!configResponse.ok)throw new Error('Conversation gateway configuration is unavailable.');
     const config=await configResponse.json();
     gateway=String(config.gateway_url||'').replace(/\/$/,'');
     if(!gateway){
+      mode='none';
       setState('Private gateway not connected','offline');
-      help.textContent='The chat UI is ready, but the authenticated gateway URL has not been configured.';
+      help.textContent='The chat UI is deployed, but an authenticated private gateway has not been configured. Run the local private server to test end-to-end today.';
       setEnabled(false);
       return;
     }
 
     const response=await fetch(gateway+'/api/conversation/session',{credentials:'include',cache:'no-store'});
     if(response.status===401){
+      mode='gateway';
       setState('Operator sign in required','offline');
       auth.hidden=false;
       login.href=gateway+'/login?return_to='+encodeURIComponent(location.href);
@@ -81,16 +103,53 @@
     if(!response.ok)throw new Error('Conversation gateway is unavailable.');
     const session=await response.json();
     if(!session||session.authenticated!==true){
+      mode='gateway';
       setState('Operator sign in required','offline');
       auth.hidden=false;
       login.href=gateway+'/login?return_to='+encodeURIComponent(location.href);
       setEnabled(false);
       return;
     }
+    mode='gateway';
     auth.hidden=true;
     setState('Private gateway connected · provider remains stateless','ready');
     help.textContent='This visible transcript exists only in this page. Do not enter direct identifiers or secrets.';
     setEnabled(true);
+  };
+
+  const sendLocal=async message=>{
+    const response=await fetch('/api/conversation',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      cache:'no-store',
+      body:JSON.stringify({message})
+    });
+    const data=await response.json().catch(()=>({}));
+    if(!response.ok)throw new Error(data.error||'Conversation request failed.');
+    if(!data||typeof data.content!=='string')throw new Error('Conversation server returned an invalid reply.');
+    return data.content;
+  };
+
+  const sendGateway=async message=>{
+    const response=await fetch(gateway+'/api/conversation',{
+      method:'POST',
+      credentials:'include',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({message})
+    });
+    if(response.status===401){
+      auth.hidden=false;
+      login.href=gateway+'/login?return_to='+encodeURIComponent(location.href);
+      throw new Error('Operator sign in expired.');
+    }
+    if(!response.ok){
+      let detail='Conversation request failed.';
+      try{const data=await response.json();if(data&&data.error)detail=data.error}catch{}
+      throw new Error(detail);
+    }
+    const data=await response.json();
+    if(!data||typeof data.request_id!=='string')throw new Error('Conversation gateway did not return a request ID.');
+    return poll(data.request_id);
   };
 
   form.addEventListener('submit',async event=>{
@@ -103,27 +162,9 @@
     bubble('human',message);
     input.value='';
     setState('Governed turn in progress…','busy');
-    help.textContent='Encrypting transport, reconstructing bounded context, and invoking a fresh provider.';
+    help.textContent='Reconstructing bounded context and invoking a fresh provider.';
     try{
-      const response=await fetch(gateway+'/api/conversation',{
-        method:'POST',
-        credentials:'include',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({message})
-      });
-      if(response.status===401){
-        auth.hidden=false;
-        login.href=gateway+'/login?return_to='+encodeURIComponent(location.href);
-        throw new Error('Operator sign in expired.');
-      }
-      if(!response.ok){
-        let detail='Conversation request failed.';
-        try{const data=await response.json();if(data&&data.error)detail=data.error}catch{}
-        throw new Error(detail);
-      }
-      const data=await response.json();
-      if(!data||typeof data.request_id!=='string')throw new Error('Conversation gateway did not return a request ID.');
-      const reply=await poll(data.request_id);
+      const reply=mode==='local'?await sendLocal(message):await sendGateway(message);
       bubble('assistant',reply);
       setState('Ready · next turn will use a fresh provider invocation','ready');
       help.textContent='Continuity is reconstructed from governed observations, not this screen.';
@@ -133,18 +174,19 @@
       help.textContent='No failed browser request is treated as durable success.';
     }finally{
       busy=false;
-      setEnabled(Boolean(gateway)&&auth.hidden);
+      setEnabled(mode==='local'||(mode==='gateway'&&auth.hidden));
     }
   });
 
   clear.addEventListener('click',()=>{
     messages.querySelectorAll('.conversation-bubble').forEach(node=>node.remove());
     if(intro)intro.hidden=false;
-    setState(gateway?'Screen cleared · governed continuity remains':'Private gateway not connected',gateway?'ready':'offline');
-    help.textContent=gateway?'The browser transcript is gone. sudofx observations were not reset.':'The chat UI is ready, but the authenticated gateway URL has not been configured.';
+    const connected=mode==='local'||(mode==='gateway'&&auth.hidden);
+    setState(connected?'Screen cleared · governed continuity remains':'Private gateway not connected',connected?'ready':'offline');
+    help.textContent=connected?'The browser transcript is gone. sudofx observations were not reset.':'The public shell has no authority or private transport by itself.';
   });
 
-  checkSession().catch(error=>{
+  checkGateway().catch(error=>{
     setState('Private gateway unavailable','offline');
     help.textContent=error instanceof Error?error.message:'Conversation gateway unavailable.';
     setEnabled(false);
