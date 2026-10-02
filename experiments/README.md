@@ -8,7 +8,7 @@ Current experiments include:
 
 - `continuity.py` — deterministic and real-provider replacement probes;
 - `overnight.py` — continuity stress-matrix curriculum and residue progression;
-- `manual_handoff/` — human-transported cross-provider handoff scoring.
+- `manual_handoff/` — deprecated import shims for the former experiment; active Handoff semantics now live in `applications/handoff/`.
 
 Experiment success can justify later engine changes. Experiment implementation
 itself is not an engine contract.
