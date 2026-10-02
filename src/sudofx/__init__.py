@@ -27,6 +27,12 @@ from .applications import (
     ApplicationRegistry,
     EffectRequest,
 )
+from .generation import (
+    GenerationProvider,
+    GenerationRequest,
+    GenerationResponse,
+    GeminiGenerationProvider,
+)
 from .kernel import Kernel, RunResult
 from .runtime import InvocationBarrierError, InvocationLifecycle, InvocationResult, Runtime
 from .models import Context, Operation, Proposal, Receipt, SubmissionProvenance
@@ -55,6 +61,10 @@ __all__ = [
     "CommandIntelligence",
     "FakeIntelligence",
     "FakeWorkIntelligence",
+    "GeminiGenerationProvider",
+    "GenerationResponse",
+    "GenerationRequest",
+    "GenerationProvider",
     "Intelligence",
     "InvocationBarrierError",
     "InvocationLifecycle",
