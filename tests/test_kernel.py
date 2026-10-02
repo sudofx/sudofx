@@ -1305,6 +1305,37 @@ json.dump({
         self.assertIsNone(events[-1]["receipt_id"])
         self.assertEqual(self.kernel.record.history(), ())
 
+    def test_invocation_lifecycle_invoke_accepts_application_error_classifier(self) -> None:
+        """Applications may classify provider-specific failures without moving provider types into sudofx."""
+        context = Context(revision=0, state={"app:test": {}}, recent_receipts=())
+        lifecycle = InvocationLifecycle.begin(
+            self.kernel.record,
+            context,
+            provenance=SubmissionProvenance("model", "custom-provider", "unit-test"),
+            invocation_id="custom-provider-failure",
+        )
+
+        class ApplicationTemporaryError(RuntimeError):
+            pass
+
+        with self.assertRaises(ApplicationTemporaryError):
+            lifecycle.invoke(
+                lambda: (_ for _ in ()).throw(ApplicationTemporaryError("busy")),
+                classify_error=lambda error: (
+                    "temporary_failure"
+                    if isinstance(error, ApplicationTemporaryError)
+                    else "provider_failure"
+                ),
+            )
+
+        events = self.kernel.record.invocation_history("custom-provider-failure")
+        self.assertEqual(
+            [event["stage"] for event in events],
+            ["requested", "context_delivered", "attempt_started", "failed"],
+        )
+        self.assertEqual(events[-1]["outcome"], "temporary_failure")
+        self.assertEqual(events[-1]["detail"], "ApplicationTemporaryError")
+
     def test_runtime_effect_barrier_must_succeed_before_provider_call(self) -> None:
         """External effects cannot begin until the caller's durability barrier succeeds."""
         runtime = Runtime(self.kernel, self.kernel.record)
