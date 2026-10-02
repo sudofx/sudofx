@@ -95,6 +95,32 @@ def build_handoff_packet(kernel: Kernel, work_id: str = HANDOFF_WORK_ID) -> dict
     return body
 
 
+def build_manual_prompt(packet: dict[str, Any]) -> str:
+    """Build the human-transported experiment prompt from one frozen packet."""
+    return (
+        "SUDOFX MANUAL CONTINUITY TEST\n"
+        "You are a fresh intelligence with no prior conversation, memory, files, tools, or hidden context.\n"
+        "Use only the bounded durable packet below. Treat digests as unreadable commitments, not readable history.\n"
+        "Do not claim you performed work or inspected anything outside the packet.\n\n"
+        "TRANSPORT METADATA\n"
+        "vendor: __SUDOFX_VENDOR__\n"
+        "test_id: __SUDOFX_TEST_ID__\n"
+        "nonce: __SUDOFX_NONCE__\n"
+        f"work_id: {packet['work_id']}\n"
+        f"packet_digest: {packet['packet_digest']}\n\n"
+        "Return only one JSON object. Do not use Markdown fences or add prose before or after it.\n"
+        "The object must contain exactly these top-level fields: test_id, nonce, vendor, work_id, packet_digest, answers.\n"
+        "Copy the transport metadata above exactly into those fields.\n"
+        "answers must contain exactly: objective_fidelity, authority_fidelity, history_fidelity, constraint_fidelity, frontier_fidelity, epistemic_discipline, transfer_usability.\n"
+        "Each answer must be an object with non-empty answer and evidence fields.\n"
+        "Every evidence value must be an exact quote of at least 8 characters from the COMPLETE JSON PACKET below.\n"
+        "Do not cite CURRENT OPERATOR AUTHORIZATION or TRANSPORT METADATA as evidence; they are transport context, not packet evidence.\n"
+        "If the packet does not support a claim, say that in answer and quote packet text that establishes the limit.\n\n"
+        "COMPLETE JSON PACKET\n"
+        + json.dumps(packet, indent=2, sort_keys=True)
+    )
+
+
 def export_handoff_packet(
     kernel: Kernel,
     directory: str | Path,
