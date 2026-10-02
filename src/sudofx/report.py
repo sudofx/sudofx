@@ -939,7 +939,6 @@ const publicAnswer=(proof)=>{{
   return raw;
 }};
 const liveExchangeUrl='https://raw.githubusercontent.com/'+(observer?.dataset.repository||'sudofx/sudofx')+'/sudofx-live/live.json';
-const liveHandoffUrl='https://raw.githubusercontent.com/'+(observer?.dataset.repository||'sudofx/sudofx')+'/sudofx-live/handoff-v1.json';
 const liveManualUrl='https://raw.githubusercontent.com/'+(observer?.dataset.repository||'sudofx/sudofx')+'/sudofx-live/manual-evaluations.json';
 const manualPrompt=document.querySelector('[data-manual-prompt]');
 const manualResponse=document.querySelector('[data-manual-response]');
@@ -1156,15 +1155,6 @@ const refreshExchange=async()=>{{
     const response=await fetch(liveExchangeUrl+'?ts='+Date.now(),{{cache:'no-store'}});
     if(!response.ok)throw new Error('proof unavailable');
     const proof=await response.json();
-    if(recordRevision){{
-      try{{
-        const handoffResponse=await fetch(liveHandoffUrl+'?ts='+Date.now(),{{cache:'no-store'}});
-        if(handoffResponse.ok){{
-          const handoff=await handoffResponse.json();
-          if(Number.isInteger(handoff.record_revision))recordRevision.textContent=String(handoff.record_revision);
-        }}
-      }}catch{{}}
-    }}
     const runId=String(proof.artifact_run_id||'');
     if(!runId)return;
     exchange.dataset.artifactRunId=runId;
