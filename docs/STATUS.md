@@ -17,7 +17,7 @@ The success condition is not that one model remembers. The success condition is 
 | B — harden and sanitize | Substantially complete | Experiments are quarantined, replay/failure/invocation tests are extensive, schema identity is explicit, Pages is being kept read-only, and production paths are separated from experiment machinery. |
 | C — application contract | Substantially complete | `ApplicationDefinition`, registry/host, deterministic policy re-evaluation, namespaced state, migration/version checks, and compact event-log storage are implemented and tested. |
 | D — minimal human conversation proof | **Complete at contract level** | Governed human and assistant turns, bounded database-derived context, provider invocation, dedicated browser workflow, and derived Pages projection are implemented. CI now proves two back-and-forth rounds across separate Python interpreters sharing only the authoritative SQLite record, followed by a third fresh-process reconstruction of the four-turn transcript. |
-| E — WAKE✳︎ migration | Underway | `sudofx/wake` contains `wake/sudofx_application.py`, `wake/sudofx_store.py`, migration/rehearsal workflows, and a cloud path where `wake-state` carries `data/sudofx.sqlite`. |
+| E — WAKE✳︎ migration | Underway; core authority cutover complete | `wake-state` carries only `data/sudofx.sqlite`; fresh initialization is native sudofx; WAKE policy is a versioned application; generic invocation lifecycle, interruption recovery, external-effect ordering, and aggregate invocation accounting now use sudofx. Gemini-specific quota/fallback and research semantics remain above the kernel. |
 
 ## What is already proven mechanically
 
@@ -32,7 +32,8 @@ The success condition is not that one model remembers. The success condition is 
 - Large applications can use compact event-log storage without duplicating full state on every transition.
 - GitHub Actions, providers, browser surfaces, and generated Pages output remain replaceable infrastructure.
 - The conversation proof survives complete Python interpreter replacement across multiple rounds; continuity is reconstructed from SQLite alone.
-- WAKE✳︎ domain migration can preserve its own policy above the generic sudofx authority boundary.
+- WAKE✳︎ domain migration preserves its own policy above the generic sudofx authority boundary.
+- WAKE✳︎ provider attempts share sudofx invocation IDs/evidence, survive fresh-process recovery, and use the generic pre-effect durability barrier without importing Gemini-specific exception types into the engine.
 
 ## Current architecture
 
