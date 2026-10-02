@@ -86,6 +86,115 @@ def context_delivery_receipt(
     )
 
 
+@dataclass(frozen=True)
+class InvocationLifecycle:
+    """Application-neutral durable provider-attempt lifecycle recorder."""
+
+    journal: InvocationJournal
+    invocation_id: str
+    source_revision: int
+    context_digest: str
+    provenance: dict[str, object]
+
+    @classmethod
+    def begin(
+        cls,
+        journal: InvocationJournal,
+        context: object,
+        *,
+        provenance: SubmissionProvenance,
+        work_id: str | None = None,
+        context_scope: dict[str, str] | None = None,
+        invocation_id: str | None = None,
+    ) -> "InvocationLifecycle":
+        """Record request, context delivery, and attempt start for one provider boundary."""
+        digest = context_digest(context)
+        delivery_receipt = context_delivery_receipt(
+            context,
+            work_id=work_id,
+            scope=context_scope,
+        )
+        resolved_id = invocation_id or str(uuid.uuid4())
+        provenance_payload = provenance.to_dict()
+        common = {
+            "invocation_id": resolved_id,
+            "source_revision": context.revision,
+            "context_digest": digest,
+            "provenance": provenance_payload,
+        }
+        journal.append_invocation_event(InvocationEvent(stage="requested", **common))
+        journal.append_invocation_event(
+            InvocationEvent(
+                stage="context_delivered",
+                context_receipt=delivery_receipt,
+                **common,
+            )
+        )
+        journal.append_invocation_event(InvocationEvent(stage="attempt_started", **common))
+        return cls(
+            journal=journal,
+            invocation_id=resolved_id,
+            source_revision=context.revision,
+            context_digest=digest,
+            provenance=provenance_payload,
+        )
+
+    def _event(self, stage: str, **fields: object) -> None:
+        self.journal.append_invocation_event(
+            InvocationEvent(
+                invocation_id=self.invocation_id,
+                stage=stage,
+                source_revision=self.source_revision,
+                context_digest=self.context_digest,
+                provenance=self.provenance,
+                **fields,
+            )
+        )
+
+    def proposal_received(self, proposal_id: str) -> None:
+        self._event("proposal_received", proposal_id=proposal_id)
+
+    def governed(self, proposal_id: str, receipt_id: str, status: str) -> None:
+        self._event(
+            "governed",
+            proposal_id=proposal_id,
+            receipt_id=receipt_id,
+            detail=status,
+        )
+
+    def fail(
+        self,
+        *,
+        outcome: str | None = None,
+        proposal_id: str | None = None,
+        receipt_id: str | None = None,
+        detail: str | None = None,
+    ) -> None:
+        self._event(
+            "failed",
+            outcome=outcome,
+            proposal_id=proposal_id,
+            receipt_id=receipt_id,
+            detail=detail,
+        )
+
+    def complete(
+        self,
+        *,
+        proposal_id: str | None = None,
+        receipt_id: str | None = None,
+        outcome: str = "success",
+        detail: str | None = None,
+    ) -> None:
+        self._event(
+            "completed",
+            outcome=outcome,
+            proposal_id=proposal_id,
+            receipt_id=receipt_id,
+            detail=detail,
+        )
+
+
 class Runtime:
     """
     Coordinate one provider invocation while keeping the kernel authoritative.
@@ -112,7 +221,7 @@ class Runtime:
             invocation_id = str(pending["invocation_id"])
             self.journal.append_invocation_event(
                 InvocationEvent(
-                    invocation_id=invocation_id,
+                    invocation_id=lifecycle.invocation_id,
                     stage="failed",
                     source_revision=int(pending["source_revision"]),
                     context_digest=str(pending["context_digest"]),
@@ -136,42 +245,12 @@ class Runtime:
     ) -> InvocationResult:
         """Execute one disposable intelligence with reconstructable lifecycle evidence."""
         context = self.kernel.context(work_id=work_id)
-        digest = context_digest(context)
-        delivery_receipt = context_delivery_receipt(
+        lifecycle = InvocationLifecycle.begin(
+            self.journal,
             context,
+            provenance=provenance,
             work_id=work_id,
-            scope=context_scope,
-        )
-        invocation_id = str(uuid.uuid4())
-        provenance_payload = provenance.to_dict()
-
-        self.journal.append_invocation_event(
-            InvocationEvent(
-                invocation_id=invocation_id,
-                stage="requested",
-                source_revision=context.revision,
-                context_digest=digest,
-                provenance=provenance_payload,
-            )
-        )
-        self.journal.append_invocation_event(
-            InvocationEvent(
-                invocation_id=invocation_id,
-                stage="context_delivered",
-                source_revision=context.revision,
-                context_digest=digest,
-                provenance=provenance_payload,
-                context_receipt=delivery_receipt,
-            )
-        )
-        self.journal.append_invocation_event(
-            InvocationEvent(
-                invocation_id=invocation_id,
-                stage="attempt_started",
-                source_revision=context.revision,
-                context_digest=digest,
-                provenance=provenance_payload,
-            )
+            context_scope=context_scope,
         )
 
         try:
@@ -183,69 +262,21 @@ class Runtime:
                 outcome = "temporary_failure"
             else:
                 outcome = "provider_failure"
-            self.journal.append_invocation_event(
-                InvocationEvent(
-                    invocation_id=invocation_id,
-                    stage="failed",
-                    source_revision=context.revision,
-                    context_digest=digest,
-                    provenance=provenance_payload,
-                    outcome=outcome,
-                    detail=type(error).__name__,
-                )
-            )
+            lifecycle.fail(outcome=outcome, detail=type(error).__name__)
             raise
 
-        self.journal.append_invocation_event(
-            InvocationEvent(
-                invocation_id=invocation_id,
-                stage="proposal_received",
-                source_revision=context.revision,
-                context_digest=digest,
-                provenance=provenance_payload,
-                proposal_id=proposal.proposal_id,
-            )
-        )
+        lifecycle.proposal_received(proposal.proposal_id)
         try:
             receipt = self.kernel.submit(proposal, provenance=provenance)
         except Exception as error:
-            self.journal.append_invocation_event(
-                InvocationEvent(
-                    invocation_id=invocation_id,
-                    stage="failed",
-                    source_revision=context.revision,
-                    context_digest=digest,
-                    provenance=provenance_payload,
-                    proposal_id=proposal.proposal_id,
-                    detail=type(error).__name__,
-                )
-            )
+            lifecycle.fail(proposal_id=proposal.proposal_id, detail=type(error).__name__)
             raise
 
-        self.journal.append_invocation_event(
-            InvocationEvent(
-                invocation_id=invocation_id,
-                stage="governed",
-                source_revision=context.revision,
-                context_digest=digest,
-                provenance=provenance_payload,
-                proposal_id=proposal.proposal_id,
-                receipt_id=receipt.receipt_id,
-                detail=receipt.status,
-            )
-        )
-        self.journal.append_invocation_event(
-            InvocationEvent(
-                invocation_id=invocation_id,
-                stage="completed",
-                source_revision=context.revision,
-                context_digest=digest,
-                provenance=provenance_payload,
-                proposal_id=proposal.proposal_id,
-                receipt_id=receipt.receipt_id,
-                outcome="success",
-                detail=receipt.status,
-            )
+        lifecycle.governed(proposal.proposal_id, receipt.receipt_id, receipt.status)
+        lifecycle.complete(
+            proposal_id=proposal.proposal_id,
+            receipt_id=receipt.receipt_id,
+            detail=receipt.status,
         )
         return InvocationResult(
             invocation_id=invocation_id,
