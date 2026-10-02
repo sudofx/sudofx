@@ -691,6 +691,32 @@ json.dump({
         self.assertIn("application namespace requires apply_application", receipt.reasons)
         self.assertNotIn("app:sealed", kernel.context().state)
 
+    def test_work_namespace_rejects_direct_generic_mutation(self) -> None:
+        """Work lifecycle state cannot bypass create/advance/complete governance."""
+        set_receipt = self.kernel.submit(
+            Proposal(
+                "work-bypass-set",
+                0,
+                (Operation("set", "work:sealed", {"status": "completed"}),),
+            )
+        )
+        self.assertEqual(set_receipt.status, "rejected")
+        self.assertIn("work namespace requires governed work actions", set_receipt.reasons)
+        self.assertEqual(self.kernel.context().revision, 0)
+        self.assertNotIn("work:sealed", self.kernel.context().state)
+
+        delete_receipt = self.kernel.submit(
+            Proposal(
+                "work-bypass-delete",
+                0,
+                (Operation("delete", "work:sealed"),),
+            )
+        )
+        self.assertEqual(delete_receipt.status, "rejected")
+        self.assertIn("work namespace requires governed work actions", delete_receipt.reasons)
+        self.assertEqual(self.kernel.context().revision, 0)
+        self.assertNotIn("work:sealed", self.kernel.context().state)
+
     def test_application_governance_rejects_forged_next_state(self) -> None:
         """The host is not trusted to assert a domain result policy did not derive."""
         definition = ApplicationDefinition(
