@@ -177,7 +177,7 @@ Basic kernel commands remain available through the `sudofx` CLI.
 
 The core loop, application boundary, and database-derived continuity mechanics are implemented.
 
-Phase D is complete at the contract level: multiple governed conversation rounds now survive separate Python interpreter replacement because continuity is reconstructed from SQLite alone. Phase E's architectural exit condition is now satisfied on WAKE `master`. The immediate engineering frontier is hardening and compatibility retirement: keep legacy migration code quarantined, preserve replay/equivalence, and avoid pulling WAKE research semantics into the generic kernel. The promoted `wake-runtime` branch remains a separate operational maintenance decision and may lag while research is active.
+Phases A–E are complete at their stated architectural exit conditions. Multiple governed conversation rounds survive separate Python interpreter replacement from SQLite alone, and WAKE's operational authority/runtime primitives now sit on sudofx while WAKE retains research policy. The reusable package has also completed its current hardening pass: provider execution is runtime-only, experiment-specific packet/prompt machinery is quarantined outside `src/sudofx`, governed namespaces are sealed, and duplicate/dead execution surfaces are retired. The next major step should begin from a new explicit contract or product frontier rather than quietly expanding the kernel.
 
 The larger experiment remains open:
 
