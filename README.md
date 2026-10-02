@@ -110,7 +110,7 @@ WAKE✳︎ is the first substantial application migration. The older broad “WA
 
 ## Governed conversation proof
 
-The first small non-WAKE application is `applications/conversation.py`.
+The first small non-WAKE application is `applications/conversation/`.
 
 Its flow is:
 
