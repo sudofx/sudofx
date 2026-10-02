@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import json
 import unittest
+from unittest.mock import patch
 
-from scripts.gemini_transport import build_generate_request, extract_text, sanitize_model
+from scripts.gemini_transport import build_generate_request, extract_text, request_json, sanitize_model
 
 
 class GeminiTransportTests(unittest.TestCase):
@@ -29,6 +30,44 @@ class GeminiTransportTests(unittest.TestCase):
         self.assertEqual(body["generationConfig"]["temperature"], 0.2)
         self.assertEqual(body["generationConfig"]["responseMimeType"], "application/json")
         self.assertEqual(request.get_header("X-goog-api-key"), "test-key")
+
+    def test_request_json_centralizes_only_success_transport(self) -> None:
+        class Response:
+            def __enter__(self):
+                return self
+            def __exit__(self, exc_type, exc, tb):
+                return False
+            def read(self):
+                return b'{"candidates": []}'
+
+        _, request = build_generate_request(
+            api_key="test-key",
+            model="gemini-test",
+            prompt="bounded",
+            temperature=0.1,
+        )
+        with patch("scripts.gemini_transport.urllib.request.urlopen", return_value=Response()) as opened:
+            self.assertEqual(request_json(request, timeout=12), {"candidates": []})
+        opened.assert_called_once_with(request, timeout=12)
+
+    def test_request_json_rejects_non_object_json(self) -> None:
+        class Response:
+            def __enter__(self):
+                return self
+            def __exit__(self, exc_type, exc, tb):
+                return False
+            def read(self):
+                return b'[]'
+
+        _, request = build_generate_request(
+            api_key="test-key",
+            model="gemini-test",
+            prompt="bounded",
+            temperature=0.1,
+        )
+        with patch("scripts.gemini_transport.urllib.request.urlopen", return_value=Response()):
+            with self.assertRaisesRegex(ValueError, "JSON object"):
+                request_json(request, timeout=12)
 
     def test_candidate_text_extraction_fails_closed(self) -> None:
         self.assertEqual(
