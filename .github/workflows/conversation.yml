@@ -1,22 +1,26 @@
 name: sudofx — conversation
 
-# PHASE D HUMAN INTERACTION SURFACE
+# PRIVACY-BOUNDED CONVERSATION EXECUTION
 #
-# This workflow is intentionally narrower than the general operator workflow.
-# GitHub supplies authenticated browser input; sudofx still owns authority.
-# The message is proposal material only. The conversation application governs
-# the human turn, SQLite records it, the runtime invokes the provider from
-# bounded database-derived context, and the assistant turn must cross the same
-# deterministic application boundary before it becomes durable.
+# The browser gateway encrypts each transient message before dispatch. GitHub
+# receives only ciphertext and an opaque request ID. The runner decrypts into a
+# temporary file, executes the ordinary governed Conversation runtime, encrypts
+# the transient assistant reply, then publishes ONLY ciphertext to the
+# historyless conversation-live branch.
 #
-# The Actions page and step summary are disposable presentation surfaces. They
-# are never read back to reconstruct conversation state.
+# SQLite remains authoritative for durable Conversation metadata, observations,
+# governance receipts, and invocation lifecycle evidence. Neither the workflow
+# input nor the reply projection is operational authority.
 
 on:
   workflow_dispatch:
     inputs:
-      message:
-        description: Message to the governed conversation
+      request_id:
+        description: Opaque Conversation request ID
+        type: string
+        required: true
+      payload:
+        description: Encrypted Conversation transport envelope
         type: string
         required: true
       model:
@@ -26,15 +30,11 @@ on:
         required: true
 
 permissions:
-  # The governed turn may checkpoint the authoritative SQLite state branch.
   contents: write
-  # After the finite conversation turn, an already-enabled continuity runner
-  # may be resumed without granting this workflow authority over its policy.
   actions: write
 
 concurrency:
-  # Conversation turns serialize with every other authoritative mutation.
-  # This prevents a browser double-submit from becoming competing SQLite writers.
+  # One authoritative writer and one disposable reply projection at a time.
   group: sudofx-authority-v4
   cancel-in-progress: false
 
@@ -50,24 +50,73 @@ jobs:
         with:
           python-version: '3.13'
 
-      - name: Verify authority boundaries
-        # A broken implementation must fail before operator text is committed.
+      - name: Verify authority and privacy boundaries
         run: PYTHONPATH=src:. python -m unittest discover -s tests -v
 
-      - name: Run one governed conversation turn
-        # applications.conversation.runtime commits the human-origin turn before
-        # provider invocation. If Gemini fails, durable failure evidence remains
-        # and the human input is not erased or silently retried as success.
+      - name: Run one encrypted governed Conversation turn
         env:
           GEMINI_MODEL: ${{ inputs.model }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          MESSAGE: ${{ inputs.message }}
-        run: PYTHONPATH=src:. python -m applications.conversation.runtime --message "$MESSAGE" --summary-file "$GITHUB_STEP_SUMMARY"
+          CONVERSATION_TRANSPORT_KEY: ${{ secrets.CONVERSATION_TRANSPORT_KEY }}
+          ENCRYPTED_PAYLOAD: ${{ inputs.payload }}
+          REQUEST_ID: ${{ inputs.request_id }}
+        run: |
+          set -euo pipefail
+          message_file="$RUNNER_TEMP/conversation-message.txt"
+          response_file="$RUNNER_TEMP/conversation-response.txt"
+          reply_file="$RUNNER_TEMP/reply.json"
+
+          # No plaintext is written to GitHub logs, workflow metadata, artifacts,
+          # repository files, or the authoritative Conversation application state.
+          PYTHONPATH=src:. python -m applications.conversation.transport decrypt "$ENCRYPTED_PAYLOAD" > "$message_file"
+
+          PYTHONPATH=src:. MESSAGE_FILE="$message_file" RESPONSE_FILE="$response_file" python - <<'PY'
+          import os
+          from pathlib import Path
+          from applications.conversation.runtime import run_turn
+
+          message = Path(os.environ["MESSAGE_FILE"]).read_text(encoding="utf-8")
+          response = run_turn(message)
+          Path(os.environ["RESPONSE_FILE"]).write_text(response, encoding="utf-8")
+          PY
+
+          rm -f "$message_file"
+
+          PYTHONPATH=src:. python -m applications.conversation.transport reply             --response-file "$response_file"             --output-file "$reply_file"             --request-id "$REQUEST_ID"
+
+          rm -f "$response_file"
+
+          {
+            echo "# Governed Conversation"
+            echo
+            echo "A privacy-bounded turn completed."
+            echo
+            echo "Message and assistant content are intentionally absent from this workflow summary."
+            echo "Durable continuity lives in governed SQLite observations; the reply transport is encrypted and disposable."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publish encrypted disposable reply
+        env:
+          REQUEST_ID: ${{ inputs.request_id }}
+        run: |
+          set -euo pipefail
+          publish="$RUNNER_TEMP/conversation-live"
+          rm -rf "$publish"
+          mkdir -p "$publish"
+          cd "$publish"
+          git init -q
+          git checkout -q -b conversation-live
+          git config user.name "sudofx-bot"
+          git config user.email "sudofx-bot@users.noreply.github.com"
+          cp "$RUNNER_TEMP/reply.json" reply.json
+          git add reply.json
+          git commit -q -m "Publish encrypted Conversation reply"
+          git remote add origin "https://x-access-token:${{ github.token }}@github.com/$GITHUB_REPOSITORY.git"
+          # Every publication is a new root commit. conversation-live is a
+          # disposable single-reply transport, not durable history.
+          git push --force -q origin HEAD:conversation-live
 
       - name: Resume enabled continuity after conversation
-        # Conversation is a finite operator action, not permission to start an
-        # experiment that the operator previously stopped. Resume only when the
-        # continuation workflow is still enabled and no runtime cycle is active.
         if: success()
         env:
           GH_TOKEN: ${{ github.token }}
@@ -78,11 +127,9 @@ jobs:
             exit 0
           fi
           runtime_head="$(gh api "repos/$GITHUB_REPOSITORY/branches/sudofx-runtime" --jq '.commit.sha')"
-          active_runtime="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/prove-model.yml/runs?per_page=100" \
-            --jq --arg sha "$runtime_head" '[.workflow_runs[] | select(.head_branch == "sudofx-runtime" and .head_sha == $sha and .status != "completed")] | length')"
+          active_runtime="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/prove-model.yml/runs?per_page=100"             --jq --arg sha "$runtime_head" '[.workflow_runs[] | select(.head_branch == "sudofx-runtime" and .head_sha == $sha and .status != "completed")] | length')"
           if [[ "$active_runtime" -gt 0 ]]; then
             echo "A runtime continuity cycle is already active; no resume dispatch needed."
             exit 0
           fi
-          gh workflow run prove-model.yml --repo "$GITHUB_REPOSITORY" --ref sudofx-runtime \
-            -f "dispatch_token=resume-after-conversation-$GITHUB_RUN_ID"
+          gh workflow run prove-model.yml --repo "$GITHUB_REPOSITORY" --ref sudofx-runtime             -f "dispatch_token=resume-after-conversation-$GITHUB_RUN_ID"
