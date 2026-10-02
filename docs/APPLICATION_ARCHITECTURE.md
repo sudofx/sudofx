@@ -8,7 +8,7 @@ sudofx is the governed engine.
 
 A complete domain system built on sudofx is an **application**.
 
-WAKE✳︎ is the first substantial application migration and is actively exercising this contract in the separate `sudofx/wake` repository. It is not primarily a plugin: its research state, policy, workflows, presentation, and external integrations define an application identity rather than an optional capability that can be removed while leaving the same product behind.
+WAKE✳︎ is the first substantial application migration in the separate `sudofx/wake` repository. Its Phase E architectural exit condition is now satisfied on WAKE `master`: operational authority and generic runtime responsibilities are sudofx-owned while WAKE retains its domain/research policy. It is not primarily a plugin: its research state, policy, workflows, presentation, and external integrations define an application identity rather than an optional capability that can be removed while leaving the same product behind.
 
 Use these terms:
 
@@ -28,7 +28,7 @@ As of October 2, 2026:
 - the WAKE repository contains a versioned `WAKE_APPLICATION`, a sudofx-backed transitional Store, verified legacy import/archive logic, and Phase E rehearsal workflows.
 - WAKE now writes provider-boundary evidence through sudofx's generic invocation journal and delegates durability-barrier/external-effect ordering to `InvocationLifecycle.invoke()`; Gemini-specific quota/fallback interpretation remains WAKE policy.
 
-These are implementation facts, not a claim that the application contract is permanently frozen. WAKE migration remains the larger stress test.
+These are implementation facts, not a claim that the application contract is permanently frozen. WAKE remains the larger stress test, and its explicitly promoted `wake-runtime` branch may intentionally lag verified `master` while continuous research is active.
 
 The conversation application is the first small concrete proof of this contract. Its human and assistant turns are governed application actions, its provider context is bounded and database-derived, and tests replace process-local kernel/application/provider objects between rounds before reconstructing the next turn from SQLite alone.
 
