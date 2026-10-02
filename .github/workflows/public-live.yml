@@ -18,7 +18,7 @@ permissions:
 concurrency:
   # Serialize with stateful authority workflows so an older verified snapshot
   # cannot overwrite a newer live projection after a concurrent mutation.
-  group: sudofx-authority
+  group: sudofx-authority-v4
   cancel-in-progress: false
 
 jobs:

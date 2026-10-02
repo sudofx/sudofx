@@ -45,8 +45,8 @@ permissions:
 
 concurrency:
   # Continuity observations share the authoritative lane with manual governed
-  # mutations, but never with read-only projection refreshes. The v2 group also
-  # abandons any stale scheduler lock left behind by the earlier shared lane.
+  # mutations and read-only projection refreshes. Serializing the projection
+  # prevents an older verified snapshot from overwriting a newer live view.
   group: sudofx-authority-v4
   cancel-in-progress: false
 
