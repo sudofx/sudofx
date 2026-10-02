@@ -57,7 +57,7 @@ from .storage import EventAppend, GENESIS_HASH, InvocationEvent, canonical_json,
 # sudofx record; user_version gives storage evolution one ordered owner instead
 # of scattering opportunistic CREATE/ALTER statements through runtime paths.
 APPLICATION_ID = 0x53444658  # "SDFX"
-SCHEMA_VERSION = 8
+SCHEMA_VERSION = 9
 
 
 _PROJECTION_CODEC_PREFIX = "zlib:"
@@ -467,7 +467,8 @@ class Record:
                     context_receipt TEXT,
                     outcome TEXT CHECK (
                         outcome IS NULL OR outcome IN (
-                            'success', 'temporary_failure', 'quota_exhausted', 'provider_failure'
+                            'success', 'temporary_failure', 'quota_exhausted', 'provider_failure',
+                            'effect_barrier_failure'
                         )
                     ),
                     proposal_id TEXT,
@@ -528,6 +529,74 @@ class Record:
                         (event_id, previous_invocation_hash, event_hash, row["sequence"]),
                     )
                 previous_invocation_hash = event_hash
+
+            # v9 widens the invocation outcome contract to distinguish
+            # durability-barrier failures from provider failures. SQLite cannot
+            # alter a CHECK constraint in place, so existing v1-v8 databases
+            # are rebuilt row-for-row after all older column/hash migrations
+            # have completed. Sequence numbers, timestamps, IDs, and hashes are
+            # preserved exactly.
+            if 0 < version < 9:
+                connection.execute(
+                    "ALTER TABLE invocation_events RENAME TO invocation_events_v8"
+                )
+                connection.execute(
+                    """
+                    CREATE TABLE invocation_events (
+                        sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+                        invocation_id TEXT NOT NULL,
+                        stage TEXT NOT NULL CHECK (
+                            stage IN (
+                                'requested',
+                                'context_delivered',
+                                'attempt_started',
+                                'proposal_received',
+                                'governed',
+                                'completed',
+                                'failed'
+                            )
+                        ),
+                        source_revision INTEGER NOT NULL,
+                        context_digest TEXT NOT NULL,
+                        provenance TEXT,
+                        context_receipt TEXT,
+                        outcome TEXT CHECK (
+                            outcome IS NULL OR outcome IN (
+                                'success',
+                                'temporary_failure',
+                                'quota_exhausted',
+                                'provider_failure',
+                                'effect_barrier_failure'
+                            )
+                        ),
+                        proposal_id TEXT,
+                        receipt_id TEXT,
+                        detail TEXT NOT NULL DEFAULT '',
+                        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        event_id TEXT,
+                        previous_hash TEXT,
+                        event_hash TEXT
+                    )
+                    """
+                )
+                connection.execute(
+                    """
+                    INSERT INTO invocation_events (
+                        sequence, invocation_id, stage, source_revision,
+                        context_digest, provenance, context_receipt, outcome,
+                        proposal_id, receipt_id, detail, created_at,
+                        event_id, previous_hash, event_hash
+                    )
+                    SELECT
+                        sequence, invocation_id, stage, source_revision,
+                        context_digest, provenance, context_receipt, outcome,
+                        proposal_id, receipt_id, detail, created_at,
+                        event_id, previous_hash, event_hash
+                    FROM invocation_events_v8
+                    ORDER BY sequence
+                    """
+                )
+                connection.execute("DROP TABLE invocation_events_v8")
 
             connection.execute(
                 "CREATE UNIQUE INDEX IF NOT EXISTS invocation_events_event_id "
