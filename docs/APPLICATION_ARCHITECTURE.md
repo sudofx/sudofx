@@ -8,7 +8,7 @@ sudofx is the governed engine.
 
 A complete domain system built on sudofx is an **application**.
 
-WAKE✳︎ is the first substantial application candidate. It is not primarily a plugin: its research state, policy, workflows, presentation, and external integrations define an application identity rather than an optional capability that can be removed while leaving the same product behind.
+WAKE✳︎ is the first substantial application migration and is actively exercising this contract in the separate `sudofx/wake` repository. It is not primarily a plugin: its research state, policy, workflows, presentation, and external integrations define an application identity rather than an optional capability that can be removed while leaving the same product behind.
 
 Use these terms:
 
@@ -17,6 +17,17 @@ Use these terms:
 - **application** — complete domain behavior built on sudofx
 - **extension** — optional capability added to sudofx or an application
 - **plugin** — optional packaging/loading mechanism if dynamic installation is implemented
+
+## Current implementation evidence
+
+As of October 2, 2026:
+
+- `src/sudofx/applications.py` implements the application registry/host, deterministic action evaluation, version checks, and compact event-log storage.
+- `applications/conversation.py` provides the first small non-WAKE application proof.
+- process-replacement tests reconstruct multiple conversation rounds from SQLite alone.
+- the WAKE repository contains a versioned `WAKE_APPLICATION`, a sudofx-backed transitional Store, verified legacy import/archive logic, and Phase E rehearsal workflows.
+
+These are implementation facts, not a claim that the application contract is permanently frozen. WAKE migration remains the larger stress test.
 
 ## Authority boundary
 
