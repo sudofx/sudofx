@@ -26,6 +26,7 @@ As of October 2, 2026:
 - `applications/conversation.py` provides the first small non-WAKE application proof.
 - process-replacement tests reconstruct multiple conversation rounds from SQLite alone.
 - the WAKE repository contains a versioned `WAKE_APPLICATION`, a sudofx-backed transitional Store, verified legacy import/archive logic, and Phase E rehearsal workflows.
+- WAKE now writes provider-boundary evidence through sudofx's generic invocation journal and delegates durability-barrier/external-effect ordering to `InvocationLifecycle.invoke()`; Gemini-specific quota/fallback interpretation remains WAKE policy.
 
 These are implementation facts, not a claim that the application contract is permanently frozen. WAKE migration remains the larger stress test.
 
@@ -153,6 +154,8 @@ Projection code cannot mutate authority and must disclose material omission when
 Applications request named effect capabilities.
 
 An effect adapter receives only the minimum material required for that effect. It does not receive general database authority.
+
+`InvocationLifecycle.invoke()` owns the generic ordering rule: durable request/attempt evidence and any caller-supplied durability barrier precede the irreversible external call. A barrier failure is recorded as pre-effect evidence, not misclassified as a provider outcome. Applications may classify provider-specific exceptions into generic temporary/quota/provider failure categories without importing those provider types into sudofx.
 
 Deployment permissions independently grant a subset of declared capabilities. Declaration alone never grants effect authority, and configuration can narrow authority but cannot silently widen it.
 
