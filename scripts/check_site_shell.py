@@ -59,8 +59,10 @@ def audit_page(path: Path) -> None:
     size = path.stat().st_size
     require(size <= MAX_HTML_BYTES, f"{path.name} is {size} bytes; budget is {MAX_HTML_BYTES}")
 
+    text = path.read_text(encoding="utf-8")
+    require("\\n" not in text, f"{path.name} contains a literal escaped newline sequence")
     parser = AuditParser()
-    parser.feed(path.read_text(encoding="utf-8"))
+    parser.feed(text)
     require(parser.h1_count == 1, f"{path.name} must have exactly one h1")
     require("main" in parser.main_ids, f"{path.name} must expose main#main")
     require("#main" in parser.skip_links, f"{path.name} must provide a skip link to #main")
