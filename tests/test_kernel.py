@@ -2133,13 +2133,14 @@ json.dump({
 
         self.assertIn("group: sudofx-pages", pages)
         self.assertIn("cancel-in-progress: true", pages)
-        self.assertIn("--publish-only", pages)
-        self.assertNotIn("workflow_dispatch:", pages)
+        self.assertIn("python scripts/build_site_shell.py", pages)
         pages_triggers = pages.split("permissions:", 1)[0]
-        # Projection adapters are allowed to trigger a rerender. The authority
-        # boundary is permission + publish-only behavior, not ignorance of the
-        # code that reconstructs the view.
-        self.assertIn("'scripts/github_sudofx.py'", pages_triggers)
+        # Pages owns the static presentation shell only. Operational state and
+        # live metrics update sudofx-live directly and must not trigger a Pages rebuild.
+        self.assertIn("'web/**'", pages_triggers)
+        self.assertIn("'scripts/build_site_shell.py'", pages_triggers)
+        self.assertNotIn("'scripts/github_sudofx.py'", pages_triggers)
+        self.assertNotIn("--publish-only", pages)
         self.assertNotIn("contents: write", pages)
         self.assertIn("pages: write", pages)
         self.assertNotIn("GEMINI_API_KEY", pages)
