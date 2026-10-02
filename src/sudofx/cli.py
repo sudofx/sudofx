@@ -30,6 +30,7 @@ from .models import Operation, Proposal, SubmissionProvenance
 from .providers import CommandIntelligence
 from .record import Record
 from .report import export_site
+from .runtime import Runtime
 
 
 def _json_value(raw: str) -> Any:
@@ -119,13 +120,13 @@ def main(argv: list[str] | None = None) -> int:
             command = command[1:]
         if not command:
             parser.error("run requires a provider command")
-        result = kernel.run(
+        result = Runtime(kernel, kernel.record).run(
             CommandIntelligence(command, timeout_seconds=args.timeout),
             work_id=args.work_id,
             provenance=SubmissionProvenance("model", "external-command", "cli"),
         )
-        print(json.dumps(asdict(result.receipt), indent=2, sort_keys=True))
-        return 0 if result.receipt.status == "accepted" else 2
+        print(json.dumps(asdict(result.run.receipt), indent=2, sort_keys=True))
+        return 0 if result.run.receipt.status == "accepted" else 2
     if args.command in {"export", "serve"}:
         # Export and serve consume verified state but never append an event.
         # The HTTP server is bound to loopback to avoid presenting a local
