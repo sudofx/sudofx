@@ -301,7 +301,7 @@ def _read_live_projection_files() -> dict[str, str]:
     git("fetch", "origin", f"refs/heads/{LIVE_BRANCH}:refs/remotes/origin/{LIVE_BRANCH}")
 
     files: dict[str, str] = {}
-    for name in ("live.json", "handoff-v1.json", "handoff-current.json"):
+    for name in ("live.json", "handoff-v1.json", "handoff-current.json", "manual-evaluations.json"):
         shown = git(
             "show", f"origin/{LIVE_BRANCH}:{name}",
             check=False, capture=True,
@@ -437,8 +437,22 @@ def build_public_site_projection(
 
     continuity = dict(continuity_proof)
     continuity_metrics: dict[str, object] = {}
+
+    # Current continuity probes already expose bounded compression evidence.
+    # Normalize that experiment-owned shape once here so the browser never has
+    # to understand experiment internals or scrape legacy report HTML.
+    compression = continuity_proof.get("compression")
+    if isinstance(compression, dict):
+        continuity_metrics = {
+            "context_bytes": compression.get("compressed_context_bytes"),
+            "full_context_bytes": compression.get("full_context_bytes"),
+            "compression_ratio": compression.get("reduction_ratio"),
+            "accepted_results_exposed": compression.get("accepted_results_exposed"),
+            "receipt_count_exposed": compression.get("receipt_count_exposed"),
+        }
+
     handoff_work = state.get(f"work:{AUTO_HANDOFF_ID}")
-    if isinstance(handoff_work, dict):
+    if not continuity_metrics and isinstance(handoff_work, dict):
         assessments = handoff_work.get("semantic_assessments", [])
         if isinstance(assessments, list):
             for assessment in reversed(assessments):
@@ -564,7 +578,7 @@ def main() -> int:
     DATA.parent.mkdir(parents=True, exist_ok=True)
     record = Record(DATA)
     kernel = Kernel(record)
-    if restored and (restored_schema_changed or record.schema_changed) and not args.publish_only:
+    if restored and (restored_schema_changed or record.schema_changed) and not (args.publish_only or args.refresh_live):
         # Storage migrations are system-owned authority changes, so stateful
         # execution persists them before performing another semantic operation.
         #
@@ -909,6 +923,21 @@ def main() -> int:
     except ValueError:
         # A valid generic projection does not require the optional handoff experiment.
         pass
+    if args.refresh_live:
+        # A live refresh publishes only bounded disposable browser data. It
+        # deliberately skips legacy HTML generation and never checkpoints or
+        # mutates authoritative state.
+        publish_live_projection(
+            build_public_site_projection(kernel, record, continuity_proof, verification),
+            manual_packet,
+            build_manual_evaluation_projection(kernel, AUTO_HANDOFF_ID),
+        )
+        print(json.dumps({
+            "status": "published-live-projection",
+            "record_revision": kernel.context().revision,
+        }, sort_keys=True))
+        return 0
+
     export_site(
         kernel,
         ROOT / "site",
