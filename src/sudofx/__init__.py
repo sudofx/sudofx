@@ -30,6 +30,7 @@ from .applications import (
 from .kernel import Kernel, RunResult
 from .runtime import InvocationBarrierError, InvocationLifecycle, InvocationResult, Runtime
 from .models import Context, Operation, Proposal, Receipt, SubmissionProvenance
+from .observability import build_application_observability
 from .providers import (
     CommandIntelligence,
     FakeIntelligence,
@@ -68,6 +69,7 @@ __all__ = [
     "RunResult",
     "SubmissionProvenance",
     "Runtime",
+    "build_application_observability",
 ]
 
 __version__ = "0.1.0"
