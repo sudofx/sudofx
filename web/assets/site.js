@@ -62,12 +62,16 @@
     })
     .then(raw=>{
       const d=normalize(raw);
-      const generatedMs=d.generated?Date.parse(d.generated):NaN;
-      const ageMs=Number.isFinite(generatedMs)?Date.now()-generatedMs:Infinity;
-      const hasActivity=d.applications.some(app=>Array.isArray(app.invocations?.recent)&&app.invocations.recent.length);
-      if(ageMs<=15*60*1000&&hasActivity)setRuntimeLight('running','sudofx status: active application evidence in a current projection');
-      else if(ageMs<=60*60*1000)setRuntimeLight('stale','sudofx status: projection available; no recent application activity');
-      else setRuntimeLight('stopped','sudofx status: no current application activity visible');
+      const invocationTimes=d.applications.flatMap(app=>(Array.isArray(app.invocations?.recent)?app.invocations.recent:[]).flatMap(inv=>{
+        const value=inv.updated_at||inv.started_at;if(!value)return [];
+        const parsed=Date.parse(String(value).replace(' ','T')+(String(value).includes('Z')?'':'Z'));
+        return Number.isFinite(parsed)?[parsed]:[];
+      }));
+      const latestActivity=invocationTimes.length?Math.max(...invocationTimes):NaN;
+      const activityAge=Number.isFinite(latestActivity)?Date.now()-latestActivity:Infinity;
+      if(activityAge<=15*60*1000)setRuntimeLight('running','sudofx status: recent governed application activity observed');
+      else if(activityAge<=60*60*1000)setRuntimeLight('stale','sudofx status: application evidence available; latest activity is not recent');
+      else setRuntimeLight('stopped','sudofx status: no recent application activity visible');
       const summary=q('[data-live-summary] p');
       if(summary){
         const events=d.health.event_count!==undefined?' · '+d.health.event_count+' governed events':'';
