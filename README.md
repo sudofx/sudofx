@@ -17,7 +17,7 @@ Most of my current work explores that question by keeping authority outside the 
 ## Projects
 
 - **[sudofx](https://github.com/sudofx/sudofx)** — a governed engine for durable work across interchangeable intelligences. SQLite is authoritative; models propose and the system governs.
-- **[WAKE✳︎](https://github.com/sudofx/wake)** — an experimental research application built around durable evidence, obligations, correction, and externalized continuity. It is currently migrating onto the sudofx application boundary.
+- **[WAKE✳︎](https://github.com/sudofx/wake)** — an experimental research application built around durable evidence, obligations, correction, and externalized continuity. Its Phase E architectural migration onto the sudofx application boundary is complete.
 - **[lab](https://github.com/sudofx/lab)** — my Docker lab and infrastructure sandbox.
 
 Earlier projects: [pure-bootstrap](https://github.com/sudofx/pure-bootstrap) · [python-digitalocean-backup](https://github.com/sudofx/python-digitalocean-backup)
@@ -62,12 +62,13 @@ Implemented and exercised on `master`:
 - application identity, versioning, actions, policy re-evaluation, migration boundaries, and event-log storage
 - a governed conversation application that survives process replacement from SQLite alone
 - a dedicated GitHub Actions conversation input surface
-- GitHub Pages as a derived, read-only projection
+- GitHub Pages as a lightweight, read-only public shell
+- a separate historyless `sudofx-live` branch for disposable public-safe metrics and technical projections, so state changes do not rebuild Pages
 - phone-first operator workflows and explicit Start/Stop control
 - quarantined continuity/overnight/manual-handoff experiments under `experiments/`
 - WAKE✳︎ Phase E architectural migration complete on the separate `sudofx/wake` repository's `master`: sudofx owns operational authority/runtime primitives while WAKE retains research policy
 
-The active execution direction is defined by [100126-CONTRACT.md](100126-CONTRACT.md).
+The active product-surface execution direction is defined by [100226-WEBSITE-CONTRACT.md](100226-WEBSITE-CONTRACT.md). The completed A–E architecture contract remains preserved in [100126-CONTRACT.md](100126-CONTRACT.md) as historical evidence.
 
 See [docs/STATUS.md](docs/STATUS.md) for the phase-by-phase state,
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for authority boundaries, and
@@ -153,12 +154,14 @@ The current `sudofx-state` Git ref is public. Do not place private or identifyin
 src/sudofx/             reusable engine: kernel, storage, governance, runtime, applications
 applications/           concrete sudofx applications; conversation is the first small proof
 scripts/                provider, GitHub runtime, recovery, conversation adapters
+web/                    lightweight public-site shell; live data is fetched from sudofx-live
 .github/workflows/      CI, operator control, conversation, runtime, Pages
 tests/                  invariant, replay, failure, lifecycle, and application proofs
 experiments/            quarantined continuity and handoff experiment machinery
 docs/                   current architecture/status plus historical design notes
 AGENTS.md               implementation and documentation discipline
-100126-CONTRACT.md      active execution direction
+100126-CONTRACT.md      completed A–E architecture contract
+100226-WEBSITE-CONTRACT.md active public product-surface contract
 ```
 
 ## Local verification
@@ -178,6 +181,8 @@ Basic kernel commands remain available through the `sudofx` CLI.
 The core loop, application boundary, and database-derived continuity mechanics are implemented.
 
 Phases A–E are complete at their stated architectural exit conditions. Multiple governed conversation rounds survive separate Python interpreter replacement from SQLite alone, and WAKE's operational authority/runtime primitives now sit on sudofx while WAKE retains research policy. The reusable package has also completed its current hardening pass: provider execution is runtime-only, experiment-specific packet/prompt machinery is quarantined outside `src/sudofx`, governed namespaces are sealed, and duplicate/dead execution surfaces are retired. The next major step should begin from a new explicit contract or product frontier rather than quietly expanding the kernel.
+
+The current implementation frontier is the public product surface defined by `100226-WEBSITE-CONTRACT.md`: a clearer homepage, application discovery, dedicated technical/metrics surfaces, and a shell/live-data split that keeps changing operational projections outside the Pages rebuild path.
 
 The larger experiment remains open:
 
