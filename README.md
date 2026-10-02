@@ -63,10 +63,11 @@ Implemented and exercised on `master`:
 - a privacy-bounded governed Conversation application that survives process replacement from SQLite alone
 - a runnable private/local chat transport whose visible transcript stays transient while SQLite stores governed observations
 - an encrypted GitHub Actions transport seam for a future authenticated cloud gateway
+- a first-class Handoff application for bounded fresh-intelligence packets and governed cross-provider grounding evidence
 - GitHub Pages as a lightweight, read-only public shell
 - a separate historyless `sudofx-live` branch for disposable public-safe metrics and technical projections, so state changes do not rebuild Pages
 - phone-first operator workflows and explicit Start/Stop control
-- quarantined continuity/overnight/manual-handoff experiments under `experiments/`
+- quarantined continuity/overnight experiments under `experiments/`; the former manual-handoff experiment has migrated to `applications/handoff/` with compatibility shims retained temporarily
 - WAKE✳︎ Phase E architectural migration complete on the separate `sudofx/wake` repository's `master`: sudofx owns operational authority/runtime primitives while WAKE retains research policy
 
 The October 2 public product-surface contract is complete and preserved in [100226-WEBSITE-CONTRACT.md](100226-WEBSITE-CONTRACT.md). The completed A–E architecture contract remains preserved in [100126-CONTRACT.md](100126-CONTRACT.md) as historical evidence.
@@ -107,7 +108,7 @@ A complete domain system built on sudofx is an **application**.
 
 Applications may define domain state, deterministic policy, context projection, presentation, and requested capabilities. They may not bypass governance, write arbitrary database state, create an independent authoritative event store, or gain authority merely because their code is installed.
 
-WAKE✳︎ is the first substantial application migration. The older broad “WAKE as plugin” framing is retired; [docs/PLUGIN_ARCHITECTURE.md](docs/PLUGIN_ARCHITECTURE.md) is retained only as a historical redirect.
+WAKE✳︎ is the first substantial application migration. Conversation and Handoff are native sudofx applications exercising different boundaries: privacy-bounded stateless chat and portable fresh-intelligence continuity testing. The older broad “WAKE as plugin” framing is retired; [docs/PLUGIN_ARCHITECTURE.md](docs/PLUGIN_ARCHITECTURE.md) is retained only as a historical redirect.
 
 ## Governed conversation proof
 
