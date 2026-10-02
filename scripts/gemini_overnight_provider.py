@@ -20,10 +20,9 @@ import os
 import sys
 import time
 import urllib.error
-import urllib.request
 from typing import Any
 
-from gemini_transport import build_generate_request, extract_text
+from gemini_transport import build_generate_request, extract_text, request_json
 
 
 class RecoverableProviderFailure(RuntimeError):
@@ -41,7 +40,7 @@ def _quota_exhausted(detail: str) -> bool:
     )
 
 
-def _request_json(request: urllib.request.Request) -> dict[str, Any]:
+def _request_json(request) -> dict[str, Any]:
     """Call Gemini with bounded retries for transient network/provider failures."""
     delays = (0, 2, 5)
     last_error: BaseException | None = None
@@ -49,8 +48,7 @@ def _request_json(request: urllib.request.Request) -> dict[str, Any]:
         if delay:
             time.sleep(delay)
         try:
-            with urllib.request.urlopen(request, timeout=45) as response:
-                return json.loads(response.read().decode("utf-8"))
+            return request_json(request, timeout=45)
         except urllib.error.HTTPError as error:
             detail = error.read().decode("utf-8", errors="replace")[:1000]
             if error.code == 429 and _quota_exhausted(detail):
