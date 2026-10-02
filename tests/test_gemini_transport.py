@@ -86,7 +86,7 @@ class GeminiTransportTests(unittest.TestCase):
                 return self
             def __exit__(self, exc_type, exc, tb):
                 return False
-            def read(self):
+            def read(self, maximum=None):
                 return b'{"candidates": []}'
 
         _, request = build_generate_request(
@@ -105,7 +105,7 @@ class GeminiTransportTests(unittest.TestCase):
                 return self
             def __exit__(self, exc_type, exc, tb):
                 return False
-            def read(self):
+            def read(self, maximum=None):
                 return b'[]'
 
         _, request = build_generate_request(
@@ -153,7 +153,7 @@ class GeminiTransportTests(unittest.TestCase):
                 return self
             def __exit__(self, exc_type, exc, tb):
                 return False
-            def read(self):
+            def read(self, maximum=None):
                 return json.dumps({
                     "candidates": [{
                         "content": {"parts": [{"text": '{"ok":true}'}]}
