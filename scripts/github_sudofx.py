@@ -47,6 +47,7 @@ if str(ROOT) not in sys.path:
 
 from sudofx import Kernel, Operation, Proposal, SubmissionProvenance
 from sudofx.record import Record
+from sudofx.observability import build_application_observability
 from experiments.continuity import (
     run_continuity_proof,
     run_default_model_continuity_probe,
@@ -488,22 +489,10 @@ def build_public_site_projection(
             "accepted_results": accepted_results,
             "conversation_turns": conversation_turns,
         },
-        "applications": [
-            {
-                "id": "wake",
-                "name": "WAKE✳︎",
-                "status": "phase-e-complete",
-                "url": "https://sudofx.github.io/wake/",
-                "repository": "https://github.com/sudofx/wake",
-            },
-            {
-                "id": "conversation",
-                "name": "Conversation",
-                "status": "reference-proof",
-                "turns": conversation_turns,
-                "repository": "https://github.com/sudofx/sudofx",
-            },
-        ],
+        # Applications are discovered only from generic durable sudofx evidence.
+        # This is a disposable view, not a registry or second source of truth.
+        "application_observability": build_application_observability(record),
+
         "continuity": continuity,
         "verification": verification,
     }
