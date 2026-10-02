@@ -123,3 +123,24 @@ h3{font-size:1.35rem;letter-spacing:-.025em}
 .conversation-copy{position:absolute;right:10px;bottom:8px;border:0;background:transparent;color:var(--primary);font:700 .72rem var(--mono);cursor:pointer;padding:4px 6px}
 .conversation-copy:focus-visible{outline:2px solid var(--primary);outline-offset:2px;border-radius:6px}
 .conversation-compose-actions{display:flex;align-items:center;gap:8px;flex:0 0 auto}
+
+
+/* Conversation Markdown — safe rendered two-party chat. */
+.conversation-markdown{font-size:.98rem;line-height:1.58;overflow-wrap:anywhere}
+.conversation-markdown>*:first-child{margin-top:0}
+.conversation-markdown>*:last-child{margin-bottom:0}
+.conversation-markdown p{margin:0 0 .8em;white-space:normal}
+.conversation-markdown h1,.conversation-markdown h2,.conversation-markdown h3{font-size:1.02rem;line-height:1.35;letter-spacing:-.01em;margin:.9em 0 .45em}
+.conversation-markdown ul,.conversation-markdown ol{margin:.45em 0 .8em;padding-left:1.35em}
+.conversation-markdown li+li{margin-top:.25em}
+.conversation-markdown blockquote{margin:.7em 0;padding:.15em 0 .15em .85em;border-left:3px solid var(--primary);color:var(--muted)}
+.conversation-markdown code{font-family:var(--mono);font-size:.9em;background:rgba(127,138,166,.14);border-radius:6px;padding:.1em .35em}
+.conversation-markdown pre{margin:.75em 0;padding:12px 13px;overflow:auto;border:1px solid var(--border);border-radius:12px;background:var(--bg)}
+.conversation-markdown pre code{display:block;padding:0;background:transparent;white-space:pre;line-height:1.5}
+.conversation-markdown a{color:var(--primary);text-decoration:underline;text-underline-offset:2px}
+.conversation-export{padding:8px 12px}
+@media(max-width:600px){
+  .conversation-actions{flex-wrap:wrap;justify-content:flex-end}
+  .conversation-export,.conversation-clear,.conversation-popout{font-size:.74rem;padding:7px 9px}
+  .conversation-markdown{font-size:.95rem}
+}
