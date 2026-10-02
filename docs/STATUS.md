@@ -16,7 +16,7 @@ The success condition is not that one model remembers. The success condition is 
 | A — reusable sudofx boundary | Substantially complete | Kernel/runtime/application separation, invocation lifecycle, provenance, bounded context, provider boundary, and research-specific exclusions are explicit in code and docs. |
 | B — harden and sanitize | Substantially complete | Experiments are quarantined, replay/failure/invocation tests are extensive, schema identity is explicit, Pages is being kept read-only, and production paths are separated from experiment machinery. |
 | C — application contract | Substantially complete | `ApplicationDefinition`, registry/host, deterministic policy re-evaluation, namespaced state, migration/version checks, and compact event-log storage are implemented and tested. |
-| D — minimal human conversation proof | Core proof implemented; operator/browser hardening in progress | Conversation state, bounded context, provider invocation, process-replacement continuity, derived Pages projection, and a dedicated conversation workflow exist. |
+| D — minimal human conversation proof | **Complete at contract level** | Governed human and assistant turns, bounded database-derived context, provider invocation, dedicated browser workflow, and derived Pages projection are implemented. CI now proves two back-and-forth rounds across separate Python interpreters sharing only the authoritative SQLite record, followed by a third fresh-process reconstruction of the four-turn transcript. |
 | E — WAKE✳︎ migration | Underway | `sudofx/wake` contains `wake/sudofx_application.py`, `wake/sudofx_store.py`, migration/rehearsal workflows, and a cloud path where `wake-state` carries `data/sudofx.sqlite`. |
 
 ## What is already proven mechanically
@@ -31,7 +31,7 @@ The success condition is not that one model remembers. The success condition is 
 - Application version drift fails closed unless an explicit migration exists.
 - Large applications can use compact event-log storage without duplicating full state on every transition.
 - GitHub Actions, providers, browser surfaces, and generated Pages output remain replaceable infrastructure.
-- The conversation proof survives replacement of in-process kernel/application/provider objects between turns.
+- The conversation proof survives complete Python interpreter replacement across multiple rounds; continuity is reconstructed from SQLite alone.
 - WAKE✳︎ domain migration can preserve its own policy above the generic sudofx authority boundary.
 
 ## Current architecture
@@ -70,14 +70,13 @@ This preserves the contract:
 
 ## Remaining work
 
-1. Finish the Phase D browser/operator proof and exercise multiple live back-and-forth turns through the dedicated conversation workflow.
-2. Finish the Phase B/C audit for duplicate execution paths, application bypasses, and legacy compatibility code that can now be retired or quarantined.
-3. Keep invocation/effect boundaries generic and avoid importing WAKE✳︎ research policy into the kernel.
-4. Continue Phase E incrementally: migrate WAKE✳︎ authority and event semantics while preserving behavioral/replay equivalence.
-5. Retire the legacy WAKE operational store after migration evidence is verified and frozen.
-6. Move authoritative cloud state away from a public Git ref before private or identifying durable material is allowed.
-7. Prove broader provider substitution when deliberately authorized.
-8. Continue long-horizon semantic tests; mechanical replay alone does not prove that compressed context preserves useful meaning indefinitely.
+1. Finish the Phase B/C audit for duplicate execution paths, application bypasses, and compatibility code that can now be retired or quarantined.
+2. Keep invocation/effect boundaries generic and avoid importing WAKE✳︎ research policy into the kernel.
+3. Continue Phase E incrementally: reduce duplicated WAKE engine responsibilities while preserving replay and behavioral equivalence.
+4. Retain the legacy WAKE Store only as verified migration/compatibility machinery; it is no longer an operational authority path.
+5. Move authoritative cloud state away from a public Git ref before private or identifying durable material is allowed.
+6. Prove broader provider substitution when deliberately authorized.
+7. Continue long-horizon semantic tests; mechanical replay alone does not prove that compressed context preserves useful meaning indefinitely.
 
 ## Open risks
 
