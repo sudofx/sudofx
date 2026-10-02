@@ -16,6 +16,11 @@ from sudofx.record import Record
 class ConversationServerTests(unittest.TestCase):
     """Protect the private chat's stateless-provider and no-transcript guarantees."""
 
+    def test_popout_route_uses_path_without_query(self) -> None:
+        source = (Path(__file__).resolve().parents[1] / "applications" / "conversation" / "server.py").read_text(encoding="utf-8")
+        self.assertIn("requested = urlsplit(self.path)", source)
+        self.assertIn('requested.path in {"/", "/conversation"}', source)
+
     def test_two_turn_continuity_uses_observations_not_transcript_storage(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             database = Path(temporary) / "conversation.sqlite"
