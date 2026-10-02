@@ -188,7 +188,7 @@ def _safe_error_payload(error: urllib.error.HTTPError) -> dict[str, Any]:
     blocked = ("key", "token", "secret", "authorization", "credential")
 
     def clean(value: Any, depth: int = 0) -> Any:
-        if depth > 5:
+        if depth > 8:
             return "[truncated]"
         if isinstance(value, dict):
             return {
