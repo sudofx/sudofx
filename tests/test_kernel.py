@@ -1332,8 +1332,8 @@ json.dump({
             [event["stage"] for event in lifecycle],
             ["requested", "context_delivered", "attempt_started", "failed"],
         )
-        self.assertEqual(lifecycle[-1]["outcome"], "effect_barrier_failure")
-        self.assertEqual(lifecycle[-1]["detail"], "OSError")
+        self.assertIsNone(lifecycle[-1]["outcome"])
+        self.assertEqual(lifecycle[-1]["detail"], "effect_barrier:OSError")
         self.assertEqual(self.kernel.record.incomplete_invocations(), ())
 
     def test_runtime_effect_barrier_runs_after_attempt_evidence_before_provider(self) -> None:
