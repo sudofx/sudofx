@@ -204,7 +204,10 @@ def _safe_error_payload(error: urllib.error.HTTPError) -> dict[str, Any]:
             return value
         return str(value)[:1000]
 
-    return clean(parsed) if isinstance(parsed, (dict, list)) else {}
+    cleaned = clean(parsed) if isinstance(parsed, (dict, list)) else {}
+    if isinstance(cleaned, dict) and isinstance(cleaned.get("error"), dict):
+        return cleaned["error"]
+    return cleaned if isinstance(cleaned, dict) else {}
 
 
 def _quota_ids(payload: dict[str, Any]) -> list[str]:
