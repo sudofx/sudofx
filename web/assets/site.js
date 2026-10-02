@@ -116,17 +116,24 @@
           empty.innerHTML='<div class="tag">Traffic</div><h3>No application invocation evidence is visible yet.</h3><p>When an application completes a governed sudofx invocation, its safe lifecycle trace will appear here.</p>';
           traffic.append(empty);
         } else rows.forEach(({app,inv})=>{
-          const card=document.createElement('article');card.className='panel';
+          const card=document.createElement('details');card.className='panel traffic-item';
           const stages=Array.isArray(inv.stages)?inv.stages:[];
           const ctx=inv.context||{};
-          const tag=document.createElement('div');tag.className='tag';tag.textContent=String(app.id||'application')+' · '+pretty(inv.outcome||inv.latest_stage||'observed');
+          const summary=document.createElement('summary');summary.className='traffic-summary';
+          const summaryMain=document.createElement('span');summaryMain.className='traffic-summary-main';
+          const appName=document.createElement('strong');appName.textContent=String(app.id||'application');
+          const outcome=document.createElement('span');outcome.className='tag';outcome.textContent=pretty(inv.outcome||inv.latest_stage||'observed');
+          summaryMain.append(appName,outcome);
+          const summaryTime=document.createElement('time');summaryTime.className='muted';
+          summaryTime.textContent=(inv.updated_at||inv.started_at)?new Date(String(inv.updated_at||inv.started_at).replace(' ','T')+'Z').toLocaleString():'Time unavailable';
+          summary.append(summaryMain,summaryTime);
+          const body=document.createElement('div');body.className='traffic-detail';
           const title=document.createElement('h3');title.textContent=String(app.id||'Application')+' → sudofx → provider → sudofx → '+String(app.id||'application');
-          const when=document.createElement('p');when.className='muted';when.textContent=(inv.updated_at||inv.started_at)?new Date(String(inv.updated_at||inv.started_at).replace(' ','T')+'Z').toLocaleString():'Time unavailable';
           const flow=document.createElement('p');flow.textContent=stages.length?stages.map(pretty).join(' → '):pretty(inv.latest_stage||'Lifecycle recorded');
           const meta=document.createElement('p');meta.className='muted';
           const cats=Array.isArray(ctx.included_categories)?ctx.included_categories.length:0;
           meta.textContent='Invocation '+String(inv.invocation_id||'unknown').slice(0,8)+'… · bounded context '+fmtBytes(ctx.payload_bytes)+' · '+cats+' context categories · contents hidden';
-          card.append(tag,title,when,flow,meta);traffic.append(card);
+          body.append(title,flow,meta);card.append(summary,body);traffic.append(card);
         });
       }
 
