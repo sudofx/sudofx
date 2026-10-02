@@ -57,6 +57,41 @@ class ConversationServerTests(unittest.TestCase):
             self.assertNotIn("We were comparing blue and green.", serialized)
             self.assertIn("The test is comparing blue and green.", serialized)
 
+    def test_persistent_response_suffix_is_governed_until_revoked(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            database = Path(temporary) / "conversation.sqlite"
+            footer = "My nickname is Stereo, and we are many. 🙂"
+            provider = (
+                sys.executable,
+                "-c",
+                "import json,sys; d=json.load(sys.stdin); "
+                "s=d['state']['app:conversation']; m=s['current_message']; "
+                "active=s.get('active_commitments',[]); "
+                "updates=([{'op':'upsert','kind':'response_suffix','text':" + repr(footer) + "}] "
+                "if m.startswith('Set footer') else "
+                "([{'op':'clear','kind':'response_suffix'}] if m.startswith('Stop footer') else [])); "
+                "content=('Footer set.' if m.startswith('Set footer') else "
+                "('Footer stopped.' if m.startswith('Stop footer') else 'A fresh provider forgot the footer.')); "
+                "json.dump({'content':content,'observations':[],'commitment_updates':updates},sys.stdout)",
+            )
+            service = ConversationService(database, provider_command=provider)
+
+            first = service.converse("Set footer for every response until I tell you to stop.")
+            second = service.converse("Are you sure?")
+            third = service.converse("Stop footer now.")
+            fourth = service.converse("Is it gone?")
+
+            self.assertTrue(first["content"].endswith(footer))
+            self.assertTrue(second["content"].endswith(footer))
+            self.assertEqual(third["content"], "Footer stopped.")
+            self.assertEqual(fourth["content"], "A fresh provider forgot the footer.")
+
+            registry = ApplicationRegistry((CONVERSATION_APPLICATION,))
+            kernel = Kernel(Record(database), Governance(application_registry=registry))
+            state = ApplicationHost(kernel, registry, "conversation").context().state
+            privacy = state["privacy"]
+            self.assertEqual(privacy["commitments"], [])
+
     def test_direct_identifier_is_rejected_before_provider_invocation(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             service = ConversationService(Path(temporary) / "conversation.sqlite")
