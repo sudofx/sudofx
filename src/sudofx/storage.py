@@ -112,7 +112,7 @@ class InvocationEvent:
     context_digest: str
     provenance: dict[str, str] | None = None
     context_receipt: ContextDeliveryReceipt | None = None
-    outcome: Literal["success", "temporary_failure", "quota_exhausted", "provider_failure"] | None = None
+    outcome: Literal["success", "temporary_failure", "quota_exhausted", "provider_failure", "effect_barrier_failure"] | None = None
     proposal_id: str | None = None
     receipt_id: str | None = None
     detail: str = ""
