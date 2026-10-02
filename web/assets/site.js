@@ -65,7 +65,7 @@
         d.revision??'—',
         fmtBytes(d.health.database_bytes),
         fmtMs(d.health.replay_ms),
-        d.applications.length||2
+        d.applications.length
       ]);
 
       setCards('[data-runtime-metrics]',[
@@ -85,6 +85,32 @@
         d.summary.accepted_results??'—',
         d.summary.conversation_turns??'—'
       ]);
+
+      const traffic=q('[data-traffic-window]');
+      if(traffic){
+        traffic.replaceChildren();
+        const rows=d.applications.flatMap(app=>{
+          const recent=Array.isArray(app.invocations?.recent)?app.invocations.recent:[];
+          return recent.map(inv=>({app,inv}));
+        }).sort((a,b)=>String(b.inv.updated_at||b.inv.started_at||'').localeCompare(String(a.inv.updated_at||a.inv.started_at||''))).slice(0,8);
+        if(!rows.length){
+          const empty=document.createElement('article');empty.className='panel';
+          empty.innerHTML='<div class="tag">Traffic</div><h3>No application invocation evidence is visible yet.</h3><p>When an application completes a governed sudofx invocation, its safe lifecycle trace will appear here.</p>';
+          traffic.append(empty);
+        } else rows.forEach(({app,inv})=>{
+          const card=document.createElement('article');card.className='panel';
+          const stages=Array.isArray(inv.stages)?inv.stages:[];
+          const ctx=inv.context||{};
+          const tag=document.createElement('div');tag.className='tag';tag.textContent=String(app.id||'application')+' · '+pretty(inv.outcome||inv.latest_stage||'observed');
+          const title=document.createElement('h3');title.textContent=String(app.id||'Application')+' → sudofx → provider → sudofx → '+String(app.id||'application');
+          const when=document.createElement('p');when.className='muted';when.textContent=(inv.updated_at||inv.started_at)?new Date(String(inv.updated_at||inv.started_at).replace(' ','T')+'Z').toLocaleString():'Time unavailable';
+          const flow=document.createElement('p');flow.textContent=stages.length?stages.map(pretty).join(' → '):pretty(inv.latest_stage||'Lifecycle recorded');
+          const meta=document.createElement('p');meta.className='muted';
+          const cats=Array.isArray(ctx.included_categories)?ctx.included_categories.length:0;
+          meta.textContent='Invocation '+String(inv.invocation_id||'unknown').slice(0,8)+'… · bounded context '+fmtBytes(ctx.payload_bytes)+' · '+cats+' context categories · contents hidden';
+          card.append(tag,title,when,flow,meta);traffic.append(card);
+        });
+      }
 
       const appView=q('[data-application-observability]');
       if(appView){
