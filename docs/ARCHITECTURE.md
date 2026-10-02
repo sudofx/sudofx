@@ -103,6 +103,24 @@ GitHub Actions owns manual runtime control. Pages remains public and unauthentic
 
 A dedicated internal latch workflow provides durable enabled/disabled state. Start enables the latch and dispatches one runtime cycle. Stop disables the latch before cancelling active cycles. The latch cannot edit work items, receipts, source, secrets, or SQLite state.
 
+## Application boundary
+
+Applications sit above the kernel and runtime. They own domain meaning, not durable authority.
+
+The implemented contract in `src/sudofx/applications.py` provides stable application identity/version, registered actions, deterministic policy re-evaluation, namespaced state, explicit migration failure, and optional compact event-log storage. A provider or application cannot commit arbitrary next state merely by supplying it; governance reruns the registered application policy before acceptance.
+
+The small `conversation` application proves the boundary with human-origin and assistant-origin turns. Tests replace application/runtime/provider objects between rounds and reconstruct the next turn from SQLite alone.
+
+WAKE✳︎ is the first substantial migration onto this boundary. WAKE-specific research semantics remain application policy in the separate WAKE repository and must not become kernel rules.
+
+## Presentation boundary
+
+Presentation is strictly derived.
+
+Pages, reports, workflow summaries, browser state, JSON exports, and Markdown exports may be generated from verified state, but they do not acquire mutation authority. A publish-only path may migrate a disposable local copy enough to interpret it, but durable schema migration/checkpointing belongs to an authorized stateful path.
+
+This distinction prevents a renderer from becoming an accidental database writer.
+
 ## Continuous chain
 
 `prove-model.yml` is intentionally a single success-only chain.
