@@ -7,7 +7,8 @@
   "portsAttributes": {
     "8765": {
       "label": "sudofx Conversation",
-      "onAutoForward": "openBrowser"
+      "onAutoForward": "notify",
+      "protocol": "http"
     }
   },
   "postStartCommand": "bash .devcontainer/start-conversation.sh",
