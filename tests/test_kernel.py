@@ -1109,8 +1109,8 @@ provider = (
     "-c",
     "import json,sys; data=json.load(sys.stdin); "
     "turns=data['state']['app:conversation']['turns']; "
-    "assert turns[-3] == {'role':'assistant','content':'First process answer'}; "
-    "assert turns[-2] == {'role':'human','content':'Second process question'}; "
+    "assert turns[-2] == {'role':'assistant','content':'First process answer'}; "
+    "assert turns[-1] == {'role':'human','content':'Second process question'}; "
     "json.dump({'content':'Second process answer'}, sys.stdout)",
 )
 reply = commit_assistant_turn(
