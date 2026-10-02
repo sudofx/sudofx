@@ -33,6 +33,14 @@ from .storage import (
 )
 
 
+class InvocationBarrierError(RuntimeError):
+    """Distinguish pre-effect durability failure from provider failure."""
+
+    def __init__(self, cause: Exception) -> None:
+        super().__init__(f"external effect barrier failed: {type(cause).__name__}")
+        self.cause = cause
+
+
 @dataclass(frozen=True)
 class InvocationResult:
     """Pair the durable invocation identity with the ordinary kernel run result."""
@@ -174,7 +182,7 @@ class InvocationLifecycle:
                     outcome=None,
                     detail=f"effect_barrier:{type(error).__name__}",
                 )
-                raise
+                raise InvocationBarrierError(error) from error
 
         try:
             return effect()
@@ -293,10 +301,13 @@ class Runtime:
             context_scope=context_scope,
         )
 
-        proposal = lifecycle.invoke(
-            lambda: intelligence.propose(context),
-            effect_barrier=effect_barrier,
-        )
+        try:
+            proposal = lifecycle.invoke(
+                lambda: intelligence.propose(context),
+                effect_barrier=effect_barrier,
+            )
+        except InvocationBarrierError as error:
+            raise error.cause
 
         lifecycle.proposal_received(proposal.proposal_id)
         try:
