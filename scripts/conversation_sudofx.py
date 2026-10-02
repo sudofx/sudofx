@@ -113,18 +113,19 @@ class ConversationIntelligence:
         )
 
 
-def _kernel() -> tuple[Kernel, ApplicationRegistry]:
+def _kernel(path: Path = DATA) -> tuple[Kernel, ApplicationRegistry]:
     registry = ApplicationRegistry((CONVERSATION_APPLICATION,))
-    return Kernel(Record(DATA), Governance(application_registry=registry)), registry
+    return Kernel(Record(path), Governance(application_registry=registry)), registry
 
 
-def run_turn(message: str, *, provider_command: tuple[str, ...] | None = None) -> str:
-    restored, schema_changed = restore()
-    kernel, registry = _kernel()
-    if schema_changed:
-        checkpoint()
-        kernel, registry = _kernel()
-
+def commit_human_turn(
+    message: str,
+    *,
+    data_path: Path = DATA,
+    provenance: SubmissionProvenance | None = None,
+) -> None:
+    """Commit one human-origin turn without invoking a provider."""
+    kernel, registry = _kernel(data_path)
     host = ApplicationHost(kernel, registry, CONVERSATION_APPLICATION.application_id)
     human = host.submit(
         ApplicationIntent(
@@ -134,13 +135,20 @@ def run_turn(message: str, *, provider_command: tuple[str, ...] | None = None) -
             payload=message,
             rationale="Authenticated operator conversation input",
         ),
-        provenance=SubmissionProvenance("human", "operator", "github-actions"),
+        provenance=provenance or SubmissionProvenance("human", "operator", "github-actions"),
     )
     if human.status != "accepted":
         raise RuntimeError(f"human conversation turn was rejected: {'; '.join(human.reasons)}")
-    checkpoint()
 
-    kernel, registry = _kernel()
+
+def commit_assistant_turn(
+    *,
+    data_path: Path = DATA,
+    provider_command: tuple[str, ...] | None = None,
+    provenance: SubmissionProvenance | None = None,
+) -> str:
+    """Reopen SQLite, derive bounded context, invoke one provider, and govern its reply."""
+    kernel, registry = _kernel(data_path)
     host = ApplicationHost(kernel, registry, CONVERSATION_APPLICATION.application_id)
     app_context = host.context()
     projection = bounded_context(app_context.state)
@@ -158,15 +166,35 @@ def run_turn(message: str, *, provider_command: tuple[str, ...] | None = None) -
         provider_command=command,
     )
     runtime = Runtime(ProjectedKernel(kernel, bounded), kernel.record)
+    result = runtime.run(
+        intelligence,
+        provenance=provenance or SubmissionProvenance(
+            "model",
+            "Google Gemini",
+            os.environ.get("GEMINI_MODEL", ""),
+        ),
+        context_scope={"kind": "application", "application_id": "conversation"},
+    )
+    operation = result.run.proposal.operations[0]
+    assert isinstance(operation.value, dict)
+    content = operation.value.get("input")
+    assert isinstance(content, str)
+    return content
+
+
+def run_turn(message: str, *, provider_command: tuple[str, ...] | None = None) -> str:
+    restored, schema_changed = restore()
+    _ = restored
+    if schema_changed:
+        checkpoint()
+
+    commit_human_turn(message, data_path=DATA)
+    # Human intent becomes remote durable state before any external model call.
+    checkpoint()
     try:
-        result = runtime.run(
-            intelligence,
-            provenance=SubmissionProvenance(
-                "model",
-                "Google Gemini",
-                os.environ.get("GEMINI_MODEL", ""),
-            ),
-            context_scope={"kind": "application", "application_id": "conversation"},
+        response = commit_assistant_turn(
+            data_path=DATA,
+            provider_command=provider_command,
         )
     except Exception:
         # Runtime lifecycle rows are already committed to SQLite. Preserve them
@@ -174,11 +202,7 @@ def run_turn(message: str, *, provider_command: tuple[str, ...] | None = None) -
         checkpoint()
         raise
     checkpoint()
-    operation = result.run.proposal.operations[0]
-    assert isinstance(operation.value, dict)
-    content = operation.value.get("input")
-    assert isinstance(content, str)
-    return content
+    return response
 
 
 def _write_summary(path: str | None, message: str, response: str) -> None:
