@@ -1726,7 +1726,12 @@ json.dump({
         self.assertIn("--publish-only", pages)
         self.assertNotIn("workflow_dispatch:", pages)
         pages_triggers = pages.split("permissions:", 1)[0]
-        self.assertNotIn("'scripts/github_sudofx.py'", pages_triggers)
+        # Projection adapters are allowed to trigger a rerender. The authority
+        # boundary is permission + publish-only behavior, not ignorance of the
+        # code that reconstructs the view.
+        self.assertIn("'scripts/github_sudofx.py'", pages_triggers)
+        self.assertNotIn("contents: write", pages)
+        self.assertIn("pages: write", pages)
         self.assertNotIn("GEMINI_API_KEY", pages)
 
         self.assertNotIn("\n  push:", operator)
