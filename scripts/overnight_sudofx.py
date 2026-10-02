@@ -374,6 +374,19 @@ def _record_observation(
         "artifact_run_id": run_id,
         "artifact_commit": proof.get("artifact_commit", ""),
         "source_event_head": proof["source_event_head"],
+        # Persist only bounded aggregate evidence. Raw provider context remains
+        # transient; these sizes/counts are enough for later metrics projection
+        # without making the disposable live branch a source of truth.
+        "compression": (
+            dict(proof["compression"])
+            if isinstance(proof.get("compression"), dict)
+            else {}
+        ),
+        "exposure_profile": (
+            dict(proof["exposure_profile"])
+            if isinstance(proof.get("exposure_profile"), dict)
+            else {}
+        ),
     }
     next_state = advance_experiment_state(
         previous_experiment,

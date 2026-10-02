@@ -170,6 +170,24 @@ class OvernightContinuityTests(unittest.TestCase):
         self.assertIsNone(directive["previous_model_observation_untrusted"])
         self.assertTrue(directive["previous_model_observation_withheld"])
 
+    def test_latest_observation_preserves_bounded_aggregate_evidence(self) -> None:
+        directive = build_trial_directive({})
+        observation = {
+            "candidate_result": "response",
+            "compression": {
+                "full_context_bytes": 1000,
+                "compressed_context_bytes": 400,
+                "reduction_ratio": 0.6,
+            },
+            "exposure_profile": {"accepted_results_limit": 1},
+        }
+        state = advance_experiment_state({}, directive=directive, observation=observation)
+        self.assertEqual(state["latest_observation"]["compression"], observation["compression"])
+        self.assertEqual(
+            state["latest_observation"]["exposure_profile"],
+            observation["exposure_profile"],
+        )
+
     def test_chain_digest_commits_to_cube_coordinate_and_observation(self) -> None:
         directive = build_trial_directive({})
         left = advance_experiment_state(

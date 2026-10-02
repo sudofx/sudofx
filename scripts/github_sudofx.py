@@ -169,6 +169,16 @@ def latest_overnight_proof(kernel: Kernel) -> dict[str, object] | None:
         "candidate_result": candidate_result,
         "candidate_rationale": observation.get("candidate_rationale", ""),
         "candidate_open_obligations": observation.get("candidate_open_obligations", []),
+        "compression": (
+            dict(observation.get("compression", {}))
+            if isinstance(observation.get("compression"), dict)
+            else {}
+        ),
+        "exposure_profile": (
+            dict(observation.get("exposure_profile", {}))
+            if isinstance(observation.get("exposure_profile"), dict)
+            else {}
+        ),
         "overnight_trial": {
             "version": experiment.get("version"),
             "cycle": cycle,

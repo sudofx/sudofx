@@ -11,32 +11,77 @@
 <div class="nav-links"><a href="index.html">Home</a><a href="applications.html">Applications</a><a href="technical.html">Technical</a><a class="active" href="metrics.html">Metrics</a><a href="https://github.com/sudofx/sudofx">GitHub ↗</a></div>
 </nav></header>
 <main>
-<section class="page-hero shell"><div class="eyebrow">Metrics</div><h1>Measure the system.<br><span>Don’t confuse the measurements.</span></h1><p class="lede">Runtime health, continuity quality, application activity, and experiments answer different questions. This page keeps them separated and shows where each number comes from.</p></section>
-
-<section class="section shell">
-  <div class="metric-section"><div><div class="eyebrow">Runtime health</div><h2>Is the machinery behaving correctly?</h2></div>
-  <div class="metric-grid" data-runtime-metrics>
-    <div class="metric-card"><span>Revision</span><strong>—</strong><small>Authoritative semantic revision</small></div>
-    <div class="metric-card"><span>Events</span><strong>—</strong><small>Governed event count</small></div>
-    <div class="metric-card"><span>Invocation events</span><strong>—</strong><small>Operational lifecycle evidence</small></div>
-    <div class="metric-card"><span>Replay</span><strong>—</strong><small>Verified replay duration</small></div>
-  </div></div>
+<section class="page-hero shell">
+  <div class="eyebrow">Metrics</div>
+  <h1>Measure the system.<br><span>Don’t confuse the measurements.</span></h1>
+  <p class="lede">Runtime health, operational activity, continuity quality, and experiments answer different questions. They stay separated here so a useful number never gets mistaken for a universal score.</p>
 </section>
 
 <section class="section shell">
-  <div class="metric-section"><div><div class="eyebrow">Continuity quality</div><h2>Did a fresh intelligence receive enough faithful context?</h2><p class="muted">These measurements are evidence about reconstruction and compression. They are not general “AI quality” scores.</p></div>
-  <div class="metric-grid" data-continuity-metrics>
-    <div class="metric-card"><span>Context</span><strong>—</strong><small>Bounded delivered context</small></div>
-    <div class="metric-card"><span>Full context</span><strong>—</strong><small>Available source context</small></div>
-    <div class="metric-card"><span>Compression</span><strong>—</strong><small>Reduction ratio</small></div>
-    <div class="metric-card"><span>Semantic review</span><strong>—</strong><small>Latest explicit assessment</small></div>
-  </div></div>
+  <div class="metric-section">
+    <div><div class="eyebrow">Runtime health</div><h2>Is the machinery behaving correctly?</h2></div>
+    <div class="metric-grid" data-runtime-metrics>
+      <div class="metric-card"><span>Revision</span><strong>—</strong><small>Authoritative semantic revision</small></div>
+      <div class="metric-card"><span>Events</span><strong>—</strong><small>Governed event count</small></div>
+      <div class="metric-card"><span>Invocation events</span><strong>—</strong><small>Operational lifecycle evidence</small></div>
+      <div class="metric-card"><span>Replay</span><strong>—</strong><small>Verified replay duration</small></div>
+    </div>
+    <div class="detail-grid" data-runtime-detail>
+      <article><span>SQLite size</span><strong data-db-size>—</strong></article>
+      <article><span>SQLite check</span><strong data-quick-check>—</strong></article>
+      <article><span>Schema</span><strong data-schema-version>—</strong></article>
+      <article><span>Free pages</span><strong data-free-bytes>—</strong></article>
+    </div>
+  </div>
+</section>
+
+<section class="section shell">
+  <div class="metric-section">
+    <div><div class="eyebrow">Operational picture</div><h2>What durable work exists right now?</h2></div>
+    <div class="metric-grid" data-operational-metrics>
+      <div class="metric-card"><span>Work items</span><strong>—</strong><small>Governed work records</small></div>
+      <div class="metric-card"><span>Open work</span><strong>—</strong><small>Current unresolved work items</small></div>
+      <div class="metric-card"><span>Accepted results</span><strong>—</strong><small>Durable accepted milestones</small></div>
+      <div class="metric-card"><span>Conversation turns</span><strong>—</strong><small>Governed conversation application</small></div>
+    </div>
+  </div>
+</section>
+
+<section class="section shell">
+  <div class="metric-section">
+    <div><div class="eyebrow">Continuity quality</div><h2>Did a fresh intelligence receive enough faithful context?</h2><p class="muted">These are measurements about one continuity experiment, not general model-quality scores.</p></div>
+    <div class="metric-grid" data-continuity-metrics>
+      <div class="metric-card"><span>Context</span><strong>—</strong><small>Bounded delivered context</small></div>
+      <div class="metric-card"><span>Full context</span><strong>—</strong><small>Available source context</small></div>
+      <div class="metric-card"><span>Reduction</span><strong>—</strong><small>Bytes removed before provider delivery</small></div>
+      <div class="metric-card"><span>Semantic review</span><strong>—</strong><small>Latest explicit assessment</small></div>
+    </div>
+    <div class="viz-panel" data-compression-viz>
+      <div class="viz-head"><div><span class="eyebrow">Context delivery</span><h3>Bounded context versus full source context</h3></div><strong data-compression-label>Waiting for durable aggregate evidence</strong></div>
+      <div class="bar-track" aria-hidden="true"><div class="bar-fill" data-compression-bar></div></div>
+      <p class="muted" data-compression-note>Current durable observations created before this metrics contract may not contain byte aggregates. New cycles preserve only the safe aggregate measurements.</p>
+    </div>
+    <div class="criteria-grid" data-semantic-criteria aria-label="Semantic review criteria"></div>
+  </div>
+</section>
+
+<section class="section shell">
+  <div class="metric-section">
+    <div><div class="eyebrow">Current experiment</div><h2>Where is the continuity stress test?</h2></div>
+    <div class="metric-grid" data-experiment-metrics>
+      <div class="metric-card"><span>Cycle</span><strong>—</strong><small>Global continuity cycle</small></div>
+      <div class="metric-card"><span>Semantic lens</span><strong>—</strong><small>What capability is under test</small></div>
+      <div class="metric-card"><span>Exposure</span><strong>—</strong><small>How much readable context survives</small></div>
+      <div class="metric-card"><span>Pressure</span><strong>—</strong><small>Competing or adversarial condition</small></div>
+    </div>
+    <div class="source-note" data-experiment-note>Experiment telemetry is loading from the current disposable projection.</div>
+  </div>
 </section>
 
 <section class="section shell">
   <div class="grid two">
-    <article class="panel"><div class="tag">Application metrics</div><h3>What is an application doing?</h3><p>Conversation turns, WAKE cycles, research funnel activity, evidence collection, notebook progress, and provider accounting belong to the application that gives them meaning.</p><a class="text-link" href="https://sudofx.github.io/wake/">Open WAKE✳︎ metrics →</a></article>
-    <article class="panel"><div class="tag">Experimental metrics</div><h3>What condition is being observed?</h3><p>Inquiry-drive measurements, time-dilation observations, reframes, capability blocks, and related research telemetry are experimental evidence — not universal sudofx reliability scores.</p></article>
+    <article class="panel"><div class="tag">Application metrics</div><h3>Application meaning stays local.</h3><p>WAKE✳︎ owns research-specific metrics such as cycles, evidence collection, notebook progress, and research funnels. sudofx exposes only generic authority/runtime measurements here.</p><a class="text-link" href="https://sudofx.github.io/wake/">Open WAKE✳︎ metrics →</a></article>
+    <article class="panel"><div class="tag">Interpretation rule</div><h3>Evidence is not authority.</h3><p>A fast replay, a passing semantic review, or a high compression ratio is evidence about a specific boundary. None of those measurements gets to rewrite the durable record.</p></article>
   </div>
 </section>
 

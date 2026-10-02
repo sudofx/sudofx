@@ -25,7 +25,7 @@
     <article><span>02</span><div><h3>Kernel</h3><p>Deterministic governance, transition sequencing, receipts, replay, and atomic commit boundaries.</p></div></article>
     <article><span>03</span><div><h3>Runtime</h3><p>Bounded context, provider execution, invocation lifecycle, effect ordering, recovery, and accounting.</p></div></article>
     <article><span>04</span><div><h3>Applications</h3><p>Domain meaning and policy. Applications do not receive unrestricted database authority or governance bypass.</p></div></article>
-    <article><span>05</span><div><h3>Presentation</h3><p>Pages, metrics, reports, browser state, and exports are projections. They are never read back as operational truth.</p></div></article>
+    <article><span>05</span><div><h3>Presentation</h3><p>GitHub Pages is the static shell. <code>sudofx-live</code> is a historyless disposable projection. Neither is ever read back as operational truth.</p></div></article>
   </div>
 </section>
 
@@ -36,6 +36,20 @@
     <div class="metric-card"><span>Database</span><strong>—</strong><small>Verified projection only</small></div>
     <div class="metric-card"><span>Replay</span><strong>—</strong><small>Current bounded health</small></div>
     <div class="metric-card"><span>Applications</span><strong>2</strong><small>WAKE✳︎ + Conversation</small></div>
+  </div>
+</section>
+
+<section class="section shell">
+  <div class="section-head"><div class="eyebrow">Projection provenance</div><h2>Know exactly what you are looking at.</h2></div>
+  <div class="detail-grid provenance-grid">
+    <article><span>Projection type</span><strong data-projection-kind>—</strong></article>
+    <article><span>Projection schema</span><strong data-projection-schema>—</strong></article>
+    <article><span>Source revision</span><strong data-source-revision>—</strong></article>
+    <article><span>SQLite integrity</span><strong data-source-integrity>—</strong></article>
+    <article><span>Generated</span><strong data-generated-at>—</strong></article>
+    <article><span>Source commit</span><strong class="mono" data-source-commit>—</strong></article>
+    <article><span>Actions run</span><strong class="mono" data-source-run>—</strong></article>
+    <article><span>Authority</span><strong>SQLite</strong></article>
   </div>
   <div class="source-note" data-live-source>Live data is fetched from the disposable <code>sudofx-live</code> projection branch, not from GitHub Pages and never from raw browser authority.</div>
 </section>

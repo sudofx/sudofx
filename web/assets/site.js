@@ -1,54 +1,140 @@
 (() => {
   const LIVE_URL='https://raw.githubusercontent.com/sudofx/sudofx/sudofx-live/live.json';
-  const fmtBytes=n=>{n=Number(n||0);if(!Number.isFinite(n)||n<=0)return '—';const u=['B','KB','MB','GB'];let i=0;while(n>=1024&&i<u.length-1){n/=1024;i++}return (n>=100||i===0?n.toFixed(0):n.toFixed(1))+' '+u[i]};
+  const q=s=>document.querySelector(s);
+  const fmtBytes=n=>{n=Number(n);if(!Number.isFinite(n)||n<0)return '—';if(n===0)return '0 B';const u=['B','KB','MB','GB'];let i=0;while(n>=1024&&i<u.length-1){n/=1024;i++}return (n>=100||i===0?n.toFixed(0):n.toFixed(1))+' '+u[i]};
   const fmtMs=n=>{n=Number(n);return Number.isFinite(n)?(n<1?n.toFixed(2):n.toFixed(1))+' ms':'—'};
   const pct=n=>{n=Number(n);return Number.isFinite(n)?(n*100).toFixed(1)+'%':'—'};
-  const q=(s)=>document.querySelector(s);
+  const pretty=v=>String(v??'—').replaceAll('_',' ').replace(/\b\w/g,c=>c.toUpperCase());
+  const shortSha=v=>{v=String(v||'');return v?v.slice(0,10):'—'};
+  const setText=(selector,value)=>{const el=q(selector);if(el)el.textContent=value};
   const setCards=(root,values)=>{const el=q(root);if(!el)return;[...el.querySelectorAll('.metric-card')].forEach((card,i)=>{if(values[i]!==undefined){const strong=card.querySelector('strong');if(strong)strong.textContent=values[i]}})};
-  const normalize=(raw)=>{
+  const normalize=raw=>{
     const health=raw.health||raw.metrics?.health||raw.runtime_health||{};
     const continuity=raw.continuity||raw.continuity_proof||raw;
-    const sem=continuity.semantic_review||{};
-    const cm=continuity.metrics||{};
+    const sem=continuity.semantic_review||raw.semantic_review||{};
+    const cm=continuity.metrics||continuity.compression||raw.compression||{};
     return {
+      raw,
       generated:raw.generated||raw.generated_at||raw.projection_generated||'',
       revision:raw.record_revision??raw.revision??health.revision,
       health,
+      summary:raw.summary||{},
       continuity,
       cm,
       sem,
-      applications:raw.applications||[]
+      experiment:continuity.overnight_trial||raw.overnight_trial||{},
+      applications:raw.applications||[],
+      verification:raw.verification||{},
+      projectionKind:raw.projection_kind||'',
+      projectionSchema:raw.projection_schema
     };
   };
-  fetch(LIVE_URL+'?v='+Date.now(),{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('live projection unavailable');return r.json()}).then(raw=>{
-    const d=normalize(raw);
-    const summary=q('[data-live-summary] p');
-    if(summary) summary.textContent=d.revision!==undefined&&d.revision!==null ? 'Authoritative record revision '+d.revision+' · browser data loaded from sudofx-live.' : 'Live public projection loaded from sudofx-live.';
-    setCards('[data-technical-metrics]',[
-      d.revision??'—',
-      fmtBytes(d.health.database_bytes),
-      fmtMs(d.health.replay_ms),
-      d.applications.length||2
-    ]);
-    setCards('[data-runtime-metrics]',[
-      d.revision??'—',
-      d.health.event_count??'—',
-      d.health.invocation_event_count??'—',
-      fmtMs(d.health.replay_ms)
-    ]);
-    const context=d.cm.context_bytes??d.continuity.context_bytes;
-    const full=d.cm.full_context_bytes??d.continuity.full_context_bytes;
-    const ratio=d.cm.compression_ratio??d.continuity.compression_ratio;
-    setCards('[data-continuity-metrics]',[
-      context!==undefined?fmtBytes(context):'—',
-      full!==undefined?fmtBytes(full):'—',
-      ratio!==undefined?pct(ratio):'—',
-      (d.sem.status||d.continuity.semantic_review_status||'—').toString().toUpperCase()
-    ]);
-    const fresh=q('[data-metrics-freshness]');
-    if(fresh) fresh.textContent='Disposable live projection'+(d.generated?' generated '+new Date(d.generated).toLocaleString():'')+(d.revision!==undefined?' · source revision '+d.revision:'')+'. Metrics are read-only projections; SQLite remains authoritative.';
-  }).catch(()=>{
-    const summary=q('[data-live-summary] p');if(summary)summary.textContent='Live projection is temporarily unavailable. Static product information remains usable.';
-    const fresh=q('[data-metrics-freshness]');if(fresh)fresh.textContent='Live metrics are temporarily unavailable. No authority is stored in this page.';
-  });
+
+  fetch(LIVE_URL+'?v='+Date.now(),{cache:'no-store'})
+    .then(r=>{if(!r.ok)throw new Error('live projection unavailable');return r.json()})
+    .then(raw=>{
+      const d=normalize(raw);
+      const summary=q('[data-live-summary] p');
+      if(summary){
+        const events=d.health.event_count!==undefined?' · '+d.health.event_count+' governed events':'';
+        const replay=d.health.replay_ms!==undefined?' · replay '+fmtMs(d.health.replay_ms):'';
+        summary.textContent=(d.revision!==undefined?'Record revision '+d.revision:'Live projection loaded')+events+replay+'.';
+      }
+
+      setCards('[data-technical-metrics]',[
+        d.revision??'—',
+        fmtBytes(d.health.database_bytes),
+        fmtMs(d.health.replay_ms),
+        d.applications.length||2
+      ]);
+
+      setCards('[data-runtime-metrics]',[
+        d.revision??'—',
+        d.health.event_count??'—',
+        d.health.invocation_event_count??'—',
+        fmtMs(d.health.replay_ms)
+      ]);
+      setText('[data-db-size]',fmtBytes(d.health.database_bytes));
+      setText('[data-quick-check]',String(d.health.quick_check||'—').toUpperCase());
+      setText('[data-schema-version]',d.health.schema_version??'—');
+      setText('[data-free-bytes]',fmtBytes(d.health.free_bytes));
+
+      setCards('[data-operational-metrics]',[
+        d.summary.work_items??'—',
+        d.summary.open_work_items??'—',
+        d.summary.accepted_results??'—',
+        d.summary.conversation_turns??'—'
+      ]);
+
+      const context=d.cm.context_bytes??d.cm.compressed_context_bytes??d.continuity.context_bytes;
+      const full=d.cm.full_context_bytes??d.continuity.full_context_bytes;
+      const ratio=d.cm.compression_ratio??d.cm.reduction_ratio??d.continuity.compression_ratio;
+      setCards('[data-continuity-metrics]',[
+        context!==undefined&&context!==null?fmtBytes(context):'NOT RECORDED',
+        full!==undefined&&full!==null?fmtBytes(full):'NOT RECORDED',
+        ratio!==undefined&&ratio!==null?pct(ratio):'NOT RECORDED',
+        (d.sem.status||d.continuity.semantic_review_status||'—').toString().toUpperCase()
+      ]);
+
+      const bar=q('[data-compression-bar]');
+      const label=q('[data-compression-label]');
+      const note=q('[data-compression-note]');
+      const contextN=Number(context),fullN=Number(full);
+      if(bar&&label&&note&&Number.isFinite(contextN)&&Number.isFinite(fullN)&&fullN>0){
+        const retained=Math.max(0,Math.min(100,(contextN/fullN)*100));
+        bar.style.width=retained+'%';
+        label.textContent=retained.toFixed(1)+'% retained';
+        note.textContent=fmtBytes(contextN)+' delivered from '+fmtBytes(fullN)+' available · '+pct(1-(contextN/fullN))+' removed before provider delivery.';
+      } else if(bar&&label&&note){
+        bar.style.width='0%';
+        label.textContent='Not recorded for this durable observation';
+        note.textContent='This observation predates durable aggregate compression evidence. New overnight cycles preserve only safe byte/count aggregates in SQLite.';
+      }
+
+      const criteria=q('[data-semantic-criteria]');
+      if(criteria){
+        criteria.replaceChildren();
+        const items=Array.isArray(d.sem.criteria)?d.sem.criteria:[];
+        items.forEach(item=>{
+          const card=document.createElement('div');
+          card.className='criterion';
+          const name=document.createElement('span');
+          name.textContent=pretty(item.id||'criterion');
+          const status=document.createElement('strong');
+          const s=String(item.status||'pending').toLowerCase();
+          status.className='quality-'+s;
+          status.textContent=s.toUpperCase();
+          card.append(name,status);
+          criteria.append(card);
+        });
+      }
+
+      const coord=d.experiment.coordinate||{};
+      setCards('[data-experiment-metrics]',[
+        d.experiment.cycle??'—',
+        pretty(coord.semantic_lens||d.experiment.phase||'—'),
+        pretty(coord.exposure||'—'),
+        pretty(coord.pressure||'—')
+      ]);
+      const expNote=q('[data-experiment-note]');
+      if(expNote){
+        expNote.textContent='Google Gemini · '+(d.continuity.model||'model unknown')+' · 343-condition continuity matrix · current durable observation remains evidence, not project authority.';
+      }
+
+      setText('[data-projection-kind]',pretty(d.projectionKind||'—'));
+      setText('[data-projection-schema]',d.projectionSchema??'—');
+      setText('[data-source-revision]',d.revision??'—');
+      setText('[data-source-integrity]',String(d.health.quick_check||'—').toUpperCase());
+      setText('[data-generated-at]',d.generated?new Date(d.generated).toLocaleString():'—');
+      setText('[data-source-commit]',shortSha(d.verification.commit||d.continuity.projection_commit));
+      setText('[data-source-run]',d.verification.run_id||d.continuity.projection_run_id||'—');
+
+      const fresh=q('[data-metrics-freshness]');
+      if(fresh) fresh.textContent='Disposable live projection'+(d.generated?' generated '+new Date(d.generated).toLocaleString():'')+(d.revision!==undefined?' · source revision '+d.revision:'')+'. Metrics are read-only projections; SQLite remains authoritative.';
+    })
+    .catch(()=>{
+      const summary=q('[data-live-summary] p');if(summary)summary.textContent='Live projection is temporarily unavailable. Static product information remains usable.';
+      const fresh=q('[data-metrics-freshness]');if(fresh)fresh.textContent='Live metrics are temporarily unavailable. No authority is stored in this page.';
+      setText('[data-experiment-note]','Live experiment telemetry is temporarily unavailable.');
+    });
 })();
