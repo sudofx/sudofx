@@ -148,6 +148,8 @@ The browser may combine those layers for display, but neither gains mutation aut
 
 This distinction prevents a renderer, chart, cache, or live feed from becoming an accidental database writer or a competing system of record.
 
+The older `export_site` monolithic report renderer is retained only for internal/diagnostic exports used by non-Pages workflows. GitHub Pages never deploys that renderer. The canonical public front door is the lightweight shell under `web/`, with changing public-safe state supplied only by `sudofx-live`.
+
 ## Continuous chain
 
 `prove-model.yml` is intentionally a single success-only chain.

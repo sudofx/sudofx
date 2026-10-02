@@ -1,7 +1,7 @@
 # 100226 — sudofx Product Surface Contract
 
 **Date:** October 2, 2026  
-**Status:** Active execution contract  
+**Status:** Complete at the current product-surface boundary  
 **Authority:** operator-approved implementation direction
 
 ## Purpose
@@ -102,3 +102,28 @@ Exit condition: mobile, accessibility, performance, metadata, links, and old-sur
 - duplicating operational truth in Markdown/JSON/HTML;
 - moving WAKE-specific research semantics into sudofx;
 - treating experimental measurements as universal product reliability scores.
+
+
+## Completion evidence
+
+The contract exit conditions were satisfied on October 2, 2026.
+
+- Home, Applications, Technical, and Metrics are separate public surfaces.
+- The homepage leads with natural-language explanation and short ELI15 summaries.
+- GitHub Pages contains only the lightweight versioned shell.
+- Changing operational state refreshes the historyless `sudofx-live` projection instead of rebuilding Pages.
+- Technical and Metrics surfaces expose source revision, projection provenance, freshness, runtime health, application activity, and experiment context without treating any metric as authority.
+- WAKE✳︎ and Conversation are the two currently presented applications.
+- Read-only live refreshes serialize with the current authority lane so an older verified snapshot cannot overwrite a newer public view.
+- Future overnight observations preserve bounded aggregate compression evidence in SQLite while raw provider context remains transient.
+- The shell provides skip navigation, current-page semantics, reduced-motion behavior, responsive layouts, and automatic system light/dark modes.
+- CI enforces local-link integrity, basic semantic structure, image alt requirements, raw-database exclusion, and strict page/asset/total shell size budgets.
+- Legacy `export_site` report rendering is retained only as an internal/diagnostic export path; it is not the public Pages front door.
+
+Verification evidence:
+
+- accessibility/performance CI: Actions run `37015904265` — success
+- public-shell deployment: Actions run `37015904203` — success
+- verified shell source commit: `7d9be2a3d7993ef353d24980c9025771c6e23ace`
+
+The next substantial product or kernel change should begin from a new explicit contract rather than silently extending this completed surface.

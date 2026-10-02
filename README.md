@@ -68,7 +68,7 @@ Implemented and exercised on `master`:
 - quarantined continuity/overnight/manual-handoff experiments under `experiments/`
 - WAKE✳︎ Phase E architectural migration complete on the separate `sudofx/wake` repository's `master`: sudofx owns operational authority/runtime primitives while WAKE retains research policy
 
-The active product-surface execution direction is defined by [100226-WEBSITE-CONTRACT.md](100226-WEBSITE-CONTRACT.md). The completed A–E architecture contract remains preserved in [100126-CONTRACT.md](100126-CONTRACT.md) as historical evidence.
+The October 2 public product-surface contract is complete and preserved in [100226-WEBSITE-CONTRACT.md](100226-WEBSITE-CONTRACT.md). The completed A–E architecture contract remains preserved in [100126-CONTRACT.md](100126-CONTRACT.md) as historical evidence.
 
 See [docs/STATUS.md](docs/STATUS.md) for the phase-by-phase state,
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for authority boundaries, and
@@ -161,7 +161,7 @@ experiments/            quarantined continuity and handoff experiment machinery
 docs/                   current architecture/status plus historical design notes
 AGENTS.md               implementation and documentation discipline
 100126-CONTRACT.md      completed A–E architecture contract
-100226-WEBSITE-CONTRACT.md active public product-surface contract
+100226-WEBSITE-CONTRACT.md completed public product-surface contract
 ```
 
 ## Local verification
@@ -182,7 +182,7 @@ The core loop, application boundary, and database-derived continuity mechanics a
 
 Phases A–E are complete at their stated architectural exit conditions. Multiple governed conversation rounds survive separate Python interpreter replacement from SQLite alone, and WAKE's operational authority/runtime primitives now sit on sudofx while WAKE retains research policy. The reusable package has also completed its current hardening pass: provider execution is runtime-only, experiment-specific packet/prompt machinery is quarantined outside `src/sudofx`, governed namespaces are sealed, and duplicate/dead execution surfaces are retired. The next major step should begin from a new explicit contract or product frontier rather than quietly expanding the kernel.
 
-The current implementation frontier is the public product surface defined by `100226-WEBSITE-CONTRACT.md`: a clearer homepage, application discovery, dedicated technical/metrics surfaces, and a shell/live-data split that keeps changing operational projections outside the Pages rebuild path.
+The October 2 public product-surface contract is complete: the homepage, application discovery, dedicated technical/metrics surfaces, shell/live-data split, accessibility/performance guardrails, and system light/dark support are implemented and deployed. The next substantial product or kernel frontier should begin from a new explicit contract.
 
 The larger experiment remains open:
 

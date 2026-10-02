@@ -69,11 +69,11 @@ This preserves the contract:
 
 > presentation is a projection, not an authority surface.
 
-## Active product-surface contract
+## Completed product-surface contract
 
-The completed A–E architecture contract is no longer the active implementation frontier. The current execution direction is `100226-WEBSITE-CONTRACT.md`.
+The completed A–E architecture contract remains closed. The October 2 public product-surface contract in `100226-WEBSITE-CONTRACT.md` is also complete at its stated boundary.
 
-Implemented in the first website slice:
+Implemented and verified:
 
 - GitHub Pages now publishes a lightweight static shell rather than replaying SQLite to regenerate the whole site.
 - Home, Applications, Technical, and Metrics are separate public surfaces.
@@ -82,6 +82,12 @@ Implemented in the first website slice:
 - Technical and metric pages fetch changing public-safe data from the disposable `sudofx-live` projection branch at runtime.
 - Pages rebuild triggers are limited to shell/product-surface source changes; operational state changes do not trigger a site rebuild.
 - The new shell has deployed successfully through GitHub Pages.
+- Pages and live projection cadence are separated; operational state does not rebuild the shell.
+- Public metrics expose bounded provenance/freshness and preserve the database-first authority boundary.
+- Accessibility/performance guardrails are enforced by `scripts/check_site_shell.py` in CI and Pages.
+- The shell supports responsive mobile layouts plus automatic system light/dark modes.
+- The old monolithic report renderer is no longer a public surface; it remains only an internal/diagnostic export path.
+- Final website CI and Pages runs passed on commit `7d9be2a`.
 
 ## Remaining work
 
@@ -90,7 +96,7 @@ Implemented in the first website slice:
 3. Move authoritative cloud state away from a public Git ref before private or identifying durable material is allowed.
 4. Prove broader provider substitution when deliberately authorized.
 5. Continue long-horizon semantic tests; mechanical replay alone does not prove that compressed context preserves useful meaning indefinitely.
-6. Finish the active website contract: harden public metrics provenance/freshness, complete accessibility/performance checks, retire or redirect the old monolithic report surface, and finish cutover documentation without expanding kernel semantics.
+6. Define a new explicit contract before adding another substantial product surface or new kernel semantics.
 
 ## Open risks
 
