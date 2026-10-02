@@ -38,6 +38,7 @@ import subprocess
 import sys
 import tempfile
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -396,6 +397,96 @@ def build_manual_evaluation_projection(
         },
         "recent": recent,
     }
+
+
+def build_public_site_projection(
+    kernel: Kernel,
+    record: Record,
+    continuity_proof: dict[str, object],
+    verification: dict[str, str],
+) -> dict[str, object]:
+    """Build the bounded public-safe view consumed by the website shell.
+
+    This projection deliberately contains measurements and summaries rather than
+    unrestricted durable payloads. SQLite remains authoritative; the historyless
+    live branch can be replaced at any time from verified state.
+    """
+    context = kernel.context()
+    health = record.health()
+    state = context.state
+
+    work_items = [
+        value for key, value in state.items()
+        if key.startswith("work:") and isinstance(value, dict)
+    ]
+    accepted_results = sum(
+        len(item.get("accepted_results", []))
+        for item in work_items
+        if isinstance(item.get("accepted_results", []), list)
+    )
+    open_work = sum(1 for item in work_items if item.get("status") == "open")
+
+    conversation_turns = 0
+    conversation = state.get("app:conversation")
+    if isinstance(conversation, dict):
+        conversation_state = conversation.get("state") or conversation.get("projection_state")
+        if isinstance(conversation_state, dict):
+            turns = conversation_state.get("turns", [])
+            if isinstance(turns, list):
+                conversation_turns = len(turns)
+
+    continuity = dict(continuity_proof)
+    continuity_metrics: dict[str, object] = {}
+    handoff_work = state.get(f"work:{AUTO_HANDOFF_ID}")
+    if isinstance(handoff_work, dict):
+        assessments = handoff_work.get("semantic_assessments", [])
+        if isinstance(assessments, list):
+            for assessment in reversed(assessments):
+                if not isinstance(assessment, dict):
+                    continue
+                metrics = assessment.get("metrics")
+                if isinstance(metrics, dict):
+                    continuity_metrics = dict(metrics)
+                    break
+    if continuity_metrics:
+        continuity["metrics"] = continuity_metrics
+
+    projection = {
+        "projection_schema": 2,
+        "projection_kind": "disposable-public-site-view",
+        "authoritative": False,
+        "generated": datetime.now(timezone.utc).isoformat(),
+        "record_revision": context.revision,
+        "health": health,
+        "summary": {
+            "work_items": len(work_items),
+            "open_work_items": open_work,
+            "accepted_results": accepted_results,
+            "conversation_turns": conversation_turns,
+        },
+        "applications": [
+            {
+                "id": "wake",
+                "name": "WAKE✳︎",
+                "status": "phase-e-complete",
+                "url": "https://sudofx.github.io/wake/",
+                "repository": "https://github.com/sudofx/wake",
+            },
+            {
+                "id": "conversation",
+                "name": "Conversation",
+                "status": "reference-proof",
+                "turns": conversation_turns,
+                "repository": "https://github.com/sudofx/sudofx",
+            },
+        ],
+        "continuity": continuity,
+        "verification": verification,
+    }
+    # Preserve the legacy top-level continuity fields for older observer clients
+    # while the new website consumes the explicit nested namespaces above.
+    projection.update(continuity_proof)
+    return projection
 
 
 def publish_manual_evaluation_projection(payload: dict[str, object]) -> None:
@@ -838,6 +929,28 @@ def main() -> int:
         if handoff_id:
             publish_current_handoff(build_handoff_packet(kernel, handoff_id))
         print(json.dumps({"handoff_json": str(json_path), "handoff_prompt": str(prompt_path)}))
+
+    # Stateful GitHub runs refresh only the disposable public projection. Pages
+    # is intentionally not rebuilt when the database changes. A projection
+    # failure cannot undo an authoritative commit and is reported separately.
+    if os.environ.get("GITHUB_ACTIONS") == "true" and not args.publish_only:
+        try:
+            publish_live_projection(
+                build_public_site_projection(kernel, record, continuity_proof, verification),
+                manual_packet,
+                build_manual_evaluation_projection(kernel, AUTO_HANDOFF_ID),
+            )
+        except Exception as error:
+            print(
+                json.dumps(
+                    {
+                        "live_projection_updated": False,
+                        "live_projection_error": str(error),
+                    },
+                    sort_keys=True,
+                ),
+                file=sys.stderr,
+            )
     return 0
 
 
