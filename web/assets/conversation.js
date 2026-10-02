@@ -198,6 +198,32 @@
     });
   }
 
+  document.addEventListener('keydown',async event=>{
+    if(!(event.metaKey||event.ctrlKey)||event.altKey)return;
+    const key=event.key.toLowerCase();
+    if(key==='c'){
+      const selected=window.getSelection()?.toString()||'';
+      if(!selected)return;
+      try{
+        await navigator.clipboard.writeText(selected);
+        event.preventDefault();
+      }catch{}
+      return;
+    }
+    if(key==='v'&&!input.disabled){
+      const active=document.activeElement;
+      if(active!==input)return;
+      try{
+        const text=await navigator.clipboard.readText();
+        const start=input.selectionStart??input.value.length;
+        const end=input.selectionEnd??input.value.length;
+        input.setRangeText(text,start,end,'end');
+        input.dispatchEvent(new Event('input',{bubbles:true}));
+        event.preventDefault();
+      }catch{}
+    }
+  },true);
+
   input.addEventListener('keydown',event=>{
     if(event.key!=='Enter'||event.shiftKey||event.isComposing)return;
     event.preventDefault();
