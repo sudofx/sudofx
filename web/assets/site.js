@@ -30,6 +30,14 @@
       projectionSchema:raw.projection_schema
     };
   };
+  const themeToggle=q('[data-theme-toggle]');
+  const systemDark=()=>matchMedia('(prefers-color-scheme:dark)').matches;
+  const currentTheme=()=>document.documentElement.dataset.theme||localStorage.getItem('sudofx-theme')||(systemDark()?'dark':'light');
+  const applyTheme=theme=>{document.documentElement.dataset.theme=theme;if(themeToggle)themeToggle.checked=theme==='dark'};
+  applyTheme(currentTheme());
+  if(themeToggle)themeToggle.addEventListener('change',()=>{const theme=themeToggle.checked?'dark':'light';localStorage.setItem('sudofx-theme',theme);applyTheme(theme)});
+  const setRuntimeLight=(state,label)=>{const el=q('[data-runtime-light]');if(!el)return;el.dataset.state=state;el.title=label;el.setAttribute('aria-label',label)};
+  setRuntimeLight('checking','sudofx status: checking current projection');
   const loadFederatedApplications=()=>fetch(APPLICATION_SOURCES+'?v='+Date.now(),{cache:'no-store'})
     .then(r=>r.ok?r.json():{sources:[]})
     .then(config=>Promise.allSettled((Array.isArray(config.sources)?config.sources:[]).map(source=>
@@ -54,6 +62,12 @@
     })
     .then(raw=>{
       const d=normalize(raw);
+      const generatedMs=d.generated?Date.parse(d.generated):NaN;
+      const ageMs=Number.isFinite(generatedMs)?Date.now()-generatedMs:Infinity;
+      const hasActivity=d.applications.some(app=>Array.isArray(app.invocations?.recent)&&app.invocations.recent.length);
+      if(ageMs<=15*60*1000&&hasActivity)setRuntimeLight('running','sudofx status: active application evidence in a current projection');
+      else if(ageMs<=60*60*1000)setRuntimeLight('stale','sudofx status: projection available; no recent application activity');
+      else setRuntimeLight('stopped','sudofx status: no current application activity visible');
       const summary=q('[data-live-summary] p');
       if(summary){
         const events=d.health.event_count!==undefined?' · '+d.health.event_count+' governed events':'';
@@ -200,6 +214,7 @@
       if(fresh) fresh.textContent='Disposable live projection'+(d.generated?' generated '+new Date(d.generated).toLocaleString():'')+(d.revision!==undefined?' · source revision '+d.revision:'')+'. Metrics are read-only projections; SQLite remains authoritative.';
     })
     .catch(()=>{
+      setRuntimeLight('stopped','sudofx status: live projection unavailable');
       const summary=q('[data-live-summary] p');if(summary)summary.textContent='Live projection is temporarily unavailable. Static product information remains usable.';
       const fresh=q('[data-metrics-freshness]');if(fresh)fresh.textContent='Live metrics are temporarily unavailable. No authority is stored in this page.';
       setText('[data-experiment-note]','Live experiment telemetry is temporarily unavailable.');
