@@ -55,7 +55,7 @@ from experiments.continuity import (
     run_work_continuity_probe,
 )
 from sudofx.report import export_site
-from sudofx.handoff import build_handoff_packet, export_handoff_packet
+from experiments.manual_handoff.packet import build_handoff_packet, export_handoff_packet
 from experiments.manual_handoff.scoring import (
     evaluate_handoff_response,
     handoff_packet_digest,
