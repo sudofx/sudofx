@@ -9,7 +9,9 @@ on:
       - 'tests/**'
       - 'scripts/**'
       - 'experiments/**'
+      - 'web/**'
       - 'pyproject.toml'
+      - '100226-WEBSITE-CONTRACT.md'
       - '.github/workflows/ci.yml'
       - '.github/workflows/sudofx.yml'
       - '.github/workflows/prove-model.yml'
@@ -48,3 +50,5 @@ jobs:
           python-version: '3.13'
       - name: Run fast unit and sanity checks
         run: PYTHONPATH=src:. python -m unittest discover -s tests -v
+      - name: Check lightweight public shell
+        run: python scripts/check_site_shell.py web
