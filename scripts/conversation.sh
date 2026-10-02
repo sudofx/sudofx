@@ -10,7 +10,7 @@ RESET=false
 
 usage() {
   cat <<'EOF'
-Usage: scripts/conversation [--reset]
+Usage: scripts/conversation.sh [--reset]
 
 Without --reset:
   stop any running Conversation server, pull current master, and start a new server.
@@ -99,4 +99,8 @@ echo "PID: $pid"
 echo "Port: $PORT"
 echo "SQLite: $DB"
 echo "Log: $LOG_FILE"
-echo "Open Conversation: http://localhost:$PORT/conversation"
+if [[ -n "${CODESPACE_NAME:-}" && -n "${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN:-}" ]]; then
+  echo "Open Conversation: https://${CODESPACE_NAME}-${PORT}.${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN}/conversation"
+else
+  echo "Open Conversation: http://localhost:$PORT/conversation"
+fi
