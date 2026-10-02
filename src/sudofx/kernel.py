@@ -29,6 +29,10 @@ import uuid
 from dataclasses import dataclass
 
 from .governance import Governance, WORK_ACTIONS, work_key
+
+# Historical records may contain the pre-application handoff work action. It is
+# replay compatibility only; new governance accepts only WORK_ACTIONS.
+HISTORICAL_WORK_RECEIPT_ACTIONS = {*WORK_ACTIONS, "record_handoff_evaluation"}
 from .models import Context, Proposal, Receipt, SubmissionProvenance
 from .storage import EventAppend, RecordStore, hash_event
 
@@ -80,7 +84,7 @@ class Kernel:
                 for receipt in receipts
                 if any(
                     operation.get("key") == work_id
-                    and operation.get("action") in WORK_ACTIONS
+                    and operation.get("action") in HISTORICAL_WORK_RECEIPT_ACTIONS
                     for operation in receipt["proposal"].get("operations", [])
                 )
             )
