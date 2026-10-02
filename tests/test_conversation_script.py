@@ -26,8 +26,12 @@ class ConversationScriptTests(unittest.TestCase):
         self.assertIn('GEMINI_MODEL="$GEMINI_MODEL"', codespace_start)
         self.assertIn('"protocol": "http"', devcontainer)
         self.assertIn('"onAutoForward": "notify"', devcontainer)
-        self.assertIn("http://localhost:8765/conversation", codespace_start)
-        self.assertIn('http://localhost:$PORT/conversation', script)
+        self.assertIn("CODESPACE_NAME", codespace_start)
+        self.assertIn("GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN", codespace_start)
+        self.assertIn("https://${CODESPACE_NAME}-8765.${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN}/conversation", codespace_start)
+        self.assertIn("CODESPACE_NAME", script)
+        self.assertIn("GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN", script)
+        self.assertIn("https://${CODESPACE_NAME}-${PORT}.${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN}/conversation", script)
 
 
 if __name__ == "__main__":
