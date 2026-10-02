@@ -18,6 +18,7 @@ on:
       - '.github/workflows/sudofx-runner.yml'
       - '.github/workflows/promote-runtime.yml'
       - '.github/workflows/pages.yml'
+      - '.github/workflows/public-live.yml'
       - '.github/workflows/phase-d-live-proof.yml'
   pull_request:
     paths:
