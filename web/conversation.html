@@ -50,7 +50,10 @@
       <textarea id="conversation-message" data-conversation-input rows="3" maxlength="4000" placeholder="Ask something…" disabled></textarea>
       <div class="conversation-compose-row">
         <small data-conversation-help>Waiting for the authenticated gateway.</small>
-        <button class="button primary" data-conversation-send type="submit" disabled>Send</button>
+        <div class="conversation-compose-actions">
+          <button class="button" data-conversation-paste type="button" disabled>Paste</button>
+          <button class="button primary" data-conversation-send type="submit" disabled>Send</button>
+        </div>
       </div>
     </form>
 
