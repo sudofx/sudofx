@@ -23,7 +23,7 @@ Use these terms:
 As of October 2, 2026:
 
 - `src/sudofx/applications.py` implements the application registry/host, deterministic action evaluation, version checks, and compact event-log storage.
-- `applications/conversation.py` provides the first small non-WAKE application proof.
+- `applications/conversation/` provides the first small non-WAKE application proof.
 - process-replacement tests reconstruct multiple conversation rounds from SQLite alone.
 - the WAKE repository contains a versioned `WAKE_APPLICATION`, a sudofx-backed transitional Store, verified legacy import/archive logic, and Phase E rehearsal workflows.
 - WAKE now writes provider-boundary evidence through sudofx's generic invocation journal and delegates durability-barrier/external-effect ordering to `InvocationLifecycle.invoke()`; Gemini-specific quota/fallback interpretation remains WAKE policy.
