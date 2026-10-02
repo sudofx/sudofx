@@ -56,6 +56,19 @@ def build_generate_request(
     return safe_model, request
 
 
+def request_json(request: urllib.request.Request, *, timeout: float) -> dict[str, Any]:
+    """Execute one Gemini request and decode a JSON object.
+
+    Error classification, retries, and quota policy stay with the caller. This
+    helper centralizes only the transport-success path shared by all adapters.
+    """
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        payload = json.loads(response.read().decode("utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError("Gemini response must be a JSON object")
+    return payload
+
+
 def extract_text(response: dict[str, Any]) -> str:
     """Extract the first non-empty textual candidate from generateContent."""
     candidates = response.get("candidates")
