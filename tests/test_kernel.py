@@ -1304,6 +1304,60 @@ json.dump({
         self.assertEqual(events[-1]["outcome"], "success")
         self.assertEqual(self.kernel.record.history(), ())
 
+    def test_runtime_effect_barrier_must_succeed_before_provider_call(self) -> None:
+        """External effects cannot begin until the caller's durability barrier succeeds."""
+        runtime = Runtime(self.kernel, self.kernel.record)
+        called = {"provider": False}
+
+        class NeverBeforeBarrier:
+            def propose(self, context):
+                called["provider"] = True
+                return Proposal("barrier-should-not-run", context.revision, ())
+
+        def fail_barrier():
+            raise OSError("remote checkpoint unavailable")
+
+        with self.assertRaises(OSError):
+            runtime.run(
+                NeverBeforeBarrier(),
+                provenance=SubmissionProvenance("model", "fixture", "unit-test"),
+                effect_barrier=fail_barrier,
+            )
+
+        self.assertFalse(called["provider"])
+        self.assertEqual(self.kernel.record.history(), ())
+        lifecycle = self.kernel.record.invocation_history()
+        self.assertEqual(
+            [event["stage"] for event in lifecycle],
+            ["requested", "context_delivered", "attempt_started", "failed"],
+        )
+        self.assertEqual(lifecycle[-1]["outcome"], "effect_barrier_failure")
+        self.assertEqual(lifecycle[-1]["detail"], "OSError")
+        self.assertEqual(self.kernel.record.incomplete_invocations(), ())
+
+    def test_runtime_effect_barrier_runs_after_attempt_evidence_before_provider(self) -> None:
+        """A successful barrier observes durable attempt evidence before provider execution."""
+        runtime = Runtime(self.kernel, self.kernel.record)
+        order = []
+
+        def barrier():
+            stages = [event["stage"] for event in self.kernel.record.invocation_history()]
+            self.assertEqual(stages, ["requested", "context_delivered", "attempt_started"])
+            order.append("barrier")
+
+        class Provider:
+            def propose(inner_self, context):
+                order.append("provider")
+                return Proposal("barrier-success", context.revision, (Operation("set", "x", 1),))
+
+        result = runtime.run(
+            Provider(),
+            provenance=SubmissionProvenance("model", "fixture", "unit-test"),
+            effect_barrier=barrier,
+        )
+        self.assertEqual(result.run.receipt.status, "accepted")
+        self.assertEqual(order, ["barrier", "provider"])
+
     def test_runtime_records_provider_failure_without_fabricating_proposal_receipt(self) -> None:
         """Provider failure is durable invocation evidence but never a proposal event."""
         runtime = Runtime(self.kernel, self.kernel.record)
