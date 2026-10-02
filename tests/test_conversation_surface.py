@@ -13,6 +13,7 @@ class ConversationSurfaceTests(unittest.TestCase):
     def test_surface_supports_private_local_server_without_browser_persistence(self) -> None:
         page = (ROOT / "web" / "conversation.html").read_text(encoding="utf-8")
         script = (ROOT / "web" / "assets" / "conversation.js").read_text(encoding="utf-8")
+        markdown_script = (ROOT / "web" / "assets" / "conversation-markdown.js").read_text(encoding="utf-8")
         config = (ROOT / "web" / "conversation-config.json").read_text(encoding="utf-8")
 
         self.assertIn("data-conversation-form", page)
@@ -40,6 +41,9 @@ class ConversationSurfaceTests(unittest.TestCase):
         self.assertIn("SudofxConversationMarkdown.render", script)
         self.assertIn("SudofxConversationMarkdown.toDocument", script)
         self.assertIn("text/markdown", script)
+        self.assertIn("textContent", markdown_script)
+        self.assertNotIn("innerHTML", markdown_script)
+        self.assertIn("# sudofx Conversation", markdown_script)
         self.assertNotIn("localStorage", script)
         self.assertNotIn("sessionStorage", script)
         self.assertNotIn("GEMINI_API_KEY", script)
