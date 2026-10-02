@@ -102,6 +102,22 @@ class KernelTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.tempdir.cleanup()
 
+    def _run_intelligence(
+        self,
+        kernel: Kernel,
+        intelligence,
+        *,
+        work_id: str | None = None,
+        provenance: SubmissionProvenance | None = None,
+    ):
+        """Test helper that preserves the production Runtime execution boundary."""
+        return Runtime(kernel, kernel.record).run(
+            intelligence,
+            work_id=work_id,
+            provenance=provenance
+            or SubmissionProvenance("runtime", "test-intelligence", "unit-test"),
+        ).run
+
     def test_database_size_uses_compact_units_at_binary_thresholds(self) -> None:
         """The phone readout should scale without changing the authoritative byte count."""
         self.assertEqual(_format_bytes(1023), "1023 B")
@@ -1325,8 +1341,8 @@ print(json.dumps(state["turns"]))
                 "p2", context.revision, (Operation("set", "step", context.state["step"] + 1),)
             )
         )
-        self.assertEqual(self.kernel.run(first).receipt.status, "accepted")
-        self.assertEqual(self.kernel.run(second).receipt.status, "accepted")
+        self.assertEqual(self._run_intelligence(self.kernel, first).receipt.status, "accepted")
+        self.assertEqual(self._run_intelligence(self.kernel, second).receipt.status, "accepted")
         self.assertEqual(self.kernel.context().state, {"step": 2})
 
     def test_external_process_advances_work_from_bounded_json_context(self) -> None:
@@ -1359,7 +1375,8 @@ json.dump({
         # Continuity must come from durable replay, not from surviving Python
         # objects or provider-local memory from the setup phase above.
         replacement = Kernel(Record(self.path))
-        result = replacement.run(
+        result = self._run_intelligence(
+            replacement,
             CommandIntelligence((sys.executable, "-c", helper)),
             work_id="external",
         )
@@ -1431,7 +1448,7 @@ json.dump({
         """Provider transport failure must not fabricate durable proposal history."""
         provider = CommandIntelligence((sys.executable, "-c", "print('not json')"))
         with self.assertRaises(ProviderError):
-            self.kernel.run(provider)
+            self._run_intelligence(self.kernel, provider)
         self.assertEqual(self.kernel.record.history(), ())
 
     def test_invocation_lifecycle_can_record_application_specific_provider_boundary(self) -> None:
@@ -1726,12 +1743,13 @@ json.dump({
     def test_replay_survives_kernel_and_provider_replacement(self) -> None:
         """Replacing both active objects must preserve authoritative state."""
         proposal = Proposal("p1", 0, (Operation("set", "provider", "fake-a"),))
-        self.kernel.run(FakeIntelligence([proposal]))
+        self._run_intelligence(self.kernel, FakeIntelligence([proposal]))
         replacement = Kernel(Record(self.path))
-        replacement.run(
+        self._run_intelligence(
+            replacement,
             FakeIntelligence(
                 [Proposal("p2", 1, (Operation("set", "provider", "fake-b"),))]
-            )
+            ),
         )
         self.assertEqual(replacement.context().state["provider"], "fake-b")
         self.assertEqual(replacement.context().revision, 2)
@@ -2357,8 +2375,8 @@ json.dump({
         self.assertEqual(created.status, "accepted")
         first = FakeWorkIntelligence("launch", "Defined the lifecycle", open_obligations=["Ship UI"])
         second = FakeWorkIntelligence("launch", "Shipped the UI")
-        self.assertEqual(self.kernel.run(first).receipt.status, "accepted")
-        self.assertEqual(self.kernel.run(second).receipt.status, "accepted")
+        self.assertEqual(self._run_intelligence(self.kernel, first).receipt.status, "accepted")
+        self.assertEqual(self._run_intelligence(self.kernel, second).receipt.status, "accepted")
         work = self.kernel.context().state["work:launch"]
         self.assertEqual(work["accepted_results"], ["Defined the lifecycle", "Shipped the UI"])
         self.assertEqual(work["work_revision"], 2)
