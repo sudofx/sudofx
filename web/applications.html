@@ -7,14 +7,14 @@
   <meta name="theme-color" content="#f6f8fc" media="(prefers-color-scheme: light)">
   <meta name="description" content="Applications currently using sudofx.">
   <title>Applications — sudofx</title>
-  <link rel="stylesheet" href="assets/site.css"><script defer src="assets/site.js"></script>
+  <script>try{const saved=localStorage.getItem("sudofx-theme");if(saved==="dark"||saved==="light")document.documentElement.dataset.theme=saved}catch{}</script><link rel="stylesheet" href="assets/site.css"><script defer src="assets/site.js"></script>
 </head>
 <body data-page="applications">
 <a class="skip-link" href="#main">Skip to content</a>
 <header class="nav-wrap"><nav class="nav shell" aria-label="Primary">
   <a class="brand" href="index.html">sudo<span>f(x)</span></a>
   <div class="nav-links"><a href="index.html">Home</a><a class="active" aria-current="page" href="applications.html">Applications</a><a href="technical.html">Technical</a><a href="metrics.html">Metrics</a><a href="https://github.com/sudofx/sudofx" target="_blank" rel="noopener noreferrer">GitHub ↗</a></div>
-</nav></header>
+<div class="header-tools"><label class="theme-switch" title="Toggle light/dark theme"><input data-theme-toggle type="checkbox" role="switch" aria-label="Use dark theme"><span class="theme-switch-track" aria-hidden="true"><i></i></span></label><span class="runtime-light" data-runtime-light data-state="checking" role="status" aria-label="sudofx status: checking" title="sudofx status: checking"><span class="runtime-light-track" aria-hidden="true"><i></i></span></span></div></nav></header>
 <main id="main">
 <section class="page-hero shell">
   <div class="eyebrow">Applications</div>
