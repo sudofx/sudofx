@@ -541,6 +541,7 @@ def main() -> int:
     """
     parser = argparse.ArgumentParser()
     parser.add_argument("--publish-only", action="store_true")
+    parser.add_argument("--refresh-live", action="store_true")
     parser.add_argument("--prove-work")
     parser.add_argument("--prove-model")
     parser.add_argument("--export-handoff")
@@ -765,7 +766,7 @@ def main() -> int:
                 ),
                 file=sys.stderr,
             )
-    if not args.publish_only and not args.prove_work and not args.prove_model and not args.export_handoff and not args.auto and not args.record_handoff_evaluation and not args.record_semantic_review and not args.record_chatgpt_semantic_review:
+    if not args.publish_only and not args.refresh_live and not args.prove_work and not args.prove_model and not args.export_handoff and not args.auto and not args.record_handoff_evaluation and not args.record_semantic_review and not args.record_chatgpt_semantic_review:
         if not args.action or not args.key:
             parser.error("--action and --key are required for a mutation")
         context = kernel.context()
