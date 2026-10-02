@@ -10,6 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 class ConversationScriptTests(unittest.TestCase):
     def test_launcher_restarts_and_reset_is_scoped_to_conversation_db(self) -> None:
         script = (ROOT / "scripts" / "conversation.sh").read_text(encoding="utf-8")
+        codespace_start = (ROOT / ".devcontainer" / "start-conversation.sh").read_text(encoding="utf-8")
 
         self.assertIn("--reset|—reset", script)
         self.assertIn("pkill -f 'python .*applications\\.conversation\\.server'", script)
@@ -20,6 +21,8 @@ class ConversationScriptTests(unittest.TestCase):
         self.assertIn("python -m applications.conversation.server", script)
         self.assertIn("--host 0.0.0.0", script)
         self.assertIn('--port "$PORT"', script)
+        self.assertIn('GEMINI_MODEL="${GEMINI_MODEL:-gemini-3.5-flash-lite}"', codespace_start)
+        self.assertIn('GEMINI_MODEL="$GEMINI_MODEL"', codespace_start)
 
 
 if __name__ == "__main__":
