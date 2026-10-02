@@ -36,11 +36,14 @@ For an assistant turn, authoritative state may retain:
 
 - SHA-256 response fingerprint;
 - character count;
-- a small governed set of semantic observations needed for future continuity.
+- a small governed set of semantic observations needed for future continuity;
+- explicit active commitments when the human establishes a persistent response obligation.
 
 Observations are bounded and screened for common direct identifiers. That screening is deliberately conservative and is not claimed to be a perfect PII detector. Users should not enter secrets or direct identifiers.
 
 The raw current human message is transient provider context. Previous raw turns are not replayed to the provider.
+
+Persistent obligations are not stored as transcript. Conversation gives them an explicit governed lifecycle separate from observations. The initial supported commitment kind is an exact response suffix: it can be created, deterministically enforced on every response, and explicitly revoked. This is intentionally narrower than treating every remembered preference as an instruction.
 
 ## Stateless-provider contract
 
