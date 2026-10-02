@@ -33,9 +33,9 @@ It contains the history from which authoritative state is reconstructed.
 
 ### Kernel
 
-Owns transition execution.
+Owns governed semantic submission and transition sequencing.
 
-It accepts structured proposals, invokes governance, writes receipts, and maintains atomicity.
+It accepts structured proposals, invokes governance, writes receipts, and maintains atomicity. It does **not** invoke providers. Provider execution belongs to Runtime, so pre-proposal failures can never be confused with governed proposal receipts.
 
 ### Governance
 
@@ -103,13 +103,23 @@ record becomes sensitive or operationally valuable.
 
 Owns presentation only.
 
-HTML, JSON proof artifacts, runner disposition files, and telemetry are generated views. They are never read back as authoritative work state.
+HTML, JSON proof artifacts, optional experiment projections, and telemetry are generated views. They are never read back as authoritative work state. Continuation is workflow-owned; Pages no longer publishes a runner disposition file as a second coordination signal.
 
 ### GitHub Actions operator boundary
 
 GitHub Actions owns manual runtime control. Pages remains public and unauthenticated.
 
 A dedicated internal latch workflow provides durable enabled/disabled state. Start enables the latch and dispatches one runtime cycle. Stop disables the latch before cancelling active cycles. The latch cannot edit work items, receipts, source, secrets, or SQLite state.
+
+## Hardened core boundary
+
+The reusable package under `src/sudofx/` is deliberately experiment-free.
+
+Continuity probes, overnight trials, manual handoff packet/prompt policy, and experiment-specific identities live under `experiments/` or orchestration scripts. CI fails if experiment imports or frozen experiment identifiers leak back into the reusable package.
+
+Provider execution is also sealed away from Kernel. CLI/provider paths route through `Runtime` / `InvocationLifecycle`, which own context-delivery evidence, pre-effect durability barriers, provider-attempt outcomes, and interruption recovery. Application/work namespaces cannot be mutated through generic `set` or `delete`; their dedicated governed actions are the only accepted paths.
+
+Obsolete duplicate surfaces have been retired: the old local cycle runner, the second conversation entry in the broad operator workflow, and uncalled diagnostic CLI flags.
 
 ## Application boundary
 
