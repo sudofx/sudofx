@@ -17,7 +17,7 @@ The success condition is not that one model remembers. The success condition is 
 | B — harden and sanitize | Substantially complete | Experiments are quarantined, replay/failure/invocation tests are extensive, schema identity is explicit, Pages is being kept read-only, and production paths are separated from experiment machinery. |
 | C — application contract | Substantially complete | `ApplicationDefinition`, registry/host, deterministic policy re-evaluation, namespaced state, migration/version checks, and compact event-log storage are implemented and tested. |
 | D — minimal human conversation proof | **Complete at contract level** | Governed human and assistant turns, bounded database-derived context, provider invocation, dedicated browser workflow, and derived Pages projection are implemented. CI now proves two back-and-forth rounds across separate Python interpreters sharing only the authoritative SQLite record, followed by a third fresh-process reconstruction of the four-turn transcript. |
-| E — WAKE✳︎ migration | Underway; core authority cutover complete | `wake-state` carries only `data/sudofx.sqlite`; fresh initialization is native sudofx; WAKE policy is a versioned application; generic invocation lifecycle, interruption recovery, external-effect ordering, and aggregate invocation accounting now use sudofx. Gemini-specific quota/fallback and research semantics remain above the kernel. |
+| E — WAKE✳︎ migration | **Complete at architectural exit condition on WAKE `master`** | `wake-state` carries only `data/sudofx.sqlite`; fresh initialization is native sudofx; WAKE policy is a versioned application; generic invocation lifecycle, interruption recovery, external-effect ordering, and aggregate invocation accounting use sudofx; legacy SQLite persistence is quarantined to migration/compatibility code. The explicitly promoted `wake-runtime` branch may lag while research is active. |
 
 ## What is already proven mechanically
 
@@ -73,8 +73,8 @@ This preserves the contract:
 
 1. Finish the Phase B/C audit for duplicate execution paths, application bypasses, and compatibility code that can now be retired or quarantined.
 2. Keep invocation/effect boundaries generic and avoid importing WAKE✳︎ research policy into the kernel.
-3. Continue Phase E incrementally: reduce duplicated WAKE engine responsibilities while preserving replay and behavioral equivalence.
-4. Retain the legacy WAKE Store only as verified migration/compatibility machinery; it is no longer an operational authority path.
+3. Treat further WAKE legacy-store cleanup as compatibility retirement, not as a missing Phase E authority cutover; preserve replay/equivalence while removing dead migration-only coupling.
+4. Keep the legacy WAKE Store quarantined to verified migration/compatibility machinery; it is no longer an operational authority path.
 5. Move authoritative cloud state away from a public Git ref before private or identifying durable material is allowed.
 6. Prove broader provider substitution when deliberately authorized.
 7. Continue long-horizon semantic tests; mechanical replay alone does not prove that compressed context preserves useful meaning indefinitely.
