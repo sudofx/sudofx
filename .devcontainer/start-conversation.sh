@@ -18,7 +18,11 @@ echo $! > /tmp/sudofx-conversation.pid
 echo "sudofx Conversation is starting on private forwarded port 8765."
 echo "SQLite authority: /workspaces/sudofx/.data/conversation.sqlite"
 echo "Gemini model: $GEMINI_MODEL"
-echo "Open Conversation: http://localhost:8765/conversation"
+if [[ -n "${CODESPACE_NAME:-}" && -n "${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN:-}" ]]; then
+  echo "Open Conversation: https://${CODESPACE_NAME}-8765.${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN}/conversation"
+else
+  echo "Open Conversation: http://localhost:8765/conversation"
+fi
 if [[ -z "${GEMINI_API_KEY:-}" ]]; then
   echo "WARNING: GEMINI_API_KEY is not set. Add it as a GitHub Codespaces secret before sending a message."
 fi
