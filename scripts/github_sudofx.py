@@ -54,12 +54,16 @@ from experiments.continuity import (
     run_work_continuity_probe,
 )
 from sudofx.report import export_site
-from experiments.manual_handoff.packet import build_handoff_packet, build_manual_prompt, export_handoff_packet
-from experiments.manual_handoff.scoring import (
+from applications.handoff import (
+    HandoffService,
+    build_handoff_packet,
+    build_manual_prompt,
+    export_handoff_packet,
     evaluate_handoff_response,
     handoff_packet_digest,
     handoff_work_id,
 )
+from applications.handoff.service import build_manual_evaluation_projection as _handoff_projection
 from experiments.overnight import EXPERIMENT_STATE_KEY
 from scripts.github_state import DATA, STATE_BRANCH, checkpoint, git, restore
 
@@ -348,67 +352,8 @@ def build_manual_evaluation_projection(
     kernel: Kernel,
     work_id: str = AUTO_HANDOFF_ID,
 ) -> dict[str, object]:
-    """Project compact manual-test evidence from authoritative SQLite state."""
-    context = kernel.context()
-    work = context.state.get(f"work:{work_id}", {})
-    evaluations = work.get("handoff_evaluations", []) if isinstance(work, dict) else []
-    if not isinstance(evaluations, list):
-        evaluations = []
-    clean = [item for item in evaluations if isinstance(item, dict)]
-    latest = clean[-1] if clean else None
-    comparable: list[dict[str, object]] = []
-    if latest is not None:
-        digest = latest.get("packet_digest")
-        scorer = latest.get("scorer_version")
-        comparable = [
-            item for item in clean
-            if item.get("packet_digest") == digest
-            and item.get("scorer_version") == scorer
-        ]
-    vendors = sorted({
-        str(item.get("vendor", "")).strip()
-        for item in comparable
-        if str(item.get("vendor", "")).strip()
-    })
-    score = sum(
-        int(item.get("score", 0))
-        for item in comparable
-        if isinstance(item.get("score"), int)
-    )
-    recent = [
-        {
-            "vendor": item.get("vendor", ""),
-            "test_id": item.get("test_id", ""),
-            "score": item.get("score", 0),
-            "scorer_version": item.get("scorer_version"),
-            "packet_digest": item.get("packet_digest", ""),
-        }
-        for item in clean[-8:]
-    ]
-    return {
-        "projection_schema": 1,
-        "projection_kind": "disposable-manual-evaluation-view",
-        "record_revision": context.revision,
-        "work_id": work_id,
-        "total_tests": len(clean),
-        "latest": {
-            "vendor": latest.get("vendor", ""),
-            "test_id": latest.get("test_id", ""),
-            "score": latest.get("score", 0),
-            "scorer_version": latest.get("scorer_version"),
-            "packet_digest": latest.get("packet_digest", ""),
-        } if latest is not None else None,
-        "comparable_batch": {
-            "tests": len(comparable),
-            "vendors": vendors,
-            "score": score,
-            "max_score": len(comparable) * 7,
-            "packet_digest": latest.get("packet_digest", "") if latest is not None else "",
-            "scorer_version": latest.get("scorer_version") if latest is not None else None,
-        },
-        "recent": recent,
-    }
-
+    """Compatibility facade over the Handoff application's disposable projection."""
+    return _handoff_projection(kernel, work_id)
 
 def build_public_site_projection(
     kernel: Kernel,
@@ -747,18 +692,11 @@ def main() -> int:
             selected_work_id,
         )
         result = evaluate_handoff_response(raw_response, packet)
-        context = kernel.context()
-        receipt = kernel.submit(
-            Proposal(
-                str(uuid.uuid4()), context.revision,
-                (Operation("record_handoff_evaluation", selected_work_id, result),),
-                # GitHub Actions supplies the authenticated operator boundary; the kernel remains the only path that can record the untrusted result.
-                "GitHub operator submitted one human-transported handoff evaluation",
-            ),
+        receipt = HandoffService(kernel).record_evaluation(
+            selected_work_id,
+            result,
             provenance=SubmissionProvenance("human", "operator", "github-actions"),
         )
-        if receipt.status != "accepted":
-            raise RuntimeError(f"handoff evaluation was {receipt.status}: {receipt.reasons}")
         checkpoint()
         kernel = Kernel(Record(DATA))
         try:
