@@ -1064,6 +1064,104 @@ json.dump({
             ],
         )
 
+    def test_conversation_survives_separate_python_processes(self) -> None:
+        """Phase D exit: separate interpreters continue one conversation from SQLite only."""
+        root = Path(__file__).resolve().parents[1]
+        first_round = r"""
+from pathlib import Path
+import json, sys
+from scripts.conversation_sudofx import commit_human_turn, commit_assistant_turn
+from sudofx import SubmissionProvenance
+
+path = Path(sys.argv[1])
+commit_human_turn(
+    "First process question",
+    data_path=path,
+    provenance=SubmissionProvenance("human", "operator", "fresh-process-one"),
+)
+provider = (
+    sys.executable,
+    "-c",
+    "import json,sys; json.load(sys.stdin); "
+    "json.dump({'content':'First process answer'}, sys.stdout)",
+)
+reply = commit_assistant_turn(
+    data_path=path,
+    provider_command=provider,
+    provenance=SubmissionProvenance("model", "fixture", "fresh-process-one"),
+)
+assert reply == "First process answer"
+"""
+        second_round = r"""
+from pathlib import Path
+import sys
+from scripts.conversation_sudofx import commit_human_turn, commit_assistant_turn
+from sudofx import SubmissionProvenance
+
+path = Path(sys.argv[1])
+commit_human_turn(
+    "Second process question",
+    data_path=path,
+    provenance=SubmissionProvenance("human", "operator", "fresh-process-two"),
+)
+provider = (
+    sys.executable,
+    "-c",
+    "import json,sys; data=json.load(sys.stdin); "
+    "turns=data['state']['app:conversation']['turns']; "
+    "assert turns[-3] == {'role':'assistant','content':'First process answer'}; "
+    "assert turns[-2] == {'role':'human','content':'Second process question'}; "
+    "json.dump({'content':'Second process answer'}, sys.stdout)",
+)
+reply = commit_assistant_turn(
+    data_path=path,
+    provider_command=provider,
+    provenance=SubmissionProvenance("model", "fixture", "fresh-process-two"),
+)
+assert reply == "Second process answer"
+"""
+        inspect_round = r"""
+from pathlib import Path
+import json, sys
+from applications.conversation import CONVERSATION_APPLICATION
+from sudofx import ApplicationHost, ApplicationRegistry, Kernel
+from sudofx.governance import Governance
+from sudofx.record import Record
+
+path = Path(sys.argv[1])
+registry = ApplicationRegistry((CONVERSATION_APPLICATION,))
+kernel = Kernel(Record(path), Governance(application_registry=registry))
+state = ApplicationHost(kernel, registry, "conversation").context().state
+print(json.dumps(state["turns"]))
+"""
+        for script in (first_round, second_round):
+            completed = subprocess.run(
+                [sys.executable, "-c", script, str(self.path)],
+                cwd=root,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(completed.returncode, 0, completed.stderr or completed.stdout)
+
+        inspected = subprocess.run(
+            [sys.executable, "-c", inspect_round, str(self.path)],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(inspected.returncode, 0, inspected.stderr or inspected.stdout)
+        self.assertEqual(
+            json.loads(inspected.stdout),
+            [
+                {"role": "human", "content": "First process question"},
+                {"role": "assistant", "content": "First process answer"},
+                {"role": "human", "content": "Second process question"},
+                {"role": "assistant", "content": "Second process answer"},
+            ],
+        )
+
     def test_conversation_projection_discloses_omitted_history(self) -> None:
         """Bounded provider context must make compression visible rather than silent."""
         turns = [
