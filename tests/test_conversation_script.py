@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 class ConversationScriptTests(unittest.TestCase):
     def test_launcher_restarts_and_reset_is_scoped_to_conversation_db(self) -> None:
-        script = (ROOT / "scripts" / "conversation").read_text(encoding="utf-8")
+        script = (ROOT / "scripts" / "conversation.sh").read_text(encoding="utf-8")
 
         self.assertIn("--reset|—reset", script)
         self.assertIn("pkill -f 'python .*applications\\.conversation\\.server'", script)
