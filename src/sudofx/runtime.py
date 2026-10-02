@@ -155,7 +155,7 @@ class InvocationLifecycle:
     def proposal_received(self, proposal_id: str) -> None:
         self._event("proposal_received", proposal_id=proposal_id)
 
-    def governed(self, proposal_id: str, receipt_id: str, status: str) -> None:
+    def governed(self, proposal_id: str, receipt_id: str | None, status: str) -> None:
         self._event(
             "governed",
             proposal_id=proposal_id,
