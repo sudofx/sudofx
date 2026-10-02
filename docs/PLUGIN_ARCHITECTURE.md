@@ -1,23 +1,22 @@
-# Plugin Architecture — superseded terminology
+# Plugin architecture — historical redirect
 
-**Status:** Superseded by [Application Architecture](APPLICATION_ARCHITECTURE.md) and `100126-CONTRACT.md`.
+**Status:** Deprecated terminology.  
+**Current authority:** [APPLICATION_ARCHITECTURE.md](APPLICATION_ARCHITECTURE.md) and [../100126-CONTRACT.md](../100126-CONTRACT.md).
 
-The original plugin direction correctly identified that sudofx needed a small reusable core and optional capabilities. The term **plugin**, however, became too broad and incorrectly described WAKE✳︎.
+The earlier design explored WAKE✳︎ as a sudofx “plugin.” That framing is no longer the active architecture.
 
-Current terminology is:
+A complete domain system such as WAKE✳︎ is now an **application**. Optional capabilities that augment an application or the engine may be called **extensions**. The term **plugin** is reserved only for a future technical loading or packaging mechanism if dynamic installation is actually implemented.
 
-- **application** — a complete domain system built on sudofx, such as WAKE✳︎
-- **extension** — an optional capability that augments sudofx or an application
-- **plugin** — a possible technical packaging/loading mechanism, only if dynamic installation is implemented
+Do not use this file as an implementation specification.
 
-The still-valid architectural rules are preserved:
+Current vocabulary:
 
-- installed code does not become trusted merely because it is present;
-- no application or extension owns a competing durable source of truth;
-- meaningful actions remain subject to deterministic governance and durable provenance;
-- external permissions/effects must be explicit;
-- failures must not silently corrupt core state.
+- **kernel** — smallest durable authority boundary
+- **runtime** — context, invocation, recovery, provider/effect coordination
+- **application** — complete domain system built on sudofx
+- **extension** — optional capability that augments the engine or an application
+- **plugin** — optional loading/packaging mechanism only if implemented
 
-Do not build new architecture against this document. Use
-[APPLICATION_ARCHITECTURE.md](APPLICATION_ARCHITECTURE.md) and
-[100126-CONTRACT.md](../100126-CONTRACT.md).
+The current application contract is implemented in `src/sudofx/applications.py` and documented in [APPLICATION_ARCHITECTURE.md](APPLICATION_ARCHITECTURE.md).
+
+WAKE✳︎ migration work lives in the separate `sudofx/wake` repository and must preserve WAKE-specific research policy above the generic sudofx authority boundary.
