@@ -55,14 +55,14 @@ jobs:
         run: PYTHONPATH=src:. python -m unittest discover -s tests -v
 
       - name: Run one governed conversation turn
-        # scripts/conversation_sudofx.py commits the human-origin turn before
+        # applications.conversation.runtime commits the human-origin turn before
         # provider invocation. If Gemini fails, durable failure evidence remains
         # and the human input is not erased or silently retried as success.
         env:
           GEMINI_MODEL: ${{ inputs.model }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           MESSAGE: ${{ inputs.message }}
-        run: PYTHONPATH=src python scripts/conversation_sudofx.py --message "$MESSAGE" --summary-file "$GITHUB_STEP_SUMMARY"
+        run: PYTHONPATH=src:. python -m applications.conversation.runtime --message "$MESSAGE" --summary-file "$GITHUB_STEP_SUMMARY"
 
       - name: Resume enabled continuity after conversation
         # Conversation is a finite operator action, not permission to start an
