@@ -38,7 +38,6 @@ import subprocess
 import sys
 import tempfile
 import uuid
-from contextlib import closing
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -48,10 +47,8 @@ if str(ROOT) not in sys.path:
 from sudofx import Kernel, Operation, Proposal, SubmissionProvenance
 from sudofx.record import Record
 from experiments.continuity import (
-    run_compressed_model_continuity_probe,
     run_continuity_proof,
     run_default_model_continuity_probe,
-    run_model_continuity_probe,
     run_work_continuity_probe,
 )
 from sudofx.report import export_site
@@ -455,13 +452,8 @@ def main() -> int:
     parser.add_argument("--publish-only", action="store_true")
     parser.add_argument("--prove-work")
     parser.add_argument("--prove-model")
-    parser.add_argument("--prove-model-uncompressed")
-    parser.add_argument("--prove-model-compressed")
-    parser.add_argument("--compressed-results", type=int, default=4)
-    parser.add_argument("--compressed-receipts", type=int, default=8)
     parser.add_argument("--export-handoff")
     parser.add_argument("--backup")
-    parser.add_argument("--prove-vacuum-recovery", action="store_true")
     parser.add_argument("--auto", action="store_true")
     parser.add_argument("--record-handoff-evaluation", action="store_true")
     parser.add_argument("--record-semantic-review", action="store_true")
@@ -608,33 +600,6 @@ def main() -> int:
         record.backup_to(backup_path)
         print(json.dumps({"backup": str(backup_path), "health": record.health()}, sort_keys=True))
         return 0
-    if args.prove_vacuum_recovery:
-        if not restored:
-            raise RuntimeError("VACUUM recovery proof requires an existing authoritative record")
-        before_revision, before_state = record.replay()
-        before_history = record.history()
-        before_head = before_history[-1]["event_hash"] if before_history else ""
-        with tempfile.TemporaryDirectory() as temporary:
-            snapshot = Path(temporary) / "vacuum-recovery.sqlite"
-            record.vacuum_snapshot_to(snapshot)
-            recovered_revision, recovered_state = Record(snapshot).replay()
-            with closing(sqlite3.connect(snapshot)) as connection:
-                integrity = str(connection.execute("PRAGMA integrity_check").fetchone()[0])
-        after_revision, after_state = record.replay()
-        after_history = record.history()
-        after_head = after_history[-1]["event_hash"] if after_history else ""
-        checks = {
-            "snapshot_integrity_check": integrity == "ok",
-            "snapshot_revision_matches_authority": recovered_revision == before_revision,
-            "snapshot_state_matches_authority": recovered_state == before_state,
-            "authority_revision_unchanged": after_revision == before_revision,
-            "authority_state_unchanged": after_state == before_state,
-            "authority_event_head_unchanged": after_head == before_head,
-        }
-        if not all(checks.values()):
-            raise AssertionError(f"VACUUM recovery proof failed: {checks}")
-        print(json.dumps({"passed": True, "kind": "vacuum-into-recovery", "checks": checks}, sort_keys=True))
-        return 0
     # Observer-mode automation: one stable operator command advances the current
     # milestone without asking the human to shuttle IDs or long text between devices.
     # The database remains authoritative: code may seed the work once, then all
@@ -709,7 +674,7 @@ def main() -> int:
                 ),
                 file=sys.stderr,
             )
-    if not args.publish_only and not args.prove_work and not args.prove_model and not args.prove_model_uncompressed and not args.prove_model_compressed and not args.export_handoff and not args.prove_vacuum_recovery and not args.auto and not args.record_handoff_evaluation and not args.record_semantic_review and not args.record_chatgpt_semantic_review:
+    if not args.publish_only and not args.prove_work and not args.prove_model and not args.export_handoff and not args.auto and not args.record_handoff_evaluation and not args.record_semantic_review and not args.record_chatgpt_semantic_review:
         if not args.action or not args.key:
             parser.error("--action and --key are required for a mutation")
         context = kernel.context()
@@ -783,22 +748,16 @@ def main() -> int:
     # deterministic fixture so every build still checks the mechanism.
     prove_work_id = args.prove_work.strip() if args.prove_work is not None else None
     prove_model_id = args.prove_model.strip() if args.prove_model is not None else None
-    prove_model_uncompressed_id = args.prove_model_uncompressed.strip() if args.prove_model_uncompressed is not None else None
-    prove_model_compressed_id = args.prove_model_compressed.strip() if args.prove_model_compressed is not None else None
     handoff_id = args.export_handoff.strip() if args.export_handoff is not None else None
     if args.prove_work is not None and not prove_work_id:
         parser.error("--prove-work requires a non-empty work ID")
     if args.prove_model is not None and not prove_model_id:
         parser.error("--prove-model requires a non-empty work ID")
-    if args.prove_model_uncompressed is not None and not prove_model_uncompressed_id:
-        parser.error("--prove-model-uncompressed requires a non-empty work ID")
-    if args.prove_model_compressed is not None and not prove_model_compressed_id:
-        parser.error("--prove-model-compressed requires a non-empty work ID")
     if args.export_handoff is not None and not handoff_id:
         parser.error("--export-handoff requires a non-empty work ID")
-    selected_read_only = [value for value in (prove_work_id, prove_model_id, prove_model_uncompressed_id, prove_model_compressed_id, handoff_id, auto_handoff_id) if value]
+    selected_read_only = [value for value in (prove_work_id, prove_model_id, handoff_id, auto_handoff_id) if value]
     if len(selected_read_only) > 1:
-        parser.error("--prove-work, --prove-model, --prove-model-uncompressed, --prove-model-compressed, --export-handoff, and --auto are mutually exclusive")
+        parser.error("--prove-work, --prove-model, --export-handoff, and --auto are mutually exclusive")
 
     if prove_model_id:
         # Normal live-model policy: provider context is a derived bounded view.
@@ -813,33 +772,6 @@ def main() -> int:
             (sys.executable, str(ROOT / "scripts" / "gemini_provider.py")),
             provider="Google Gemini",
             model=model,
-        )
-    elif prove_model_uncompressed_id:
-        # Explicit diagnostic baseline only. This preserves the old full-context
-        # experiment so compression can be compared without making it the normal
-        # model-facing policy.
-        model = os.environ.get("GEMINI_MODEL", "").strip()
-        if not model:
-            parser.error("GEMINI_MODEL is required for --prove-model-uncompressed")
-        continuity_proof = run_model_continuity_probe(
-            DATA,
-            prove_model_uncompressed_id,
-            (sys.executable, str(ROOT / "scripts" / "gemini_provider.py")),
-            provider="Google Gemini",
-            model=model,
-        )
-    elif prove_model_compressed_id:
-        model = os.environ.get("GEMINI_MODEL", "").strip()
-        if not model:
-            parser.error("GEMINI_MODEL is required for --prove-model-compressed")
-        continuity_proof = run_compressed_model_continuity_probe(
-            DATA,
-            prove_model_compressed_id,
-            (sys.executable, str(ROOT / "scripts" / "gemini_provider.py")),
-            provider="Google Gemini",
-            model=model,
-            recent_result_limit=args.compressed_results,
-            receipt_limit=args.compressed_receipts,
         )
     elif prove_work_id:
         continuity_proof = run_work_continuity_probe(DATA, prove_work_id)
@@ -887,7 +819,7 @@ def main() -> int:
     # Explicit one-shot probes are diagnostic evidence. Emit their bounded
     # proof to the Actions log so the result survives the disposable runner
     # without creating another durable state artifact or requiring Pages.
-    if prove_work_id or prove_model_id or prove_model_uncompressed_id or prove_model_compressed_id:
+    if prove_work_id or prove_model_id:
         print(json.dumps({"continuity_proof": continuity_proof}, sort_keys=True))
     export_id = handoff_id or auto_handoff_id
     if export_id:
