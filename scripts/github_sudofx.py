@@ -52,7 +52,7 @@ from experiments.continuity import (
     run_work_continuity_probe,
 )
 from sudofx.report import export_site
-from experiments.manual_handoff.packet import build_handoff_packet, export_handoff_packet
+from experiments.manual_handoff.packet import build_handoff_packet, build_manual_prompt, export_handoff_packet
 from experiments.manual_handoff.scoring import (
     evaluate_handoff_response,
     handoff_packet_digest,
@@ -809,13 +809,24 @@ def main() -> int:
     continuity_proof.setdefault("artifact_commit", verification["commit"])
     continuity_proof["projection_run_id"] = run_id
     continuity_proof["projection_commit"] = verification["commit"]
+    manual_packet = None
+    manual_prompt = ""
+    try:
+        manual_packet = build_handoff_packet(kernel, AUTO_HANDOFF_ID)
+        manual_prompt = build_manual_prompt(manual_packet)
+    except ValueError:
+        # A valid generic projection does not require the optional handoff experiment.
+        pass
     export_site(
         kernel,
         ROOT / "site",
         repository=repository,
         verification=verification,
         continuity_proof=continuity_proof,
+        manual_prompt=manual_prompt,
     )
+    if manual_packet is not None:
+        export_handoff_packet(kernel, ROOT / "site", AUTO_HANDOFF_ID)
     # Explicit one-shot probes are diagnostic evidence. Emit their bounded
     # proof to the Actions log so the result survives the disposable runner
     # without creating another durable state artifact or requiring Pages.
