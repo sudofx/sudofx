@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import hashlib
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from .kernel import Kernel, RunResult
@@ -242,6 +243,7 @@ class Runtime:
         provenance: SubmissionProvenance,
         work_id: str | None = None,
         context_scope: dict[str, str] | None = None,
+        effect_barrier: Callable[[], None] | None = None,
     ) -> InvocationResult:
         """Execute one disposable intelligence with reconstructable lifecycle evidence."""
         context = self.kernel.context(work_id=work_id)
@@ -252,6 +254,24 @@ class Runtime:
             work_id=work_id,
             context_scope=context_scope,
         )
+
+        # Some execution hosts must make the already-recorded request/attempt
+        # evidence durable outside the current process before an irreversible
+        # external effect begins. For example, a cloud runner may checkpoint the
+        # authoritative database before spending a provider quota slot.
+        #
+        # The barrier receives no database or provider capability. It may only
+        # confirm that the caller's durability boundary succeeded. Failure means
+        # the provider is never invoked.
+        if effect_barrier is not None:
+            try:
+                effect_barrier()
+            except Exception as error:
+                lifecycle.fail(
+                    outcome="effect_barrier_failure",
+                    detail=type(error).__name__,
+                )
+                raise
 
         try:
             proposal = intelligence.propose(context)
