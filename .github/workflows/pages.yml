@@ -4,7 +4,14 @@ on:
   push:
     branches: [master]
     paths:
+      # Publication must rerun when either rendering code or the verified
+      # restore/projection adapter changes. A prior schema-migration fix lived
+      # in github_sudofx.py and therefore never exercised Pages automatically.
       - 'src/sudofx/report.py'
+      - 'src/sudofx/record.py'
+      - 'src/sudofx/applications.py'
+      - 'scripts/github_sudofx.py'
+      - 'scripts/github_state.py'
       - '.github/workflows/pages.yml'
 
 permissions:
