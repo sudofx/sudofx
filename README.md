@@ -60,8 +60,9 @@ Implemented and exercised on `master`:
 - bounded context with explicit omission evidence
 - provider-neutral execution boundaries
 - application identity, versioning, actions, policy re-evaluation, migration boundaries, and event-log storage
-- a governed conversation application that survives process replacement from SQLite alone
-- a dedicated GitHub Actions conversation execution proof
+- a privacy-bounded governed Conversation application that survives process replacement from SQLite alone
+- a runnable private/local chat transport whose visible transcript stays transient while SQLite stores governed observations
+- an encrypted GitHub Actions transport seam for a future authenticated cloud gateway
 - GitHub Pages as a lightweight, read-only public shell
 - a separate historyless `sudofx-live` branch for disposable public-safe metrics and technical projections, so state changes do not rebuild Pages
 - phone-first operator workflows and explicit Start/Stop control
@@ -132,9 +133,9 @@ SQLite
 derived browser projection
 ```
 
-Tests now run separate Python interpreters for successive conversation rounds and reconstruct the final transcript in a third fresh process using only SQLite. The dedicated `conversation.yml` workflow remains an execution proof; the public Applications page links to the packaged implementation rather than presenting that workflow as the end-user chat experience.
+`applications/conversation/server.py` now provides the smallest complete end-to-end chat path: a mobile-first browser talks to a private same-origin server, every provider invocation starts fresh, and SQLite retains only governed fingerprints/observations rather than raw transcript text. The public Pages shell exposes the Conversation UI but remains disabled until an authenticated private gateway is actually configured; it does not fall back to browser credentials or PATs.
 
-The browser is transport and presentation, not memory.
+Tests also preserve the earlier fresh-process continuity proof. The browser is transport and presentation, not memory.
 
 ## Database-first storage
 
