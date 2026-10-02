@@ -14,6 +14,7 @@ import os
 from pathlib import Path
 import threading
 from typing import Any
+from urllib.parse import urlsplit
 
 from sudofx import ApplicationHost, ApplicationRegistry, Kernel
 from sudofx.governance import Governance
@@ -85,14 +86,17 @@ def _handler(service: ConversationService):
             self.wfile.write(body)
 
         def do_GET(self) -> None:
-            if self.path == "/api/conversation/status":
+            requested = urlsplit(self.path)
+            if requested.path == "/api/conversation/status":
                 try:
                     self._json(200, service.status())
                 except Exception:
                     self._json(500, {"error": "conversation status unavailable"})
                 return
-            if self.path in {"/", "/conversation"}:
+            if requested.path in {"/", "/conversation"}:
                 self.path = "/conversation.html"
+                if requested.query:
+                    self.path += "?" + requested.query
             super().do_GET()
 
         def do_POST(self) -> None:
