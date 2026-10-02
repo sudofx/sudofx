@@ -147,6 +147,40 @@ class GeminiTransportTests(unittest.TestCase):
             with self.assertRaises(ProviderError):
                 provider.generate(request)
 
+    def test_provider_error_payload_is_flattened_and_quota_ids_preserved(self) -> None:
+        quota_id = "GenerateRequestsPerDayPerProjectPerModel-FreeTier"
+        body = {
+            "error": {
+                "code": 429,
+                "status": "RESOURCE_EXHAUSTED",
+                "message": "daily quota reached",
+                "details": [{"violations": [{"quotaId": quota_id}]}],
+            }
+        }
+        error = urllib.error.HTTPError(
+            "https://example",
+            429,
+            "quota",
+            {"Retry-After": "60"},
+            None,
+        )
+        error.read = lambda maximum=None: json.dumps(body).encode()
+
+        provider = GeminiGenerationProvider("private-key", timeout_seconds=5)
+        with patch("sudofx.generation.urllib.request.urlopen", side_effect=error):
+            with self.assertRaises(ProviderQuotaError) as raised:
+                provider.generate(
+                    GenerationRequest(model="gemini-test", prompt="bounded")
+                )
+
+        details = raised.exception.details
+        self.assertEqual(details["provider_error"]["status"], "RESOURCE_EXHAUSTED")
+        self.assertEqual(details["provider_error"]["code"], 429)
+        self.assertIn(quota_id, details["quota_ids"])
+        self.assertEqual(details["retry_after"], "60")
+        self.assertNotIn("private-key", json.dumps(details))
+
+
     def test_provider_returns_untrusted_text_without_exposing_secret(self) -> None:
         class Response:
             def __enter__(self):
