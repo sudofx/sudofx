@@ -221,7 +221,7 @@ class Runtime:
             invocation_id = str(pending["invocation_id"])
             self.journal.append_invocation_event(
                 InvocationEvent(
-                    invocation_id=lifecycle.invocation_id,
+                    invocation_id=invocation_id,
                     stage="failed",
                     source_revision=int(pending["source_revision"]),
                     context_digest=str(pending["context_digest"]),
@@ -279,6 +279,6 @@ class Runtime:
             detail=receipt.status,
         )
         return InvocationResult(
-            invocation_id=invocation_id,
+            invocation_id=lifecycle.invocation_id,
             run=RunResult(context=context, proposal=proposal, receipt=receipt),
         )
