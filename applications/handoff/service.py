@@ -21,7 +21,10 @@ class HandoffService:
 
     def __init__(self, kernel: Kernel, registry: ApplicationRegistry | None = None) -> None:
         self.kernel = kernel
-        self.registry = registry or kernel.governance.application_registry
+        kernel_registry = kernel.governance.application_registry
+        if registry is not None and registry is not kernel_registry:
+            raise ValueError("handoff registry must be the kernel governance registry")
+        self.registry = kernel_registry
         if self.registry.get(HANDOFF_APPLICATION.application_id) is None:
             self.registry.register(HANDOFF_APPLICATION)
         self.host = ApplicationHost(kernel, self.registry, HANDOFF_APPLICATION.application_id)
@@ -36,11 +39,9 @@ class HandoffService:
         scoped = self.kernel.context(work_id=work_id)
         if f"work:{work_id}" not in scoped.state:
             raise ValueError(f"work item does not exist: {work_id}")
-        state = self.host.context().state
-        existing = evaluations_for_work(state, work_id)
+            state = self.host.context().state
         targets = state.get("targets", {}) if isinstance(state, dict) else {}
         if isinstance(targets, dict) and work_id in targets:
-            _ = existing
             return
         receipt = self.host.submit(
             ApplicationIntent(
