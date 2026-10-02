@@ -147,6 +147,12 @@
     return poll(data.request_id);
   };
 
+  input.addEventListener('keydown',event=>{
+    if(event.key!=='Enter'||event.shiftKey||event.isComposing)return;
+    event.preventDefault();
+    if(!busy&&!input.disabled)form.requestSubmit();
+  });
+
   form.addEventListener('submit',async event=>{
     event.preventDefault();
     if(busy)return;
