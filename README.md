@@ -61,7 +61,7 @@ Implemented and exercised on `master`:
 - provider-neutral execution boundaries
 - application identity, versioning, actions, policy re-evaluation, migration boundaries, and event-log storage
 - a governed conversation application that survives process replacement from SQLite alone
-- a dedicated GitHub Actions conversation input surface
+- a dedicated GitHub Actions conversation execution proof
 - GitHub Pages as a lightweight, read-only public shell
 - a separate historyless `sudofx-live` branch for disposable public-safe metrics and technical projections, so state changes do not rebuild Pages
 - phone-first operator workflows and explicit Start/Stop control
@@ -132,7 +132,7 @@ SQLite
 derived browser projection
 ```
 
-Tests now run separate Python interpreters for successive conversation rounds and reconstruct the final transcript in a third fresh process using only SQLite. The public projection links to the dedicated `conversation.yml` workflow for one-message browser input.
+Tests now run separate Python interpreters for successive conversation rounds and reconstruct the final transcript in a third fresh process using only SQLite. The dedicated `conversation.yml` workflow remains an execution proof; the public Applications page links to the packaged implementation rather than presenting that workflow as the end-user chat experience.
 
 The browser is transport and presentation, not memory.
 
@@ -152,8 +152,8 @@ The current `sudofx-state` Git ref is public. Do not place private or identifyin
 
 ```text
 src/sudofx/             reusable engine: kernel, storage, governance, runtime, applications
-applications/           concrete sudofx applications; conversation is the first small proof
-scripts/                provider, GitHub runtime, recovery, conversation adapters
+applications/           concrete application packages; each application owns its own directory
+scripts/                shared GitHub/runtime/recovery and transport utilities
 web/                    lightweight public-site shell; live data is fetched from sudofx-live
 .github/workflows/      CI, operator control, conversation, runtime, Pages
 tests/                  invariant, replay, failure, lifecycle, and application proofs
