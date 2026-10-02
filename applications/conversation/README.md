@@ -62,16 +62,17 @@ A provider can be replaced without changing Conversation's durable semantics.
 
 The public shell never receives a PAT and never becomes authority.
 
-Two transport patterns are supported:
+Three transport/runtime patterns are defined:
 
 - **private same-origin server** — `python -m applications.conversation.server` hosts the chat and one explicit SQLite authority directly;
-- **OAuth gateway + GitHub Actions** — an authenticated gateway encrypts the current message, dispatches `conversation.yml`, and decrypts the matching encrypted response from the historyless `conversation-live` projection.
+- **private GitHub Codespace** — the repository dev container starts that same server on port 8765. GitHub keeps forwarded ports private by default and authenticates the codespace creator before access;
+- **encrypted Actions seam** — `conversation.yml` remains available for a future authenticated server-side gateway. It is not exposed directly to the browser.
 
-The Actions path requires the same `CONVERSATION_TRANSPORT_KEY` to be available to the authenticated gateway and the GitHub Actions deployment. Workflow inputs and the disposable reply branch contain ciphertext, not plaintext.
+The Actions seam requires the same `CONVERSATION_TRANSPORT_KEY` at both ends. Workflow inputs and the disposable reply branch contain ciphertext, not plaintext.
 
-The public Pages client reads `web/conversation-config.json`. Leave `gateway_url` empty until the authenticated gateway is actually deployed; do not invent a fallback PAT or expose repository credentials in browser code.
+The public Pages client reads `web/conversation-config.json`. Its current public launch target is GitHub Codespaces. `gateway_url` remains empty because GitHub Pages cannot safely complete GitHub OAuth or hold server-side credentials by itself. Do not invent a fallback PAT or expose repository/provider credentials in browser code.
 
-If GitHub authentication is used, use GitHub OAuth.
+For the Codespaces path, add `GEMINI_API_KEY` as a GitHub Codespaces secret before starting a Conversation codespace. The forwarded port is private and GitHub-authenticated; no application OAuth secret is shipped to Pages.
 
 ## Authority rule
 
