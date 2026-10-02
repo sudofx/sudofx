@@ -1089,16 +1089,18 @@ json.dump({
         self.assertIn("Visible human turn", page)
         self.assertIn("Visible assistant turn", page)
         self.assertIn("Send next message", page)
-        self.assertIn("actions/workflows/sudofx.yml", page)
-    def test_operator_workflow_exposes_governed_conversation_browser_path(self) -> None:
-        """The zero-cost browser proof uses workflow input and disposable Actions summary."""
+        self.assertIn("actions/workflows/conversation.yml", page)
+
+    def test_dedicated_workflow_exposes_governed_conversation_browser_path(self) -> None:
+        """The zero-cost browser proof is a one-message authenticated workflow surface."""
         workflow = (
-            Path(__file__).parents[1] / ".github" / "workflows" / "sudofx.yml"
+            Path(__file__).parents[1] / ".github" / "workflows" / "conversation.yml"
         ).read_text(encoding="utf-8")
-        self.assertIn("backup, conversation, handoff-evaluate", workflow)
-        self.assertIn("inputs.action == 'conversation'", workflow)
+        self.assertIn("message:", workflow)
         self.assertIn("scripts/conversation_sudofx.py", workflow)
         self.assertIn("--summary-file \"$GITHUB_STEP_SUMMARY\"", workflow)
+        self.assertIn("group: sudofx-authority-v4", workflow)
+        self.assertIn("preserving operator Stop", workflow)
 
     def test_fresh_intelligences_continue_from_durable_context(self) -> None:
         """A second provider instance must derive progress only from durable context."""
