@@ -30,7 +30,6 @@ from dataclasses import dataclass
 
 from .governance import Governance, WORK_ACTIONS, work_key
 from .models import Context, Proposal, Receipt, SubmissionProvenance
-from .providers import Intelligence
 from .storage import EventAppend, RecordStore, hash_event
 
 
@@ -86,24 +85,6 @@ class Kernel:
                 )
             )
         return Context(revision=revision, state=state, recent_receipts=receipts)
-
-    def run(
-        self,
-        intelligence: Intelligence,
-        *,
-        work_id: str | None = None,
-        provenance: SubmissionProvenance | None = None,
-    ) -> RunResult:
-        """
-        Give one disposable intelligence a bounded context and submit its proposal.
-
-        No provider reference or hidden memory is retained after this call. A
-        later run must reconstruct everything it needs from the durable record.
-        """
-        context = self.context(work_id=work_id)
-        proposal = intelligence.propose(context)
-        receipt = self.submit(proposal, provenance=provenance)
-        return RunResult(context=context, proposal=proposal, receipt=receipt)
 
     def submit(
         self,
