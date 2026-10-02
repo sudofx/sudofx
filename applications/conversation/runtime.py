@@ -271,6 +271,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--message", required=True)
     parser.add_argument("--summary-file")
+    parser.add_argument("--response-file")
     parser.add_argument(
         "--print-response",
         action="store_true",
@@ -279,6 +280,8 @@ def main() -> int:
     args = parser.parse_args()
     response = run_turn(args.message)
     _write_summary(args.summary_file)
+    if args.response_file:
+        Path(args.response_file).write_text(response, encoding="utf-8")
     if args.print_response:
         print(response)
     return 0
