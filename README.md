@@ -1,3 +1,29 @@
+<div align="center">
+
+# Hi, I'm Rob 👋
+
+### I build systems for durable, accountable work across models, vendors, people, and time.
+
+**Current focus:** externalized context, governed AI workflows, replayable state, and systems that stay understandable after the intelligence using them changes.
+
+</div>
+
+## About me
+
+I’m interested in a simple but difficult problem: **how do useful ideas, decisions, evidence, and obligations survive when the model, vendor, device, maintainer, or session changes?**
+
+Most of my current work explores that question by keeping authority outside the model, preserving provenance, and making continuity reconstructable instead of relying on hidden memory.
+
+## Projects
+
+- **[sudofx](https://github.com/sudofx/sudofx)** — a governed engine for durable work across interchangeable intelligences. SQLite is authoritative; models propose and the system governs.
+- **[WAKE✳︎](https://github.com/sudofx/wake)** — an experimental research application built around durable evidence, obligations, correction, and externalized continuity. It is currently migrating onto the sudofx application boundary.
+- **[lab](https://github.com/sudofx/lab)** — my Docker lab and infrastructure sandbox.
+
+Earlier projects: [pure-bootstrap](https://github.com/sudofx/pure-bootstrap) · [python-digitalocean-backup](https://github.com/sudofx/python-digitalocean-backup)
+
+---
+
 # sudofx
 
 **Durable, accountable work across interchangeable intelligences.**
