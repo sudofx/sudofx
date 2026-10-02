@@ -12,6 +12,7 @@
   const paste=root.querySelector('[data-conversation-paste]');
   const help=root.querySelector('[data-conversation-help]');
   const clear=root.querySelector('[data-conversation-clear]');
+  const exportButton=root.querySelector('[data-conversation-export]');
   const popout=root.querySelector('[data-conversation-popout]');
   const auth=root.querySelector('[data-conversation-auth]');
   const login=root.querySelector('[data-conversation-login]');
@@ -19,6 +20,7 @@
   let codespacesUrl='';
   let localMode=false;
   let busy=false;
+  const transcript=[];
   const popoutMode=new URLSearchParams(location.search).get('popout')==='1';
   if(popoutMode){
     document.body.classList.add('conversation-popout-mode');
@@ -41,8 +43,8 @@
     article.className='conversation-bubble '+(role==='human'?'human':'assistant');
     const meta=document.createElement('span');
     meta.textContent=role==='human'?'You':'Assistant';
-    const body=document.createElement('p');
-    body.textContent=text;
+    transcript.push({role,text});
+    const body=window.SudofxConversationMarkdown.render(text);
     const copy=document.createElement('button');
     copy.type='button';
     copy.className='conversation-copy';
@@ -258,6 +260,27 @@
     }
   });
 
+  if(exportButton){
+    exportButton.addEventListener('click',()=>{
+      if(!transcript.length){
+        help.textContent='There is no visible conversation to export yet.';
+        return;
+      }
+      const markdown=window.SudofxConversationMarkdown.toDocument(transcript);
+      const blob=new Blob([markdown],{type:'text/markdown;charset=utf-8'});
+      const url=URL.createObjectURL(blob);
+      const link=document.createElement('a');
+      const stamp=new Date().toISOString().replace(/[:.]/g,'-');
+      link.href=url;
+      link.download='sudofx-conversation-'+stamp+'.md';
+      document.body.append(link);
+      link.click();
+      link.remove();
+      setTimeout(()=>URL.revokeObjectURL(url),0);
+      help.textContent='Exported the visible conversation as Markdown. SQLite was not read.';
+    });
+  }
+
   if(popout){
     popout.addEventListener('click',()=>{
       const target=new URL(location.href);
@@ -267,6 +290,7 @@
   }
 
   clear.addEventListener('click',()=>{
+    transcript.length=0;
     messages.querySelectorAll('.conversation-bubble').forEach(node=>node.remove());
     if(intro)intro.hidden=false;
     const connected=localMode||Boolean(gateway);
