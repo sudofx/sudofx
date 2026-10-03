@@ -168,15 +168,6 @@ def _privacy_state(current: JsonValue) -> dict[str, JsonValue]:
             "text": commitment["text"],
             "placement": placement,
         }
-        source_proposal_id = commitment.get("source_proposal_id")
-        if source_proposal_id is not None:
-            if (
-                not isinstance(source_proposal_id, str)
-                or not source_proposal_id.strip()
-                or len(source_proposal_id) > 128
-            ):
-                raise ValueError("conversation commitment source proposal id is invalid")
-            normalized["source_proposal_id"] = source_proposal_id.strip()
         normalized_commitments.append(normalized)
     return {
         "turn_count": turn_count,
@@ -237,11 +228,7 @@ def _normalize_observations(values: object) -> tuple[list[str], str | None]:
     return normalized, None
 
 
-def _normalize_commitment_updates(
-    values: object,
-    *,
-    source_proposal_id: str | None = None,
-) -> tuple[list[dict[str, str]], str | None]:
+def _normalize_commitment_updates(values: object) -> tuple[list[dict[str, str]], str | None]:
     if not isinstance(values, list):
         return [], "assistant commitment updates must be a list"
     if len(values) > 2:
@@ -275,10 +262,6 @@ def _normalize_commitment_updates(
             "text": text,
             "placement": placement,
         }
-        if source_proposal_id is not None:
-            if not source_proposal_id.strip() or len(source_proposal_id) > 128:
-                return [], "assistant commitment source proposal id is invalid"
-            item["source_proposal_id"] = source_proposal_id.strip()
         normalized.append(item)
     return normalized, None
 
@@ -298,8 +281,6 @@ def _apply_commitment_updates(
             "text": update["text"],
             "placement": update.get("placement", "end"),
         }
-        if "source_proposal_id" in update:
-            item["source_proposal_id"] = update["source_proposal_id"]
         active.append(item)
     return active[-MAX_ACTIVE_COMMITMENTS:]
 
@@ -488,8 +469,6 @@ def private_assistant_descriptor(
     response: str,
     observations: object,
     commitment_updates: object = (),
-    *,
-    source_proposal_id: str | None = None,
 ) -> dict[str, JsonValue]:
     """Build safe durable assistant metadata after provider output validation."""
     if not isinstance(response, str) or not response.strip():
@@ -498,10 +477,7 @@ def private_assistant_descriptor(
     normalized, error = _normalize_observations(observations)
     if error is not None:
         raise ValueError(error)
-    normalized_updates, update_error = _normalize_commitment_updates(
-        list(commitment_updates),
-        source_proposal_id=source_proposal_id,
-    )
+    normalized_updates, update_error = _normalize_commitment_updates(list(commitment_updates))
     if update_error is not None:
         raise ValueError(update_error)
     return {
