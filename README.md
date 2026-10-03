@@ -46,7 +46,7 @@ Record → Context → Proposal → Governance → Transition → Receipt → Re
 
 **Models propose. The system governs.**
 
-## Current status — October 2, 2026
+## Current status — October 3, 2026
 
 The project has moved beyond the original continuity proof into a reusable engine/application architecture.
 
@@ -107,7 +107,7 @@ Pages, workflow state, JSON, Markdown, reports, summaries, handoff packets, and 
 
 sudofx owns a global application-access latch in authoritative SQLite. The operator can STOP or RESTORE connected-application access through the dedicated **sudofx — application access** workflow. STOP does not shut down sudofx itself: inspection, recovery, and operator work remain available while application-origin work is denied.
 
-Each access transition advances a generation token. Application work captures that generation before execution and the kernel rechecks it inside the commit transaction, so work that began before a STOP/RESTORE boundary cannot commit afterward using stale authority. Connected deployments with separate databases must consult the central sudofx latch before beginning provider work; WAKE✳︎ now performs that preflight before each cloud research cycle.
+Each access transition advances a generation token and is recorded in an independently hash-chained operational audit. Application work captures that generation before execution and the kernel rechecks it inside the commit transaction, so work that began before a STOP/RESTORE boundary cannot commit afterward using stale authority. Emergency STOP deliberately has no full-test-suite dependency and may preempt ordinary serialized authority work; RESTORE is stricter and requires the full test suite to pass before access is reopened. Connected deployments with separate databases must consult the central sudofx latch before beginning provider work.
 
 ## Applications, not plugins
 
