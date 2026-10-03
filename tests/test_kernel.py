@@ -90,6 +90,18 @@ class ContractOnlyStore:
     def history(self):
         return self._record.history()
 
+    def full_replay(self):
+        return self._record.full_replay()
+
+    def application_access_state(self):
+        return self._record.application_access_state()
+
+    def require_application_access(self, expected_generation):
+        return self._record.require_application_access(expected_generation)
+
+    def set_application_access(self, enabled, *, actor, reason=""):
+        return self._record.set_application_access(enabled, actor=actor, reason=reason)
+
     def projection_snapshot(self, history_limit=50):
         return self._record.projection_snapshot(history_limit)
 
