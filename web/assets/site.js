@@ -19,6 +19,7 @@
       generated:raw.generated||raw.generated_at||raw.projection_generated||'',
       revision:raw.record_revision??raw.revision??health.revision,
       health,
+      access:raw.application_access||{},
       summary:raw.summary||{},
       continuity,
       cm,
@@ -66,6 +67,22 @@
       if(quickCheck==='ok')setRuntimeLight('running','sudofx status: authoritative database health check is OK');
       else if(quickCheck)setRuntimeLight('stopped','sudofx status: authoritative database health check is '+quickCheck);
       else setRuntimeLight('stale','sudofx status: live projection loaded, but database health is not reported');
+      const accessBox=q('[data-application-access]');
+      if(accessBox){
+        const access=d.access||{};
+        const dot=accessBox.querySelector('[data-access-dot]');
+        const copy=accessBox.querySelector('[data-access-copy]');
+        if(access.enabled===true){
+          if(dot){dot.style.background='var(--accent)';dot.style.boxShadow='0 0 18px var(--accent)'}
+          if(copy)copy.textContent='External application access is ENABLED · generation '+String(access.generation??'—')+'.';
+        }else if(access.enabled===false){
+          if(dot){dot.style.background='var(--danger)';dot.style.boxShadow='0 0 18px var(--danger)'}
+          if(copy)copy.textContent='External application access is STOPPED · generation '+String(access.generation??'—')+'. sudofx remains online for operator access.';
+        }else if(copy){
+          copy.textContent='Application access state is not present in the current live projection.';
+        }
+      }
+
       const summary=q('[data-live-summary] p');
       if(summary){
         const events=d.health.event_count!==undefined?' · '+d.health.event_count+' governed events':'';
