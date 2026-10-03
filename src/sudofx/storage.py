@@ -118,6 +118,31 @@ class InvocationEvent:
     detail: str = ""
 
 
+@dataclass(frozen=True)
+class ApplicationAccessState:
+    """Describe the authoritative global application-access latch.
+
+    generation advances only when the enabled/disabled state changes. A caller
+    captures that generation before an application/provider effect and storage
+    verifies the same generation again immediately before commit. This makes an
+    operator STOP invalidate application work that was already in flight.
+    """
+
+    enabled: bool
+    generation: int
+    actor: str
+    reason: str
+    changed_at: str
+
+
+class ApplicationAccessError(RuntimeError):
+    """Reject application work when the global sudofx access latch is closed."""
+
+    def __init__(self, code: str = "SUDOFX_EXTERNAL_ACCESS_DISABLED") -> None:
+        self.code = code
+        super().__init__(code)
+
+
 class InvocationJournal(Protocol):
     """Backend-independent append-only evidence surface for runtime invocations."""
 
@@ -157,6 +182,10 @@ class WriteTransaction(ReadTransaction, Protocol):
 
     def head_hash(self) -> str: ...
 
+    def require_application_access(self, expected_generation: int) -> None:
+        """Fail closed unless app access is enabled at the captured generation."""
+        ...
+
     def append(
         self,
         event: EventAppend,
@@ -180,6 +209,24 @@ class RecordStore(Protocol):
     def history(self) -> tuple[dict[str, Any], ...]: ...
 
     def full_replay(self) -> tuple[int, dict[str, JsonValue]]: ...
+
+    def application_access_state(self) -> ApplicationAccessState:
+        """Return the authoritative global application-access latch."""
+        ...
+
+    def set_application_access(
+        self,
+        enabled: bool,
+        *,
+        actor: str,
+        reason: str = "",
+    ) -> ApplicationAccessState:
+        """Record an operator-owned global access transition."""
+        ...
+
+    def require_application_access(self, expected_generation: int) -> None:
+        """Fail closed unless app access is enabled at the captured generation."""
+        ...
 
     def projection_snapshot(
         self, history_limit: int = 50
