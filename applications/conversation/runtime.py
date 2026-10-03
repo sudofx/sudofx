@@ -108,7 +108,20 @@ class ConversationIntelligence:
 
         if self.private_mode:
             observations = response.get("observations", [])
-            commitment_updates = response.get("commitment_updates", [])
+            if "commitment_updates" in response:
+                commitment_updates = response.get("commitment_updates", [])
+            else:
+                commitment_updates = []
+                suffix = response.get("response_suffix", "")
+                clear_suffix = response.get("clear_response_suffix", False)
+                if clear_suffix is True:
+                    commitment_updates.append({"op": "clear", "kind": "response_suffix"})
+                if isinstance(suffix, str) and suffix.strip():
+                    commitment_updates.append({
+                        "op": "upsert",
+                        "kind": "response_suffix",
+                        "text": suffix,
+                    })
             try:
                 self.last_content = enforce_response_commitments(
                     self.current_state,
