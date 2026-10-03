@@ -184,6 +184,30 @@ def commit_human_turn(
         raise RuntimeError(f"human conversation turn was rejected: {'; '.join(human.reasons)}")
 
 
+def recover_failed_private_turn(
+    *,
+    data_path: Path,
+    category: str,
+) -> None:
+    """Return a failed private turn to human-ready state without transcript storage."""
+    kernel, registry = _kernel(data_path)
+    host = ApplicationHost(kernel, registry, CONVERSATION_APPLICATION.application_id)
+    failure = host.submit(
+        ApplicationIntent(
+            proposal_id=str(uuid.uuid4()),
+            based_on_revision=host.context().revision,
+            action="private_provider_failure",
+            payload={"category": category},
+            rationale="Close failed private provider turn without transcript persistence",
+        ),
+        provenance=SubmissionProvenance("system", "conversation", "provider-failure"),
+    )
+    if failure.status != "accepted":
+        raise RuntimeError(
+            f"failed conversation turn could not be recovered: {'; '.join(failure.reasons)}"
+        )
+
+
 def commit_assistant_turn(
     *,
     data_path: Path = DATA,
@@ -252,11 +276,21 @@ def run_private_turn(
     """
     message = validate_private_message(message)
     commit_human_turn(message, data_path=data_path, private_mode=True)
-    return commit_assistant_turn(
-        data_path=data_path,
-        provider_command=provider_command,
-        private_message=message,
-    )
+    try:
+        return commit_assistant_turn(
+            data_path=data_path,
+            provider_command=provider_command,
+            private_message=message,
+        )
+    except Exception as error:
+        try:
+            recover_failed_private_turn(
+                data_path=data_path,
+                category=type(error).__name__,
+            )
+        except Exception:
+            pass
+        raise
 
 
 def run_turn(message: str, *, provider_command: tuple[str, ...] | None = None) -> str:
