@@ -51,7 +51,7 @@ It receives bounded context and returns an untrusted result shaped for its appli
 
 ### Global application-access boundary
 
-Authoritative SQLite contains a singleton application-access latch plus an append-only transition audit. The latch is operational authority and does not advance semantic work revision. Applications capture its generation before work, recheck access immediately before provider effects, and revalidate the same generation inside the serialized kernel commit transaction. STOP therefore invalidates stale in-flight application commits while leaving operator/kernel access available.
+Authoritative SQLite contains a singleton application-access latch plus an independently hash-chained transition audit. The latch is operational authority and does not advance semantic work revision. Applications capture its generation before work, recheck access immediately before provider effects, and revalidate the same generation inside the serialized kernel commit transaction. STOP therefore invalidates stale in-flight application commits while leaving operator/kernel access available. Emergency STOP intentionally avoids a full-suite dependency and may preempt ordinary work in the serialized authority lane; RESTORE requires the full suite to pass before reopening application access.
 
 Deployments with separate application databases cannot obtain a mathematically atomic distributed fence from a static website or GitHub workflow alone. They must consult the central sudofx authority before beginning new work; WAKE✳︎ performs that check before each cloud cycle. A future always-on central sudofx service can extend the same generation contract across distributed commits.
 
