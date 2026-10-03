@@ -393,6 +393,7 @@ def build_public_site_projection(
 
     continuity = dict(continuity_proof)
     continuity_metrics: dict[str, object] = {}
+    application_access = record.application_access_state()
 
     # Current continuity probes already expose bounded compression evidence.
     # Normalize that experiment-owned shape once here so the browser never has
@@ -429,11 +430,11 @@ def build_public_site_projection(
         "record_revision": context.revision,
         "health": health,
         "application_access": {
-            "enabled": record.application_access_state().enabled,
-            "generation": record.application_access_state().generation,
-            "actor": record.application_access_state().actor,
-            "reason": record.application_access_state().reason,
-            "changed_at": record.application_access_state().changed_at,
+            "enabled": application_access.enabled,
+            "generation": application_access.generation,
+            "actor": application_access.actor,
+            "reason": application_access.reason,
+            "changed_at": application_access.changed_at,
         },
         "summary": {
             "work_items": len(work_items),
