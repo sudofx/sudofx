@@ -22,8 +22,9 @@ permissions:
 concurrency:
   # The latch and semantic state share one serialized authority lane so STOP
   # cannot race a state checkpoint and disappear behind an older database push.
+  # Emergency STOP is allowed to preempt current work; RESTORE/STATUS are not.
   group: sudofx-authority-v4
-  cancel-in-progress: false
+  cancel-in-progress: ${{ inputs.mode == 'STOP' }}
 
 jobs:
   access:
