@@ -21,6 +21,7 @@ from .application import (
     private_assistant_descriptor,
     private_bounded_context,
     enforce_response_commitments,
+    declared_commitment_updates,
     grounded_commitment_updates,
     private_message_descriptor,
     validate_private_message,
@@ -160,10 +161,28 @@ class ConversationIntelligence:
                 # The provider may structure human intent but may not invent
                 # durable instructions. Ground updates before they can affect
                 # even the transient reply, then submit the same bounded set.
-                commitment_updates = grounded_commitment_updates(
+                provider_updates = grounded_commitment_updates(
                     commitment_updates,
                     context.state["app:conversation"].get("current_message"),
                 )
+                # Structured init declarations are authoritative syntax, so
+                # persist them even when the probabilistic provider neglects
+                # to emit corresponding updates. Merge by full structure to
+                # keep the provider and parser paths idempotent.
+                commitment_updates = declared_commitment_updates(
+                    context.state["app:conversation"].get("current_message")
+                )
+                for proposed in provider_updates:
+                    same_owner = any(
+                        active["kind"] == proposed["kind"]
+                        and (
+                            proposed["kind"] == "response_suffix"
+                            or active.get("text") == proposed.get("text")
+                        )
+                        for active in commitment_updates
+                    )
+                    if not same_owner and len(commitment_updates) < 4:
+                        commitment_updates.append(proposed)
                 self.last_content = enforce_response_commitments(
                     self.current_state,
                     self.last_content,

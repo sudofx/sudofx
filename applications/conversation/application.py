@@ -24,7 +24,11 @@ MAX_DURABLE_OBSERVATIONS = 32
 MAX_ACTIVE_COMMITMENTS = 8
 MAX_COMMITMENT_CHARS = 240
 RESPONSE_SUFFIX_PLACEMENTS = {"end", "new_line"}
-COMMITMENT_KINDS = {"response_suffix", "response_instruction"}
+COMMITMENT_KINDS = {
+    "response_suffix",
+    "follow_up_question",
+    "response_instruction",
+}
 
 _DIRECT_IDENTIFIER_PATTERNS = (
     re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.I),
@@ -188,7 +192,7 @@ def _privacy_state(current: JsonValue) -> dict[str, JsonValue]:
         text = commitment["text"].strip()
         if len(text) > MAX_COMMITMENT_CHARS:
             raise ValueError("conversation commitment is too long")
-        if kind == "response_instruction":
+        if kind in {"follow_up_question", "response_instruction"}:
             normalized_commitments.append({"kind": kind, "text": text})
             continue
         placement = commitment.get("placement", "end")
@@ -398,6 +402,66 @@ def grounded_commitment_updates(
     ]
 
 
+def declared_commitment_updates(source_message: str) -> list[dict[str, str]]:
+    """Parse the explicit Conversation init format without provider judgment.
+
+    The init prompt is an operator-authored control surface, not ordinary prose:
+    a ``following footer:`` block declares one exact suffix and each
+    ``[DONT FORGET]`` bullet declares an independent semantic instruction.
+    Parsing only those narrow markers avoids promoting casual requests while
+    ensuring a disposable provider cannot silently omit explicit commitments.
+    Returned text is copied from the validated message and therefore retains
+    the same human-grounding invariant as provider-proposed updates.
+    """
+    source = validate_private_message(source_message)
+    updates: list[dict[str, str]] = []
+
+    footer_match = re.search(
+        r"following footer:\s*\n+\s*([^\n]+?)\s*\n---(?:\n|$)",
+        source,
+        flags=re.IGNORECASE,
+    )
+    if footer_match is not None:
+        updates.append(
+            {
+                "op": "upsert",
+                "kind": "response_suffix",
+                "text": footer_match.group(1).strip(),
+                "placement": "new_line",
+            }
+        )
+
+    for match in re.finditer(
+        r"^\s*-\s*\[DONT FORGET\]\s*(.+?)\s*$",
+        source,
+        flags=re.IGNORECASE | re.MULTILINE,
+    ):
+        text = match.group(1).strip()
+        if len(text) <= MAX_COMMITMENT_CHARS:
+            # A recurring follow-up question has a small deterministic output
+            # invariant, so give it a concrete kind instead of weakening it to
+            # provider guidance. Other semantic obligations remain visible to
+            # each fresh provider but cannot be fabricated by that provider.
+            lowered = text.casefold()
+            kind = (
+                "follow_up_question"
+                if "follow-up question" in lowered and "every response" in lowered
+                else "response_instruction"
+            )
+            updates.append(
+                {
+                    "op": "upsert",
+                    "kind": kind,
+                    "text": text,
+                }
+            )
+
+    normalized, error = _normalize_commitment_updates(updates[:4])
+    if error is not None:
+        raise ValueError(error)
+    return normalized
+
+
 def _apply_commitment_updates(
     commitments: list[dict[str, str]],
     updates: list[dict[str, str]],
@@ -450,6 +514,15 @@ def enforce_response_commitments(
         updates,
     )
     content = response.strip()
+
+    # Provider instruction-following is useful but is not enforcement. When
+    # the human explicitly requires a follow-up on every response, repair an
+    # omitted question before applying any exact footer. The fallback is
+    # intentionally generic because inventing a topical question would require
+    # semantic authority the application does not possess.
+    if any(item["kind"] == "follow_up_question" for item in commitments) and "?" not in content:
+        content = content.rstrip() + "\n\nWhat would you like me to consider next?"
+
     for commitment in commitments:
         if commitment["kind"] != "response_suffix":
             continue

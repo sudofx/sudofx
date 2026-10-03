@@ -36,6 +36,8 @@ Commitment update shape:
   {"op":"clear","kind":"response_suffix"}
 - add a semantic response instruction, preserving the human's exact words:
   {"op":"upsert","kind":"response_instruction","text":"..."}
+- require a follow-up question in every response:
+  {"op":"upsert","kind":"follow_up_question","text":"..."}
 - clear one response instruction by repeating its exact active text:
   {"op":"clear","kind":"response_instruction","text":"..."}
 
@@ -52,6 +54,8 @@ Commitment rules:
 - response_instruction represents a persistent behavioral obligation that
   cannot be reduced to an exact suffix. Follow every active response_instruction
   on every turn, including the turn that creates it;
+- follow_up_question is mechanically enforced by the application when the
+  provider omits a question, but the provider should still ask a relevant one;
 - commitment upsert text must be an exact contiguous excerpt of current_message;
 - when the human requests an ongoing user model or memory, use verified durable
   observations as that explicit privacy-bounded model; never claim hidden memory;
@@ -142,7 +146,11 @@ def main() -> int:
                                 "op": {"type": "string", "enum": ["upsert", "clear"]},
                                 "kind": {
                                     "type": "string",
-                                    "enum": ["response_suffix", "response_instruction"],
+                                    "enum": [
+                                        "response_suffix",
+                                        "follow_up_question",
+                                        "response_instruction",
+                                    ],
                                 },
                                 "text": {"type": "string"},
                                 "placement": {

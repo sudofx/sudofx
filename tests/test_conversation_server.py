@@ -181,6 +181,52 @@ class ConversationServerTests(unittest.TestCase):
                 [item["text"] for item in state["privacy"]["verified_observations"]],
             )
 
+    def test_structured_init_commitments_do_not_depend_on_provider_extraction(self) -> None:
+        """Explicit init syntax becomes authority even when the model emits no updates."""
+        with tempfile.TemporaryDirectory() as temporary:
+            database = Path(temporary) / "conversation.sqlite"
+            footer = "codename: stereo v.0.1.3"
+            ask = "Ask the user one follow-up question per every response"
+            model = 'Build a "shadow memory model of the user" per the user\'s directive'
+            provider = (
+                sys.executable,
+                "-c",
+                "import json,sys; d=json.load(sys.stdin); "
+                "s=d['state']['app:conversation']; m=s['current_message']; "
+                "active=s.get('active_commitments',[]); "
+                "first=m.startswith('# init prompt:'); "
+                "assert first or len(active)==3; "
+                "content=('Understood. What should I focus on?' if first else "
+                "'Here are some suggestions.'); "
+                "json.dump({'content':content,'observations':[],'commitment_updates':[]},sys.stdout)",
+            )
+            service = ConversationService(database, provider_command=provider)
+            init = (
+                "# init prompt:\n\n---\n"
+                "codename: stereo v.0.1.3\n"
+                'Your codename is "stereo v.0.1.3". Don\'t forget it. '
+                "I need every response from you to contain the following footer:\n\n"
+                f"{footer}\n---\n"
+                "Your commitments:\n"
+                f"- [DONT FORGET] {ask}\n"
+                f"- [DONT FORGET] {model}.\n"
+            )
+
+            first = service.converse(init)
+            second = service.converse("Got any suggestions?")
+
+            self.assertTrue(first["content"].endswith("\n\n" + footer))
+            self.assertTrue(second["content"].endswith("\n\n" + footer))
+            self.assertIn("What would you like me to consider next?", second["content"])
+            registry = ApplicationRegistry((CONVERSATION_APPLICATION,))
+            kernel = Kernel(Record(database), Governance(application_registry=registry))
+            state = ApplicationHost(kernel, registry, "conversation").context().state
+            self.assertEqual(len(state["privacy"]["commitments"]), 3)
+            self.assertIn(
+                "follow_up_question",
+                {item["kind"] for item in state["privacy"]["commitments"]},
+            )
+
     def test_provider_cannot_invent_a_durable_response_instruction(self) -> None:
         """Only exact human excerpts may become persistent provider policy."""
         updates = grounded_commitment_updates(
