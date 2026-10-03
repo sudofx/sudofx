@@ -46,15 +46,25 @@ Commitment rules:
   deterministically.
 
 Observation rules:
-- do not copy the transcript or quote the user;
+- every observation must be an exact contiguous excerpt from current_message;
+- never paraphrase, summarize, infer, generalize, or add a fact that is not
+  literally present in current_message;
 - do not include direct identifiers, contact details, addresses, account IDs,
   URLs, or secrets;
-- preserve meaning needed for later continuity, not wording;
+- choose only short excerpts whose meaning is useful for future continuity;
 - each observation must be at most 240 characters;
-- use [] when no durable observation is useful.
+- use [] when no exact supported excerpt is useful.
+
+Response grounding rules:
+- personal facts about the human may come only from current_message or the
+  verified durable observations supplied in state;
+- never invent, autocomplete, or substitute plausible personal details;
+- if the available evidence does not support a requested personal fact, say it
+  is unknown rather than guessing.
 
 The current human message is transient. Prior conversation text is intentionally
-not present.
+not present. Durable observations include provenance and have already passed the
+runtime's exact-excerpt check.
 """
 
 
