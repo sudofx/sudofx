@@ -53,8 +53,26 @@ class ProjectedKernel:
             raise ValueError("conversation projection does not accept work_id")
         return self.projected_context
 
-    def submit(self, proposal: Proposal, *, provenance: SubmissionProvenance | None = None):
-        return self.kernel.submit(proposal, provenance=provenance)
+    def application_access_state(self):
+        """Delegate the authoritative application-access latch to the real kernel."""
+        return self.kernel.application_access_state()
+
+    def require_application_access(self, expected_generation: int) -> None:
+        """Recheck access without giving the projection its own authority."""
+        self.kernel.require_application_access(expected_generation)
+
+    def submit(
+        self,
+        proposal: Proposal,
+        *,
+        provenance: SubmissionProvenance | None = None,
+        application_access_generation: int | None = None,
+    ):
+        return self.kernel.submit(
+            proposal,
+            provenance=provenance,
+            application_access_generation=application_access_generation,
+        )
 
 
 class ConversationIntelligence:
