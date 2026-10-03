@@ -119,6 +119,51 @@ class ConversationPrivacyTests(unittest.TestCase):
             )
             self.assertNotIn("last_governance_rejection", privacy)
 
+    def test_commitment_provenance_points_to_accepted_proposal(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "record.sqlite"
+            human_text = "Keep a governed footer commitment on its own line."
+            commit_human_turn(
+                human_text,
+                data_path=path,
+                private_mode=True,
+                provenance=SubmissionProvenance("human", "fixture", "unit-test"),
+            )
+            provider = (
+                sys.executable,
+                "-c",
+                "import json,sys; json.load(sys.stdin); "
+                "json.dump({'content':'Committed.',"
+                "'observations':[],"
+                "'commitment_updates':[{'op':'upsert','kind':'response_suffix',"
+                "'text':'Persistent footer.','placement':'new_line'}]},sys.stdout)",
+            )
+            reply = commit_assistant_turn(
+                data_path=path,
+                provider_command=provider,
+                private_message=human_text,
+                provenance=SubmissionProvenance("model", "fixture", "unit-test"),
+            )
+            self.assertEqual(reply, "Committed.\n\nPersistent footer.")
+
+            registry = ApplicationRegistry((CONVERSATION_APPLICATION,))
+            kernel = Kernel(Record(path), Governance(application_registry=registry))
+            host = ApplicationHost(kernel, registry, "conversation")
+            commitment = private_bounded_context(host.context().state)["active_commitments"][0]
+            source_proposal_id = commitment["source_proposal_id"]
+
+            assistant_receipts = [
+                receipt
+                for receipt in Record(path).history()
+                if receipt["status"] == "accepted"
+                and receipt["proposal"]["proposal_id"] == source_proposal_id
+            ]
+            self.assertEqual(len(assistant_receipts), 1)
+            operation = assistant_receipts[0]["proposal"]["operations"][0]
+            self.assertEqual(operation["action"], "apply_application")
+            self.assertEqual(operation["key"], "conversation")
+            self.assertEqual(operation["value"]["action"], "private_assistant_message")
+
     def test_full_private_turn_persists_observations_not_transcript(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / "record.sqlite"
