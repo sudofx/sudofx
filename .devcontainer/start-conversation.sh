@@ -24,5 +24,8 @@ else
   echo "Open Conversation: http://localhost:8765/conversation"
 fi
 if [[ -z "${GEMINI_API_KEY:-}" ]]; then
-  echo "WARNING: GEMINI_API_KEY is not set. Add it as a GitHub Codespaces secret before sending a message."
+  echo "Gemini key: MISSING"
+  echo "WARNING: Add GEMINI_API_KEY as a GitHub Codespaces secret, then restart this Codespace."
+else
+  echo "Gemini key: SET"
 fi
