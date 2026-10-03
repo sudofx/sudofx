@@ -1,6 +1,6 @@
 # Project status
 
-**Date:** October 2, 2026  
+**Date:** October 3, 2026  
 **Scope:** current implementation on `master` plus the completed Phase E application boundary on WAKE✳︎ `master` in `sudofx/wake`
 
 ## Objective
@@ -36,6 +36,8 @@ The success condition is not that one model remembers. The success condition is 
 - Handoff packet/scoring/evaluation semantics now live in `applications/handoff/`; new evaluations persist under `app:handoff` rather than as handoff-specific generic work operations.
 - WAKE✳︎ domain migration preserves its own policy above the generic sudofx authority boundary.
 - WAKE✳︎ provider attempts share sudofx invocation IDs/evidence, survive fresh-process recovery, and use the generic pre-effect durability barrier without importing Gemini-specific exception types into the engine.
+- A schema-v10 global application-access latch now lets the operator STOP or RESTORE application-origin access while leaving sudofx itself online; application commits are generation-fenced against stale in-flight work.
+- WAKE✳︎ cloud cycles now check the central sudofx access authority before beginning provider work.
 
 ## Current architecture
 
