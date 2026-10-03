@@ -168,7 +168,10 @@ class ConversationPrivacyTests(unittest.TestCase):
     def test_full_private_turn_persists_observations_not_transcript(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / "record.sqlite"
-            human_text = "Earlier we were comparing exact records with bounded observations."
+            human_text = (
+                "Earlier we were comparing exact records with bounded observations. "
+                "Please preserve only the first sentence as durable context."
+            )
             assistant_text = "Yes. The key question was whether continuity survives without replaying the transcript."
             observation = "Earlier we were comparing exact records with bounded observations."
 
