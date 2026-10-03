@@ -241,7 +241,7 @@ class InvocationLifecycle:
         *,
         proposal_id: str | None = None,
         receipt_id: str | None = None,
-        outcome: str = "success",
+        outcome: str | None = "success",
         detail: str | None = None,
     ) -> None:
         self._event(
@@ -348,6 +348,7 @@ class Runtime:
         lifecycle.complete(
             proposal_id=proposal.proposal_id,
             receipt_id=receipt.receipt_id,
+            outcome="success" if receipt.status == "accepted" else None,
             detail=receipt.status,
         )
         if receipt.status != "accepted":
