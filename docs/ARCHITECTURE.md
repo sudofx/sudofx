@@ -49,6 +49,12 @@ Owns transport to an intelligence provider.
 
 It receives bounded context and returns an untrusted result shaped for its application/runtime boundary. It receives no SQLite path, GitHub credentials, kernel mutation callback, or governance authority.
 
+### Global application-access boundary
+
+Authoritative SQLite contains a singleton application-access latch plus an append-only transition audit. The latch is operational authority and does not advance semantic work revision. Applications capture its generation before work, recheck access immediately before provider effects, and revalidate the same generation inside the serialized kernel commit transaction. STOP therefore invalidates stale in-flight application commits while leaving operator/kernel access available.
+
+Deployments with separate application databases cannot obtain a mathematically atomic distributed fence from a static website or GitHub workflow alone. They must consult the central sudofx authority before beginning new work; WAKE✳︎ performs that check before each cloud cycle. A future always-on central sudofx service can extend the same generation contract across distributed commits.
+
 ### Invocation and external-effect boundary
 
 The append-only invocation journal records provider/runtime attempts separately from governed semantic receipts.
