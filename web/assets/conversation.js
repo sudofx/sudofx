@@ -240,18 +240,10 @@
       }catch{}
       return;
     }
-    if(key==='v'&&!input.disabled){
-      const active=document.activeElement;
-      if(active!==input)return;
-      try{
-        const text=await navigator.clipboard.readText();
-        const start=input.selectionStart??input.value.length;
-        const end=input.selectionEnd??input.value.length;
-        input.setRangeText(text,start,end,'end');
-        input.dispatchEvent(new Event('input',{bubbles:true}));
-        event.preventDefault();
-      }catch{}
-    }
+    // Let the browser own Cmd/Ctrl+V inside the textarea. The previous
+    // async clipboard handler called preventDefault() only after awaiting
+    // clipboard.readText(), so the native paste could land first and then the
+    // custom insertion would add the same text again.
   },true);
 
   input.addEventListener('keydown',event=>{
