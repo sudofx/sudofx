@@ -34,7 +34,13 @@ from .generation import (
     GeminiGenerationProvider,
 )
 from .kernel import Kernel, RunResult
-from .runtime import InvocationBarrierError, InvocationLifecycle, InvocationResult, Runtime
+from .runtime import (
+    GovernanceRejectionError,
+    InvocationBarrierError,
+    InvocationLifecycle,
+    InvocationResult,
+    Runtime,
+)
 from .storage import ApplicationAccessError, ApplicationAccessState
 from .models import Context, Operation, Proposal, Receipt, SubmissionProvenance
 from .observability import build_application_observability
@@ -69,6 +75,7 @@ __all__ = [
     "GenerationRequest",
     "GenerationProvider",
     "Intelligence",
+    "GovernanceRejectionError",
     "InvocationBarrierError",
     "InvocationLifecycle",
     "InvocationResult",
