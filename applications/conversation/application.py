@@ -142,6 +142,7 @@ def _privacy_state(current: JsonValue) -> dict[str, JsonValue]:
     turn_count = raw.get("turn_count")
     next_role = raw.get("next_role")
     observations = raw.get("observations")
+    verified_observations = raw.get("verified_observations", [])
     commitments = raw.get("commitments", [])
     if not isinstance(turn_count, int) or turn_count < 0:
         raise ValueError("conversation privacy turn count is invalid")
@@ -149,6 +150,25 @@ def _privacy_state(current: JsonValue) -> dict[str, JsonValue]:
         raise ValueError("conversation privacy next role is invalid")
     if not isinstance(observations, list) or any(not isinstance(item, str) for item in observations):
         raise ValueError("conversation privacy observations are invalid")
+    if not isinstance(verified_observations, list):
+        raise ValueError("conversation verified observations are invalid")
+    normalized_verified: list[dict[str, str]] = []
+    for observation in verified_observations:
+        if (
+            not isinstance(observation, dict)
+            or observation.get("support") != "exact_excerpt"
+            or not isinstance(observation.get("text"), str)
+            or not observation["text"].strip()
+            or not _valid_digest(observation.get("source_message_digest"))
+        ):
+            raise ValueError("conversation verified observations are invalid")
+        normalized_verified.append(
+            {
+                "text": " ".join(observation["text"].split()),
+                "source_message_digest": observation["source_message_digest"],
+                "support": "exact_excerpt",
+            }
+        )
     if not isinstance(commitments, list):
         raise ValueError("conversation privacy commitments are invalid")
     normalized_commitments: list[dict[str, str]] = []
@@ -173,6 +193,7 @@ def _privacy_state(current: JsonValue) -> dict[str, JsonValue]:
         "turn_count": turn_count,
         "next_role": next_role,
         "observations": list(observations),
+        "verified_observations": normalized_verified,
         "commitments": normalized_commitments,
     }
 
@@ -225,6 +246,60 @@ def _normalize_observations(values: object) -> tuple[list[str], str | None]:
             if pattern.search(text):
                 return [], "assistant observation contains a direct identifier"
         normalized.append(text)
+    return normalized, None
+
+
+def _verified_observation_records(
+    values: object,
+    source_message: str,
+) -> list[dict[str, str]]:
+    """Keep only observations that are exact excerpts of the current human message."""
+    normalized, error = _normalize_observations(values)
+    if error is not None:
+        raise ValueError(error)
+    source = " ".join(validate_private_message(source_message).split())
+    source_digest = hashlib.sha256(source_message.strip().encode("utf-8")).hexdigest()
+    records: list[dict[str, str]] = []
+    for text in normalized:
+        if text not in source:
+            continue
+        records.append(
+            {
+                "text": text,
+                "source_message_digest": source_digest,
+                "support": "exact_excerpt",
+            }
+        )
+    return records
+
+
+def _normalize_verified_observation_records(
+    values: object,
+) -> tuple[list[dict[str, str]], str | None]:
+    if not isinstance(values, list):
+        return [], "assistant verified observations must be a list"
+    if len(values) > MAX_OBSERVATIONS_PER_TURN:
+        return [], f"assistant may add at most {MAX_OBSERVATIONS_PER_TURN} verified observations"
+    normalized: list[dict[str, str]] = []
+    for value in values:
+        if (
+            not isinstance(value, dict)
+            or value.get("support") != "exact_excerpt"
+            or not isinstance(value.get("text"), str)
+            or not value["text"].strip()
+            or not _valid_digest(value.get("source_message_digest"))
+        ):
+            return [], "assistant verified observation is invalid"
+        text = " ".join(value["text"].split())
+        if len(text) > MAX_OBSERVATION_CHARS:
+            return [], f"assistant observation exceeds {MAX_OBSERVATION_CHARS} characters"
+        normalized.append(
+            {
+                "text": text,
+                "source_message_digest": value["source_message_digest"],
+                "support": "exact_excerpt",
+            }
+        )
     return normalized, None
 
 
@@ -375,6 +450,14 @@ def private_assistant_message(current: JsonValue, payload: JsonValue) -> Applica
     observations, error = _normalize_observations(payload.get("observations", []))
     if error is not None:
         return ApplicationDecision(False, reasons=(error,))
+    has_verified_observations = "verified_observations" in payload
+    verified_observations: list[dict[str, str]] = []
+    if has_verified_observations:
+        verified_observations, verified_error = _normalize_verified_observation_records(
+            payload.get("verified_observations", [])
+        )
+        if verified_error is not None:
+            return ApplicationDecision(False, reasons=(verified_error,))
     commitment_updates, commitment_error = _normalize_commitment_updates(
         payload.get("commitment_updates", [])
     )
@@ -394,12 +477,28 @@ def private_assistant_message(current: JsonValue, payload: JsonValue) -> Applica
             merged.append(item)
     merged = merged[-MAX_DURABLE_OBSERVATIONS:]
 
+    verified_previous = [dict(item) for item in privacy["verified_observations"]]
+    verified_merged = list(verified_previous)
+    if has_verified_observations:
+        last_human = privacy.get("last_human")
+        source_digest = last_human.get("message_digest") if isinstance(last_human, dict) else None
+        for item in verified_observations:
+            if item["source_message_digest"] != source_digest:
+                return ApplicationDecision(
+                    False,
+                    reasons=("verified observation source does not match current human message",),
+                )
+            if item not in verified_merged:
+                verified_merged.append(item)
+    verified_merged = verified_merged[-MAX_DURABLE_OBSERVATIONS:]
+
     state = dict(current) if isinstance(current, dict) else {}
     state["privacy"] = {
         **privacy,
         "turn_count": int(privacy["turn_count"]) + 1,
         "next_role": "human",
         "observations": merged,
+        "verified_observations": verified_merged,
         "commitments": _apply_commitment_updates(
             [dict(item) for item in privacy["commitments"]],
             commitment_updates,
@@ -452,7 +551,8 @@ def bounded_context(state: JsonValue, *, max_turns: int = DEFAULT_CONTEXT_TURNS)
 def private_bounded_context(state: JsonValue) -> dict[str, JsonValue]:
     """Return only durable continuity observations, never prior transcript text."""
     privacy = _privacy_state(state)
-    observations = [str(item) for item in privacy["observations"]]
+    verified = [dict(item) for item in privacy["verified_observations"]]
+    observations = [item["text"] for item in verified]
     return {
         "application_id": APPLICATION_ID,
         "application_version": APPLICATION_VERSION,
@@ -460,6 +560,8 @@ def private_bounded_context(state: JsonValue) -> dict[str, JsonValue]:
         "next_role": privacy["next_role"],
         "observations": observations,
         "observation_count": len(observations),
+        "observation_provenance": verified,
+        "legacy_unverified_observation_count": len(privacy["observations"]),
         "active_commitments": [dict(item) for item in privacy["commitments"]],
         "active_commitment_count": len(privacy["commitments"]),
     }
@@ -469,6 +571,8 @@ def private_assistant_descriptor(
     response: str,
     observations: object,
     commitment_updates: object = (),
+    *,
+    source_message: str | None = None,
 ) -> dict[str, JsonValue]:
     """Build safe durable assistant metadata after provider output validation."""
     if not isinstance(response, str) or not response.strip():
@@ -477,6 +581,11 @@ def private_assistant_descriptor(
     normalized, error = _normalize_observations(observations)
     if error is not None:
         raise ValueError(error)
+    verified = (
+        _verified_observation_records(normalized, source_message)
+        if source_message is not None
+        else []
+    )
     normalized_updates, update_error = _normalize_commitment_updates(list(commitment_updates))
     if update_error is not None:
         raise ValueError(update_error)
@@ -484,5 +593,6 @@ def private_assistant_descriptor(
         "message_digest": hashlib.sha256(content.encode("utf-8")).hexdigest(),
         "message_chars": len(content),
         "observations": normalized,
+        "verified_observations": verified,
         "commitment_updates": normalized_updates,
     }
