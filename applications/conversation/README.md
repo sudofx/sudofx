@@ -39,7 +39,7 @@ For an assistant turn, authoritative state may retain:
 - a small governed set of semantic observations needed for future continuity;
 - explicit active commitments when the human establishes a persistent response obligation.
 
-Observations are bounded and screened for common direct identifiers. That screening is deliberately conservative and is not claimed to be a perfect PII detector. Users should not enter secrets or direct identifiers.
+Observations are bounded and screened for common direct identifiers. On the private production path, a durable observation must also be an exact contiguous excerpt of the current human message. The runtime drops unsupported provider observations before submission, records the source human-message digest with accepted observations, and exposes only those verified observations to later provider calls. Historical observations created before this rule remain in replayable history but are quarantined from future provider context. That screening is deliberately conservative and is not claimed to be a perfect PII detector. Users should not enter secrets or direct identifiers.
 
 The raw current human message is transient provider context. Previous raw turns are not replayed to the provider.
 
