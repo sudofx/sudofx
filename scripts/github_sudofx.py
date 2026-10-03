@@ -428,6 +428,13 @@ def build_public_site_projection(
         "generated": datetime.now(timezone.utc).isoformat(),
         "record_revision": context.revision,
         "health": health,
+        "application_access": {
+            "enabled": record.application_access_state().enabled,
+            "generation": record.application_access_state().generation,
+            "actor": record.application_access_state().actor,
+            "reason": record.application_access_state().reason,
+            "changed_at": record.application_access_state().changed_at,
+        },
         "summary": {
             "work_items": len(work_items),
             "open_work_items": open_work,
@@ -504,6 +511,12 @@ def main() -> int:
     parser.add_argument("--prove-model")
     parser.add_argument("--export-handoff")
     parser.add_argument("--backup")
+    parser.add_argument(
+        "--application-access",
+        choices=("status", "enable", "disable"),
+        help="Inspect or change the global application access latch.",
+    )
+    parser.add_argument("--application-access-reason", default="")
     parser.add_argument("--auto", action="store_true")
     parser.add_argument("--record-handoff-evaluation", action="store_true")
     parser.add_argument("--record-semantic-review", action="store_true")
@@ -535,6 +548,47 @@ def main() -> int:
         checkpoint()
         record = Record(DATA)
         kernel = Kernel(record)
+
+    if args.application_access is not None:
+        if args.application_access == "status":
+            state = record.application_access_state()
+        else:
+            state = record.set_application_access(
+                args.application_access == "enable",
+                actor="operator",
+                reason=args.application_access_reason,
+            )
+            checkpoint()
+            record = Record(DATA)
+            kernel = Kernel(record)
+        print(json.dumps({
+            "application_access": {
+                "enabled": state.enabled,
+                "generation": state.generation,
+                "actor": state.actor,
+                "reason": state.reason,
+                "changed_at": state.changed_at,
+            }
+        }, sort_keys=True))
+        if args.application_access != "status":
+            try:
+                proof = latest_overnight_proof(kernel) or run_continuity_proof()
+                publish_live_projection(
+                    build_public_site_projection(kernel, record, dict(proof), {
+                        "commit": os.environ.get("GITHUB_SHA", ""),
+                        "run_id": os.environ.get("GITHUB_RUN_ID", ""),
+                        "run_url": "",
+                    }),
+                    build_handoff_packet(kernel, AUTO_HANDOFF_ID),
+                    build_manual_evaluation_projection(kernel, AUTO_HANDOFF_ID),
+                )
+            except Exception as error:
+                print(json.dumps({
+                    "application_access_projection_updated": False,
+                    "error": str(error),
+                }, sort_keys=True), file=sys.stderr)
+        return 0
+
     if args.record_semantic_review or args.record_chatgpt_semantic_review:
         # Human review is intentionally stricter than generic record-assessment.
         # Human reviews arrive through GitHub-controlled operator paths. ChatGPT
