@@ -21,7 +21,7 @@ from sudofx.governance import Governance
 from sudofx.record import Record
 
 from .application import CONVERSATION_APPLICATION, private_bounded_context
-from .runtime import run_private_turn
+from .runtime import recover_failed_private_turn, run_private_turn
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -37,6 +37,19 @@ class ConversationService:
         self.data_path = data_path
         self.provider_command = provider_command
         self._lock = threading.Lock()
+        self._recover_orphaned_turn()
+
+    def _recover_orphaned_turn(self) -> None:
+        """Close a half-finished turn left by a prior provider/process failure."""
+        registry = ApplicationRegistry((CONVERSATION_APPLICATION,))
+        kernel = Kernel(Record(self.data_path), Governance(application_registry=registry))
+        state = ApplicationHost(kernel, registry, "conversation").context().state
+        projection = private_bounded_context(state)
+        if projection["next_role"] == "assistant":
+            recover_failed_private_turn(
+                data_path=self.data_path,
+                category="orphaned_provider_turn",
+            )
 
     def status(self) -> dict[str, Any]:
         """Return privacy-safe continuity counts without observation contents."""
