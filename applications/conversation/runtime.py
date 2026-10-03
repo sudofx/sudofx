@@ -21,6 +21,7 @@ from .application import (
     private_assistant_descriptor,
     private_bounded_context,
     enforce_response_commitments,
+    grounded_commitment_updates,
     private_message_descriptor,
     validate_private_message,
 )
@@ -156,6 +157,13 @@ class ConversationIntelligence:
             observations = response.get("observations", [])
             commitment_updates = response.get("commitment_updates", [])
             try:
+                # The provider may structure human intent but may not invent
+                # durable instructions. Ground updates before they can affect
+                # even the transient reply, then submit the same bounded set.
+                commitment_updates = grounded_commitment_updates(
+                    commitment_updates,
+                    context.state["app:conversation"].get("current_message"),
+                )
                 self.last_content = enforce_response_commitments(
                     self.current_state,
                     self.last_content,

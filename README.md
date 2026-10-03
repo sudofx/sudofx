@@ -62,7 +62,7 @@ Implemented and exercised on `master`:
 - application identity, versioning, actions, policy re-evaluation, migration boundaries, and event-log storage
 - a database-backed global application access kill switch with generation fencing for in-flight work
 - a privacy-bounded governed Conversation application that survives process replacement from SQLite alone
-- a runnable private/local chat transport whose visible transcript stays transient while SQLite stores governed observations
+- a runnable private/local chat transport whose visible transcript stays transient while SQLite stores governed observations and exact human-authorized commitments
 - an encrypted GitHub Actions transport seam for a future authenticated cloud gateway
 - a first-class Handoff application for bounded fresh-intelligence packets and governed cross-provider grounding evidence
 - GitHub Pages as a lightweight, read-only public shell
@@ -141,7 +141,7 @@ SQLite
 derived browser projection
 ```
 
-`applications/conversation/server.py` now provides the smallest complete end-to-end chat path: a mobile-first browser talks to a private same-origin server, every provider invocation starts fresh, and SQLite retains only governed fingerprints/observations rather than raw transcript text. The public Pages shell exposes the Conversation UI but remains disabled until an authenticated private gateway is actually configured; it does not fall back to browser credentials or PATs.
+`applications/conversation/server.py` now provides the smallest complete end-to-end chat path: a mobile-first browser talks to a private same-origin server, every provider invocation starts fresh, and SQLite retains governed fingerprints, verified observations, and explicit commitments rather than raw transcript text. Exact suffix commitments are enforced deterministically; semantic response instructions remain visible governed state and must quote the human turn that authorized them. The public Pages shell exposes the Conversation UI but remains disabled until an authenticated private gateway is actually configured; it does not fall back to browser credentials or PATs.
 
 Tests also preserve the earlier fresh-process continuity proof. The browser is transport and presentation, not memory.
 

@@ -43,7 +43,9 @@ Observations are bounded and screened for common direct identifiers. On the priv
 
 The raw current human message is transient provider context. Previous raw turns are not replayed to the provider.
 
-Persistent obligations are not stored as transcript. Conversation gives them an explicit governed lifecycle separate from observations. The initial supported commitment kind is an exact response suffix with structured placement semantics: it can be created or updated, deterministically enforced on every response, and explicitly revoked. A suffix may require only exact end placement or canonical `new_line` placement as its own final paragraph. The provider proposes this structure; sudofx validates and enforces it. Historical suffix commitments that predate placement metadata remain valid and retain the earlier exact-end semantics until explicitly updated. This is intentionally narrower than treating every remembered preference as an instruction.
+Persistent obligations are not stored as transcript. Conversation gives them an explicit governed lifecycle separate from observations. Exact response suffixes have structured placement semantics and are deterministically enforced on every response. Semantic `response_instruction` commitments cover explicit ongoing behavioral obligations that cannot be reduced to a suffix; multiple instructions may remain active together and every fresh provider receives them. New commitments must preserve an exact excerpt of the authorizing human message, so a provider cannot invent durable policy. Either kind can be explicitly revoked. Historical suffix commitments that predate placement metadata remain valid and retain the earlier exact-end semantics until explicitly updated.
+
+An instruction to build a user model does not authorize opaque provider memory. Conversation satisfies it through the same explicit, bounded, verified observations used for continuity. SQLite remains the only durable owner, and the active projection remains inspectable.
 
 
 ## Stateless-provider contract

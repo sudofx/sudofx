@@ -24,6 +24,7 @@ MAX_DURABLE_OBSERVATIONS = 32
 MAX_ACTIVE_COMMITMENTS = 8
 MAX_COMMITMENT_CHARS = 240
 RESPONSE_SUFFIX_PLACEMENTS = {"end", "new_line"}
+COMMITMENT_KINDS = {"response_suffix", "response_instruction"}
 
 _DIRECT_IDENTIFIER_PATTERNS = (
     re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.I),
@@ -178,17 +179,24 @@ def _privacy_state(current: JsonValue) -> dict[str, JsonValue]:
     for commitment in commitments:
         if (
             not isinstance(commitment, dict)
-            or commitment.get("kind") != "response_suffix"
+            or commitment.get("kind") not in COMMITMENT_KINDS
             or not isinstance(commitment.get("text"), str)
             or not commitment["text"].strip()
         ):
             raise ValueError("conversation privacy commitments are invalid")
+        kind = commitment["kind"]
+        text = commitment["text"].strip()
+        if len(text) > MAX_COMMITMENT_CHARS:
+            raise ValueError("conversation commitment is too long")
+        if kind == "response_instruction":
+            normalized_commitments.append({"kind": kind, "text": text})
+            continue
         placement = commitment.get("placement", "end")
         if placement not in RESPONSE_SUFFIX_PLACEMENTS:
             raise ValueError("conversation response suffix placement is invalid")
         normalized = {
-            "kind": "response_suffix",
-            "text": commitment["text"],
+            "kind": kind,
+            "text": text,
             "placement": placement,
         }
         normalized_commitments.append(normalized)
@@ -326,39 +334,68 @@ def _normalize_verified_observation_records(
 def _normalize_commitment_updates(values: object) -> tuple[list[dict[str, str]], str | None]:
     if not isinstance(values, list):
         return [], "assistant commitment updates must be a list"
-    if len(values) > 2:
-        return [], "assistant may propose at most 2 commitment updates per turn"
+    if len(values) > 4:
+        return [], "assistant may propose at most 4 commitment updates per turn"
     normalized: list[dict[str, str]] = []
     for value in values:
         if not isinstance(value, dict):
             return [], "assistant commitment update must be an object"
         op = value.get("op")
         kind = value.get("kind")
-        if kind != "response_suffix" or op not in {"upsert", "clear"}:
+        if kind not in COMMITMENT_KINDS or op not in {"upsert", "clear"}:
             return [], "assistant commitment update is invalid"
         if op == "clear":
-            normalized.append({"op": "clear", "kind": "response_suffix"})
+            item = {"op": "clear", "kind": kind}
+            text = value.get("text")
+            if text is not None:
+                if not isinstance(text, str) or not text.strip():
+                    return [], "assistant commitment clear target is invalid"
+                item["text"] = text.strip()
+            normalized.append(item)
             continue
-        placement = value.get("placement", "end")
-        if placement not in RESPONSE_SUFFIX_PLACEMENTS:
-            return [], "assistant response suffix placement is invalid"
         text = value.get("text")
         if not isinstance(text, str) or not text.strip():
-            return [], "assistant response suffix commitment must contain text"
+            return [], "assistant commitment must contain text"
         text = text.strip()
         if len(text) > MAX_COMMITMENT_CHARS:
             return [], f"assistant commitment exceeds {MAX_COMMITMENT_CHARS} characters"
         for pattern in _DIRECT_IDENTIFIER_PATTERNS:
             if pattern.search(text):
                 return [], "assistant commitment contains a direct identifier"
-        item = {
+        item: dict[str, str] = {
             "op": "upsert",
-            "kind": "response_suffix",
+            "kind": kind,
             "text": text,
-            "placement": placement,
         }
+        if kind == "response_suffix":
+            placement = value.get("placement", "end")
+            if placement not in RESPONSE_SUFFIX_PLACEMENTS:
+                return [], "assistant response suffix placement is invalid"
+            item["placement"] = placement
         normalized.append(item)
     return normalized, None
+
+
+def grounded_commitment_updates(
+    values: object,
+    source_message: str,
+) -> list[dict[str, str]]:
+    """Keep only commitment creations literally authorized by this human turn.
+
+    Clears may refer to already-governed commitments, but an upsert makes new
+    durable instruction text authoritative. Requiring that text to be an exact
+    excerpt prevents an untrusted provider from manufacturing persistent policy
+    while still allowing it to structure explicit human directives.
+    """
+    normalized, error = _normalize_commitment_updates(values)
+    if error is not None:
+        raise ValueError(error)
+    source = " ".join(validate_private_message(source_message).split())
+    return [
+        item
+        for item in normalized
+        if item["op"] == "clear" or item["text"] in source
+    ]
 
 
 def _apply_commitment_updates(
@@ -368,14 +405,32 @@ def _apply_commitment_updates(
     active = [dict(item) for item in commitments]
     for update in updates:
         if update["op"] == "clear":
-            active = [item for item in active if item["kind"] != update["kind"]]
+            clear_text = update.get("text")
+            active = [
+                item
+                for item in active
+                if not (
+                    item["kind"] == update["kind"]
+                    and (clear_text is None or item["text"] == clear_text)
+                )
+            ]
             continue
-        active = [item for item in active if item["kind"] != update["kind"]]
+        if update["kind"] == "response_suffix":
+            # Only one suffix can own the response ending. Semantic response
+            # instructions are independent and therefore accumulate by text.
+            active = [item for item in active if item["kind"] != update["kind"]]
+        else:
+            active = [
+                item
+                for item in active
+                if not (item["kind"] == update["kind"] and item["text"] == update["text"])
+            ]
         item = {
             "kind": update["kind"],
             "text": update["text"],
-            "placement": update.get("placement", "end"),
         }
+        if update["kind"] == "response_suffix":
+            item["placement"] = update.get("placement", "end")
         active.append(item)
     return active[-MAX_ACTIVE_COMMITMENTS:]
 

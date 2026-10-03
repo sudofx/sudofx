@@ -25,7 +25,7 @@ Return JSON only with exactly these fields:
 - content: the assistant reply to the current human message.
 - observations: zero to four short semantic observations useful for future
   continuity.
-- commitment_updates: zero to two explicit persistent commitment changes.
+- commitment_updates: zero to four explicit persistent commitment changes.
 
 Commitment update shape:
 - upsert a response suffix:
@@ -34,6 +34,10 @@ Commitment update shape:
   {"op":"upsert","kind":"response_suffix","text":"...","placement":"new_line"}
 - clear a response suffix:
   {"op":"clear","kind":"response_suffix"}
+- add a semantic response instruction, preserving the human's exact words:
+  {"op":"upsert","kind":"response_instruction","text":"..."}
+- clear one response instruction by repeating its exact active text:
+  {"op":"clear","kind":"response_instruction","text":"..."}
 
 Commitment rules:
 - propose an update only when the human explicitly creates, changes, or revokes
@@ -45,6 +49,12 @@ Commitment rules:
 - use "new_line" when the human explicitly requires a new line, its own line, or
   equivalent footer placement;
 - preserve required suffix text exactly;
+- response_instruction represents a persistent behavioral obligation that
+  cannot be reduced to an exact suffix. Follow every active response_instruction
+  on every turn, including the turn that creates it;
+- commitment upsert text must be an exact contiguous excerpt of current_message;
+- when the human requests an ongoing user model or memory, use verified durable
+  observations as that explicit privacy-bounded model; never claim hidden memory;
 - clear the commitment only when the human explicitly revokes it;
 - do not turn casual wording, one-turn requests, or ordinary preferences into
   commitments;
@@ -125,12 +135,15 @@ def main() -> int:
                     },
                     "commitment_updates": {
                         "type": "array",
-                        "maxItems": 2,
+                        "maxItems": 4,
                         "items": {
                             "type": "object",
                             "properties": {
                                 "op": {"type": "string", "enum": ["upsert", "clear"]},
-                                "kind": {"type": "string", "enum": ["response_suffix"]},
+                                "kind": {
+                                    "type": "string",
+                                    "enum": ["response_suffix", "response_instruction"],
+                                },
                                 "text": {"type": "string"},
                                 "placement": {
                                     "type": "string",
