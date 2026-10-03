@@ -45,11 +45,17 @@ class ConversationService:
         state = ApplicationHost(kernel, registry, "conversation").context().state
         projection = private_bounded_context(state)
         turn_count = int(projection["turn_count"])
+        provider_configured = self.provider_command is not None or bool(
+            os.environ.get("GEMINI_API_KEY", "").strip()
+            and os.environ.get("GEMINI_MODEL", "").strip()
+        )
         return {
             "turn_count": turn_count,
             "observation_count": int(projection["observation_count"]),
             "provider_invocations": turn_count // 2,
             "next_role": str(projection["next_role"]),
+            "provider_configured": provider_configured,
+            "provider_model": os.environ.get("GEMINI_MODEL", "").strip() or None,
             "transcript_persisted": False,
         }
 
@@ -116,6 +122,13 @@ def _handler(service: ConversationService):
                 message = payload.get("message") if isinstance(payload, dict) else None
                 if not isinstance(message, str):
                     raise ValueError("message must be text")
+                if service.provider_command is None:
+                    if not os.environ.get("GEMINI_API_KEY", "").strip():
+                        self._json(503, {"error": "Gemini is not configured in this Codespace: GEMINI_API_KEY is missing"})
+                        return
+                    if not os.environ.get("GEMINI_MODEL", "").strip():
+                        self._json(503, {"error": "Gemini is not configured in this Codespace: GEMINI_MODEL is missing"})
+                        return
                 self._json(200, service.converse(message))
             except ValueError as error:
                 self._json(400, {"error": str(error)})
