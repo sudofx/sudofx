@@ -119,12 +119,58 @@ class ConversationPrivacyTests(unittest.TestCase):
             )
             self.assertNotIn("last_governance_rejection", privacy)
 
+    def test_unsupported_provider_observation_never_enters_durable_history(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "record.sqlite"
+            human_text = "I like reggae and writing code."
+            commit_human_turn(
+                human_text,
+                data_path=path,
+                private_mode=True,
+                provenance=SubmissionProvenance("human", "fixture", "unit-test"),
+            )
+            provider = (
+                sys.executable,
+                "-c",
+                "import json,sys; json.load(sys.stdin); "
+                "json.dump({'content':'Understood.','observations':['The user likes jazz.']},sys.stdout)",
+            )
+            reply = commit_assistant_turn(
+                data_path=path,
+                provider_command=provider,
+                private_message=human_text,
+                provenance=SubmissionProvenance("model", "fixture", "unit-test"),
+            )
+            self.assertEqual(reply, "Understood.")
+
+            registry = ApplicationRegistry((CONVERSATION_APPLICATION,))
+            kernel = Kernel(Record(path), Governance(application_registry=registry))
+            state = ApplicationHost(kernel, registry, "conversation").context().state
+            projection = private_bounded_context(state)
+            self.assertEqual(projection["observations"], [])
+            self.assertNotIn("jazz", json.dumps(Record(path).history(), sort_keys=True).lower())
+
+    def test_legacy_unverified_observations_are_not_replayed_to_provider_context(self) -> None:
+        state = {
+            "privacy": {
+                "turn_count": 2,
+                "next_role": "human",
+                "observations": ["The user likes jazz and mechanical keyboards."],
+                "commitments": [],
+            }
+        }
+        projection = private_bounded_context(state)
+        self.assertEqual(projection["observations"], [])
+        self.assertEqual(projection["observation_count"], 0)
+        self.assertEqual(projection["legacy_unverified_observation_count"], 1)
+
+
     def test_full_private_turn_persists_observations_not_transcript(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / "record.sqlite"
             human_text = "Earlier we were comparing exact records with bounded observations."
             assistant_text = "Yes. The key question was whether continuity survives without replaying the transcript."
-            observation = "The conversation is testing whether bounded observations can preserve continuity without transcript replay."
+            observation = "Earlier we were comparing exact records with bounded observations."
 
             commit_human_turn(
                 human_text,
@@ -158,6 +204,11 @@ class ConversationPrivacyTests(unittest.TestCase):
             projection = private_bounded_context(state)
             self.assertNotIn("turns", projection)
             self.assertEqual(projection["observations"], [observation])
+            self.assertEqual(projection["observation_provenance"][0]["text"], observation)
+            self.assertEqual(
+                projection["observation_provenance"][0]["support"],
+                "exact_excerpt",
+            )
 
             # Invocation evidence fingerprints the exact transient context but
             # keeps the message body itself out of lifecycle rows.
