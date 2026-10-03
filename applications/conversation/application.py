@@ -23,6 +23,7 @@ MAX_OBSERVATIONS_PER_TURN = 4
 MAX_DURABLE_OBSERVATIONS = 32
 MAX_ACTIVE_COMMITMENTS = 8
 MAX_COMMITMENT_CHARS = 240
+RESPONSE_SUFFIX_PLACEMENTS = {"end", "new_line"}
 
 _DIRECT_IDENTIFIER_PATTERNS = (
     re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.I),
@@ -159,7 +160,14 @@ def _privacy_state(current: JsonValue) -> dict[str, JsonValue]:
             or not commitment["text"].strip()
         ):
             raise ValueError("conversation privacy commitments are invalid")
-        normalized = {"kind": "response_suffix", "text": commitment["text"]}
+        placement = commitment.get("placement", "end")
+        if placement not in RESPONSE_SUFFIX_PLACEMENTS:
+            raise ValueError("conversation response suffix placement is invalid")
+        normalized = {
+            "kind": "response_suffix",
+            "text": commitment["text"],
+            "placement": placement,
+        }
         source_proposal_id = commitment.get("source_proposal_id")
         if source_proposal_id is not None:
             if (
@@ -249,6 +257,9 @@ def _normalize_commitment_updates(
         if op == "clear":
             normalized.append({"op": "clear", "kind": "response_suffix"})
             continue
+        placement = value.get("placement", "end")
+        if placement not in RESPONSE_SUFFIX_PLACEMENTS:
+            return [], "assistant response suffix placement is invalid"
         text = value.get("text")
         if not isinstance(text, str) or not text.strip():
             return [], "assistant response suffix commitment must contain text"
@@ -258,7 +269,12 @@ def _normalize_commitment_updates(
         for pattern in _DIRECT_IDENTIFIER_PATTERNS:
             if pattern.search(text):
                 return [], "assistant commitment contains a direct identifier"
-        item = {"op": "upsert", "kind": "response_suffix", "text": text}
+        item = {
+            "op": "upsert",
+            "kind": "response_suffix",
+            "text": text,
+            "placement": placement,
+        }
         if source_proposal_id is not None:
             if not source_proposal_id.strip() or len(source_proposal_id) > 128:
                 return [], "assistant commitment source proposal id is invalid"
@@ -277,7 +293,11 @@ def _apply_commitment_updates(
             active = [item for item in active if item["kind"] != update["kind"]]
             continue
         active = [item for item in active if item["kind"] != update["kind"]]
-        item = {"kind": update["kind"], "text": update["text"]}
+        item = {
+            "kind": update["kind"],
+            "text": update["text"],
+            "placement": update.get("placement", "end"),
+        }
         if "source_proposal_id" in update:
             item["source_proposal_id"] = update["source_proposal_id"]
         active.append(item)
@@ -300,10 +320,21 @@ def enforce_response_commitments(
     )
     content = response.strip()
     for commitment in commitments:
-        if commitment["kind"] == "response_suffix":
-            suffix = commitment["text"]
-            if not content.endswith(suffix):
-                content = content.rstrip() + "\n\n" + suffix
+        if commitment["kind"] != "response_suffix":
+            continue
+        suffix = commitment["text"]
+        placement = commitment.get("placement", "end")
+        if placement == "new_line":
+            # Canonicalize trailing provider attempts before re-applying the
+            # governed suffix. This repairs attached, duplicated, or
+            # whitespace-padded copies without touching matching text earlier
+            # in the response body.
+            body = content.rstrip()
+            while body.endswith(suffix):
+                body = body[: -len(suffix)].rstrip()
+            content = suffix if not body else body + "\n\n" + suffix
+        elif not content.endswith(suffix):
+            content = content.rstrip() + "\n\n" + suffix
     return content
 
 
