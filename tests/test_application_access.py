@@ -88,6 +88,28 @@ class ApplicationAccessTests(unittest.TestCase):
         first = kernel.record.set_application_access(False, actor="operator")
         second = kernel.record.set_application_access(False, actor="operator")
         self.assertEqual(second.generation, first.generation)
+        self.assertEqual(len(kernel.record.application_access_history()), 1)
+
+    def test_access_audit_chain_records_transitions_in_generation_order(self) -> None:
+        kernel = self.make_kernel()
+        kernel.record.set_application_access(False, actor="operator", reason="stop")
+        kernel.record.set_application_access(True, actor="operator", reason="restore")
+        history = kernel.record.application_access_history()
+        self.assertEqual([event["generation"] for event in history], [1, 2])
+        self.assertEqual([event["enabled"] for event in history], [False, True])
+        self.assertEqual(history[0]["previous_hash"], "0" * 64)
+        self.assertEqual(history[1]["previous_hash"], history[0]["event_hash"])
+
+    def test_access_audit_tampering_fails_closed(self) -> None:
+        kernel = self.make_kernel()
+        kernel.record.set_application_access(False, actor="operator", reason="original")
+        with kernel.record.connect() as connection:
+            connection.execute(
+                "UPDATE application_access_events SET reason = 'tampered' WHERE generation = 1"
+            )
+            connection.commit()
+        with self.assertRaisesRegex(Exception, "application access event hash is invalid"):
+            kernel.record.application_access_state()
 
 
 if __name__ == "__main__":
