@@ -256,7 +256,10 @@ def commit_assistant_turn(
         projection = bounded_context(app_context.state)
     else:
         current = validate_private_message(private_message)
-        projection = private_bounded_context(app_context.state)
+        projection = {
+            **private_bounded_context(app_context.state),
+            "recent_governance": list(host.recent_governance()),
+        }
         # The message crosses the intelligence boundary exactly once and is
         # included in the transient context fingerprint/byte receipt, but the
         # message body is never copied into authoritative semantic state.
