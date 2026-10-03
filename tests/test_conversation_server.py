@@ -92,6 +92,20 @@ class ConversationServerTests(unittest.TestCase):
             privacy = state["privacy"]
             self.assertEqual(privacy["commitments"], [])
 
+    def test_flat_provider_commitment_shape_is_governed(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            database = Path(temporary) / "conversation.sqlite"
+            footer = "Persistent footer."
+            provider = (
+                sys.executable,
+                "-c",
+                "import json,sys; json.load(sys.stdin); "
+                "json.dump({'content':'Okay.','observations':[],'response_suffix':" + repr(footer) + ",'clear_response_suffix':False},sys.stdout)",
+            )
+            service = ConversationService(database, provider_command=provider)
+            result = service.converse("Keep a footer active.")
+            self.assertTrue(result["content"].endswith(footer))
+
     def test_provider_failure_does_not_wedge_next_role(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             database = Path(temporary) / "conversation.sqlite"
