@@ -285,6 +285,28 @@ def enforce_response_commitments(
     return content
 
 
+def private_governance_rejection(current: JsonValue, payload: JsonValue) -> ApplicationDecision:
+    """Close one governed rejection without misclassifying it as provider failure."""
+    if not isinstance(payload, dict):
+        return ApplicationDecision(False, reasons=("private governance rejection metadata must be an object",))
+    receipt_id = payload.get("receipt_id")
+    if not isinstance(receipt_id, str) or not receipt_id.strip() or len(receipt_id) > 128:
+        return ApplicationDecision(False, reasons=("private governance rejection receipt id is invalid",))
+    try:
+        privacy = _privacy_state(current)
+    except ValueError as error:
+        return ApplicationDecision(False, reasons=(str(error),))
+    if privacy["next_role"] != "assistant":
+        return ApplicationDecision(False, reasons=("conversation has no pending assistant turn",))
+    state = dict(current) if isinstance(current, dict) else {}
+    state["privacy"] = {
+        **privacy,
+        "next_role": "human",
+        "last_governance_rejection": {"receipt_id": receipt_id.strip()},
+    }
+    return ApplicationDecision(True, state)
+
+
 def private_provider_failure(current: JsonValue, payload: JsonValue) -> ApplicationDecision:
     """Close one failed private provider turn without persisting transcript text."""
     if not isinstance(payload, dict):
@@ -367,6 +389,7 @@ CONVERSATION_APPLICATION = ApplicationDefinition(
         ApplicationAction("assistant_message", assistant_message),
         ApplicationAction("private_human_message", private_human_message),
         ApplicationAction("private_assistant_message", private_assistant_message),
+        ApplicationAction("private_governance_rejection", private_governance_rejection),
         ApplicationAction("private_provider_failure", private_provider_failure),
     ),
 )
