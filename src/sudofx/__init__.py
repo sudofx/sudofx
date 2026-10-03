@@ -35,6 +35,7 @@ from .generation import (
 )
 from .kernel import Kernel, RunResult
 from .runtime import InvocationBarrierError, InvocationLifecycle, InvocationResult, Runtime
+from .storage import ApplicationAccessError, ApplicationAccessState
 from .models import Context, Operation, Proposal, Receipt, SubmissionProvenance
 from .observability import build_application_observability
 from .providers import (
@@ -56,6 +57,8 @@ __all__ = [
     "ApplicationIntent",
     "ApplicationPermissions",
     "ApplicationRegistry",
+    "ApplicationAccessError",
+    "ApplicationAccessState",
     "EffectRequest",
     "Context",
     "CommandIntelligence",
