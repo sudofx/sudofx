@@ -71,6 +71,8 @@ An application may define:
 - requested external-effect capabilities
 - application migrations
 
+Before an application may invoke a provider or submit state, the runtime/application host must pass the global sudofx application-access gate. The gate is database-backed, fail-closed when present but unreadable, and generation-fenced so an operator STOP invalidates stale in-flight work at commit time.
+
 An application must not receive:
 
 - an unrestricted SQLite connection
