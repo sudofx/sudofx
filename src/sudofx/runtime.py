@@ -42,6 +42,16 @@ class InvocationBarrierError(RuntimeError):
         self.cause = cause
 
 
+class GovernanceRejectionError(RuntimeError):
+    """Prevent a rejected proposal from being mistaken for an approved effect."""
+
+    def __init__(self, receipt: object) -> None:
+        self.receipt = receipt
+        reasons = "; ".join(getattr(receipt, "reasons", ()) or ())
+        detail = reasons or "proposal rejected by governance"
+        super().__init__(detail)
+
+
 @dataclass(frozen=True)
 class InvocationResult:
     """Pair the durable invocation identity with the ordinary kernel run result."""
@@ -340,6 +350,12 @@ class Runtime:
             receipt_id=receipt.receipt_id,
             detail=receipt.status,
         )
+        if receipt.status != "accepted":
+            # Provider output remains an untrusted proposal until governance
+            # accepts it. Returning a normal result here lets callers emit
+            # externally visible output or effects from a rejected transition.
+            # Rejection is durable evidence, but it is not authorization.
+            raise GovernanceRejectionError(receipt)
         return InvocationResult(
             invocation_id=lifecycle.invocation_id,
             run=RunResult(context=context, proposal=proposal, receipt=receipt),
