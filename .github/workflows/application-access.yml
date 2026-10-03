@@ -36,7 +36,8 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: '3.13'
-      - name: Verify sudofx before changing access
+      - name: Verify sudofx before reopening application access
+        if: inputs.mode == 'RESTORE'
         run: PYTHONPATH=src:. python -m unittest discover -s tests -v
       - name: Apply global application access state
         env:
@@ -46,10 +47,19 @@ jobs:
           set -euo pipefail
           case "$MODE" in
             STOP)
-              PYTHONPATH=src python scripts/github_sudofx.py                 --application-access disable                 --application-access-reason "${REASON:-operator emergency stop}"
+              # Emergency STOP deliberately has no test-suite dependency.
+              # If sudofx code is otherwise unhealthy, the safest application
+              # posture is still closed.
+              PYTHONPATH=src python scripts/github_sudofx.py \
+                --application-access disable \
+                --application-access-reason "${REASON:-operator emergency stop}"
               ;;
             RESTORE)
-              PYTHONPATH=src python scripts/github_sudofx.py                 --application-access enable                 --application-access-reason "${REASON:-operator restored application access}"
+              # Reopening is stricter than closing: the full suite above must
+              # pass before external applications can regain access.
+              PYTHONPATH=src python scripts/github_sudofx.py \
+                --application-access enable \
+                --application-access-reason "${REASON:-operator restored application access}"
               ;;
             STATUS)
               PYTHONPATH=src python scripts/github_sudofx.py --application-access status
