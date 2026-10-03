@@ -43,7 +43,9 @@ Observations are bounded and screened for common direct identifiers. That screen
 
 The raw current human message is transient provider context. Previous raw turns are not replayed to the provider.
 
-Persistent obligations are not stored as transcript. Conversation gives them an explicit governed lifecycle separate from observations. The initial supported commitment kind is an exact response suffix: it can be created, deterministically enforced on every response, and explicitly revoked. This is intentionally narrower than treating every remembered preference as an instruction.
+Persistent obligations are not stored as transcript. Conversation gives them an explicit governed lifecycle separate from observations. The initial supported commitment kind is an exact response suffix with structured placement semantics: it can be created or updated, deterministically enforced on every response, and explicitly revoked. A suffix may require only exact end placement or canonical `new_line` placement as its own final paragraph. The provider proposes this structure; sudofx validates and enforces it. Historical suffix commitments that predate placement metadata remain valid and retain the earlier exact-end semantics until explicitly updated. This is intentionally narrower than treating every remembered preference as an instruction.
+
+Active commitments are durable application state and may carry a system-assigned source proposal ID so their origin can be traced back to the governed receipt that introduced them. The provider cannot choose that provenance identifier.
 
 ## Stateless-provider contract
 
