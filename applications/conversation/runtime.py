@@ -124,7 +124,6 @@ class ConversationIntelligence:
         if not isinstance(content, str) or not content.strip():
             raise ProviderError("conversation provider returned no assistant content")
         self.last_content = content.strip()
-        proposal_id = str(uuid.uuid4())
 
         if self.private_mode:
             observations = response.get("observations", [])
@@ -139,7 +138,6 @@ class ConversationIntelligence:
                     self.last_content,
                     observations,
                     commitment_updates,
-                    source_proposal_id=proposal_id,
                 )
             except ValueError as error:
                 raise ProviderError(str(error)) from error
@@ -155,7 +153,7 @@ class ConversationIntelligence:
         if not decision.accepted:
             raise ProviderError("assistant response violated conversation application policy")
         return Proposal(
-            proposal_id=proposal_id,
+            proposal_id=str(uuid.uuid4()),
             based_on_revision=context.revision,
             operations=(
                 Operation(
