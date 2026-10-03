@@ -1725,6 +1725,7 @@ json.dump({
         self.assertEqual(lifecycle[-2]["stage"], "governed")
         self.assertEqual(lifecycle[-2]["detail"], "rejected")
         self.assertEqual(lifecycle[-1]["stage"], "completed")
+        self.assertIsNone(lifecycle[-1]["outcome"])
         self.assertEqual(lifecycle[-1]["detail"], "rejected")
 
     def test_runtime_records_provider_failure_without_fabricating_proposal_receipt(self) -> None:
