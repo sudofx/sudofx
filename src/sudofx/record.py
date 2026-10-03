@@ -49,7 +49,15 @@ from typing import Any, Iterator
 from .models import JsonValue
 from .applications import application_key
 from .governance import work_key
-from .storage import EventAppend, GENESIS_HASH, InvocationEvent, canonical_json, hash_event
+from .storage import (
+    ApplicationAccessError,
+    ApplicationAccessState,
+    EventAppend,
+    GENESIS_HASH,
+    InvocationEvent,
+    canonical_json,
+    hash_event,
+)
 
 
 # These header values identify the file before table-level parsing begins. The
@@ -57,7 +65,7 @@ from .storage import EventAppend, GENESIS_HASH, InvocationEvent, canonical_json,
 # sudofx record; user_version gives storage evolution one ordered owner instead
 # of scattering opportunistic CREATE/ALTER statements through runtime paths.
 APPLICATION_ID = 0x53444658  # "SDFX"
-SCHEMA_VERSION = 9
+SCHEMA_VERSION = 10
 
 
 _PROJECTION_CODEC_PREFIX = "zlib:"
@@ -258,6 +266,10 @@ class _SQLiteTransaction:
             "SELECT event_hash FROM events ORDER BY sequence DESC LIMIT 1"
         ).fetchone()
         return row["event_hash"] if row else GENESIS_HASH
+
+    def require_application_access(self, expected_generation: int) -> None:
+        """Validate the global application latch inside the active write transaction."""
+        self._record._require_application_access(self._connection, expected_generation)
 
     def append(
         self,
@@ -607,6 +619,43 @@ class Record:
                 "ON invocation_events(event_hash)"
             )
 
+            # v10 adds a single authoritative application-access latch plus an
+            # append-only audit trail. This state is operational authority, not
+            # semantic work state, so toggling it does not advance record revision.
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS application_access (
+                    singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+                    enabled INTEGER NOT NULL CHECK (enabled IN (0, 1)),
+                    generation INTEGER NOT NULL CHECK (generation >= 0),
+                    actor TEXT NOT NULL,
+                    reason TEXT NOT NULL DEFAULT '',
+                    changed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS application_access_events (
+                    sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+                    enabled INTEGER NOT NULL CHECK (enabled IN (0, 1)),
+                    generation INTEGER NOT NULL CHECK (generation >= 0),
+                    actor TEXT NOT NULL,
+                    reason TEXT NOT NULL DEFAULT '',
+                    changed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+            if connection.execute(
+                "SELECT 1 FROM application_access WHERE singleton = 1"
+            ).fetchone() is None:
+                connection.execute(
+                    """
+                    INSERT INTO application_access (singleton, enabled, generation, actor, reason)
+                    VALUES (1, 1, 0, 'system', 'default enabled during schema initialization')
+                    """
+                )
+
             # v7 stores one derived current projection in the same authoritative
             # database. The append-only event chain remains reconstructable
             # evidence; this row removes repeated state reconstruction from
@@ -866,6 +915,91 @@ class Record:
             for event in latest.values()
             if event["stage"] not in {"completed", "failed"}
         )
+
+    @staticmethod
+    def _access_state_from_row(row: sqlite3.Row) -> ApplicationAccessState:
+        """Translate one latch row without leaking SQLite through the storage contract."""
+        return ApplicationAccessState(
+            enabled=bool(row["enabled"]),
+            generation=int(row["generation"]),
+            actor=str(row["actor"]),
+            reason=str(row["reason"]),
+            changed_at=str(row["changed_at"]),
+        )
+
+    def application_access_state(self) -> ApplicationAccessState:
+        """Return the authoritative global application-access latch."""
+        with self.connect() as connection:
+            row = connection.execute(
+                "SELECT enabled, generation, actor, reason, changed_at "
+                "FROM application_access WHERE singleton = 1"
+            ).fetchone()
+        if row is None:
+            raise IntegrityError("application access latch is missing")
+        return self._access_state_from_row(row)
+
+    def _require_application_access(
+        self,
+        connection: sqlite3.Connection,
+        expected_generation: int,
+    ) -> None:
+        """Fail closed if access is off or changed since the caller captured it."""
+        row = connection.execute(
+            "SELECT enabled, generation FROM application_access WHERE singleton = 1"
+        ).fetchone()
+        if row is None:
+            raise ApplicationAccessError()
+        if not bool(row["enabled"]) or int(row["generation"]) != expected_generation:
+            raise ApplicationAccessError()
+
+    def require_application_access(self, expected_generation: int) -> None:
+        """Verify app access in a fresh read transaction."""
+        with self.connect() as connection:
+            connection.execute("BEGIN")
+            self._require_application_access(connection, expected_generation)
+
+    def set_application_access(
+        self,
+        enabled: bool,
+        *,
+        actor: str,
+        reason: str = "",
+    ) -> ApplicationAccessState:
+        """Atomically change the global latch and append its audit event."""
+        if not actor.strip():
+            raise ValueError("application access actor must not be empty")
+        with self.connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            try:
+                row = connection.execute(
+                    "SELECT enabled, generation FROM application_access WHERE singleton = 1"
+                ).fetchone()
+                if row is None:
+                    raise IntegrityError("application access latch is missing")
+                current_enabled = bool(row["enabled"])
+                generation = int(row["generation"])
+                if current_enabled != enabled:
+                    generation += 1
+                    connection.execute(
+                        """
+                        UPDATE application_access
+                        SET enabled = ?, generation = ?, actor = ?, reason = ?, changed_at = CURRENT_TIMESTAMP
+                        WHERE singleton = 1
+                        """,
+                        (1 if enabled else 0, generation, actor.strip(), reason.strip()),
+                    )
+                    connection.execute(
+                        """
+                        INSERT INTO application_access_events (enabled, generation, actor, reason)
+                        VALUES (?, ?, ?, ?)
+                        """,
+                        (1 if enabled else 0, generation, actor.strip(), reason.strip()),
+                    )
+                connection.commit()
+            except BaseException:
+                connection.rollback()
+                raise
+        return self.application_access_state()
 
     def invocation_accounting(self) -> dict[str, int]:
         """Derive provider/runtime resource counts from verified lifecycle evidence."""
