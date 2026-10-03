@@ -28,6 +28,7 @@ from scripts.github_state import DATA, checkpoint, restore
 from sudofx import (
     ApplicationHost,
     ApplicationIntent,
+    GovernanceRejectionError,
     ApplicationRegistry,
     Context,
     Kernel,
@@ -215,6 +216,30 @@ def commit_human_turn(
         raise RuntimeError(f"human conversation turn was rejected: {'; '.join(human.reasons)}")
 
 
+def recover_rejected_private_turn(
+    *,
+    data_path: Path,
+    receipt_id: str,
+) -> None:
+    """Return a governed rejection to human-ready state without calling it provider failure."""
+    kernel, registry = _kernel(data_path)
+    host = ApplicationHost(kernel, registry, CONVERSATION_APPLICATION.application_id)
+    recovery = host.submit(
+        ApplicationIntent(
+            proposal_id=str(uuid.uuid4()),
+            based_on_revision=host.context().revision,
+            action="private_governance_rejection",
+            payload={"receipt_id": receipt_id},
+            rationale="Close rejected private assistant proposal without misclassifying provider outcome",
+        ),
+        provenance=SubmissionProvenance("system", "conversation", "governance-rejection"),
+    )
+    if recovery.status != "accepted":
+        raise RuntimeError(
+            f"rejected conversation turn could not be recovered: {'; '.join(recovery.reasons)}"
+        )
+
+
 def recover_failed_private_turn(
     *,
     data_path: Path,
@@ -316,6 +341,15 @@ def run_private_turn(
             provider_command=provider_command,
             private_message=message,
         )
+    except GovernanceRejectionError as error:
+        try:
+            recover_rejected_private_turn(
+                data_path=data_path,
+                receipt_id=error.receipt.receipt_id,
+            )
+        except Exception:
+            pass
+        raise
     except Exception as error:
         try:
             recover_failed_private_turn(
@@ -349,8 +383,23 @@ def run_turn(message: str, *, provider_command: tuple[str, ...] | None = None) -
             effect_barrier=checkpoint,
             private_message=message,
         )
-    except Exception:
-        checkpoint()
+    except GovernanceRejectionError as error:
+        try:
+            recover_rejected_private_turn(
+                data_path=DATA,
+                receipt_id=error.receipt.receipt_id,
+            )
+        finally:
+            checkpoint()
+        raise
+    except Exception as error:
+        try:
+            recover_failed_private_turn(
+                data_path=DATA,
+                category=type(error).__name__,
+            )
+        finally:
+            checkpoint()
         raise
     checkpoint()
     return response
