@@ -16,7 +16,7 @@ import threading
 from typing import Any
 from urllib.parse import urlsplit
 
-from sudofx import ApplicationHost, ApplicationRegistry, Kernel
+from sudofx import ApplicationAccessError, ApplicationHost, ApplicationRegistry, Kernel
 from sudofx.governance import Governance
 from sudofx.record import Record
 
@@ -62,8 +62,11 @@ class ConversationService:
             os.environ.get("GEMINI_API_KEY", "").strip()
             and os.environ.get("GEMINI_MODEL", "").strip()
         )
+        access = kernel.application_access_state()
         return {
             "turn_count": turn_count,
+            "application_access_enabled": access.enabled,
+            "application_access_generation": access.generation,
             "observation_count": int(projection["observation_count"]),
             "provider_invocations": turn_count // 2,
             "next_role": str(projection["next_role"]),
@@ -143,6 +146,8 @@ def _handler(service: ConversationService):
                         self._json(503, {"error": "Gemini is not configured in this Codespace: GEMINI_MODEL is missing"})
                         return
                 self._json(200, service.converse(message))
+            except ApplicationAccessError as error:
+                self._json(503, {"error": error.code})
             except ValueError as error:
                 self._json(400, {"error": str(error)})
             except Exception:
