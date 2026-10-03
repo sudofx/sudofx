@@ -1,6 +1,6 @@
-name: sudofx — application access
+name: sudofx - kill switch
 
-run-name: sudofx application access · ${{ inputs.mode }}
+run-name: sudofx kill switch · ${{ inputs.mode }}
 
 on:
   workflow_dispatch:
