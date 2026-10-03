@@ -1,0 +1,61 @@
+name: sudofx — application access
+
+run-name: sudofx application access · ${{ inputs.mode }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Global connected-application access
+        type: choice
+        options: [STOP, RESTORE, STATUS]
+        default: STATUS
+        required: true
+      reason:
+        description: Optional operator note
+        type: string
+        required: false
+
+permissions:
+  contents: write
+
+concurrency:
+  # The latch and semantic state share one serialized authority lane so STOP
+  # cannot race a state checkpoint and disappear behind an older database push.
+  group: sudofx-authority-v4
+  cancel-in-progress: false
+
+jobs:
+  access:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+      - name: Verify sudofx before changing access
+        run: PYTHONPATH=src:. python -m unittest discover -s tests -v
+      - name: Apply global application access state
+        env:
+          MODE: ${{ inputs.mode }}
+          REASON: ${{ inputs.reason }}
+        run: |
+          set -euo pipefail
+          case "$MODE" in
+            STOP)
+              PYTHONPATH=src python scripts/github_sudofx.py                 --application-access disable                 --application-access-reason "${REASON:-operator emergency stop}"
+              ;;
+            RESTORE)
+              PYTHONPATH=src python scripts/github_sudofx.py                 --application-access enable                 --application-access-reason "${REASON:-operator restored application access}"
+              ;;
+            STATUS)
+              PYTHONPATH=src python scripts/github_sudofx.py --application-access status
+              ;;
+            *)
+              echo "::error::Unknown application access mode: $MODE"
+              exit 2
+              ;;
+          esac
