@@ -34,7 +34,7 @@ from .governance import Governance, WORK_ACTIONS, work_key
 # replay compatibility only; new governance accepts only WORK_ACTIONS.
 HISTORICAL_WORK_RECEIPT_ACTIONS = {*WORK_ACTIONS, "record_handoff_evaluation"}
 from .models import Context, Proposal, Receipt, SubmissionProvenance
-from .storage import EventAppend, RecordStore, hash_event
+from .storage import ApplicationAccessState, EventAppend, RecordStore, hash_event
 
 
 @dataclass(frozen=True)
@@ -58,6 +58,14 @@ class Kernel:
     def __init__(self, record: RecordStore, governance: Governance | None = None) -> None:
         self.record = record
         self.governance = governance or Governance()
+
+    def application_access_state(self) -> ApplicationAccessState:
+        """Expose the storage-owned global application latch without duplicating authority."""
+        return self.record.application_access_state()
+
+    def require_application_access(self, expected_generation: int) -> None:
+        """Fail closed unless application access still matches the captured generation."""
+        self.record.require_application_access(expected_generation)
 
     def context(self, *, receipt_limit: int = 10, work_id: str | None = None) -> Context:
         """
@@ -95,6 +103,7 @@ class Kernel:
         proposal: Proposal,
         *,
         provenance: SubmissionProvenance | None = None,
+        application_access_generation: int | None = None,
     ) -> Receipt:
         """
         Govern and durably record one proposal as a single semantic transaction.
@@ -108,6 +117,12 @@ class Kernel:
         provenance_payload = provenance.to_dict() if provenance is not None else None
 
         with self.record.write_transaction() as transaction:
+            # Application callers capture the access generation before doing
+            # work. Rechecking inside the serialized commit transaction makes an
+            # operator STOP invalidate any request that crossed the boundary
+            # before the latch changed.
+            if application_access_generation is not None:
+                transaction.require_application_access(application_access_generation)
             revision, state = transaction.replay()
             if transaction.proposal_exists(proposal.proposal_id):
                 raise ValueError(f"proposal_id already recorded: {proposal.proposal_id}")
