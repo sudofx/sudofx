@@ -65,7 +65,7 @@ from .storage import (
 # sudofx record; user_version gives storage evolution one ordered owner instead
 # of scattering opportunistic CREATE/ALTER statements through runtime paths.
 APPLICATION_ID = 0x53444658  # "SDFX"
-SCHEMA_VERSION = 10
+SCHEMA_VERSION = 11
 
 
 _PROJECTION_CODEC_PREFIX = "zlib:"
@@ -642,9 +642,52 @@ class Record:
                     generation INTEGER NOT NULL CHECK (generation >= 0),
                     actor TEXT NOT NULL,
                     reason TEXT NOT NULL DEFAULT '',
-                    changed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                    changed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    event_id TEXT,
+                    previous_hash TEXT,
+                    event_hash TEXT
                 )
                 """
+            )
+            # v11 makes kill-switch transitions independently tamper-evident.
+            # Existing v10 rows are deterministically backfilled in append order.
+            access_columns = {
+                row[1] for row in connection.execute("PRAGMA table_info(application_access_events)")
+            }
+            if "event_id" not in access_columns:
+                connection.execute("ALTER TABLE application_access_events ADD COLUMN event_id TEXT")
+            if "previous_hash" not in access_columns:
+                connection.execute("ALTER TABLE application_access_events ADD COLUMN previous_hash TEXT")
+            if "event_hash" not in access_columns:
+                connection.execute("ALTER TABLE application_access_events ADD COLUMN event_hash TEXT")
+            previous_access_hash = GENESIS_HASH
+            for row in connection.execute(
+                "SELECT * FROM application_access_events ORDER BY sequence"
+            ):
+                event_id = row["event_id"] or f"legacy-application-access-{row['sequence']}"
+                material = self._application_access_material(row, event_id=event_id)
+                event_hash = hash_event(previous_access_hash, material)
+                if (
+                    row["event_id"] is None
+                    or row["previous_hash"] is None
+                    or row["event_hash"] is None
+                ):
+                    connection.execute(
+                        """
+                        UPDATE application_access_events
+                        SET event_id = ?, previous_hash = ?, event_hash = ?
+                        WHERE sequence = ?
+                        """,
+                        (event_id, previous_access_hash, event_hash, row["sequence"]),
+                    )
+                previous_access_hash = event_hash
+            connection.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS application_access_events_event_id "
+                "ON application_access_events(event_id)"
+            )
+            connection.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS application_access_events_event_hash "
+                "ON application_access_events(event_hash)"
             )
             if connection.execute(
                 "SELECT 1 FROM application_access WHERE singleton = 1"
@@ -917,6 +960,85 @@ class Record:
         )
 
     @staticmethod
+    def _application_access_material(
+        row: sqlite3.Row,
+        *,
+        event_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Rebuild the exact material bound into one access-transition hash."""
+        return {
+            "event_id": event_id if event_id is not None else row["event_id"],
+            "enabled": bool(row["enabled"]),
+            "generation": int(row["generation"]),
+            "actor": str(row["actor"]),
+            "reason": str(row["reason"]),
+        }
+
+    def _verified_application_access_history(
+        self,
+        connection: sqlite3.Connection,
+    ) -> tuple[dict[str, Any], ...]:
+        """Verify access-transition hashes, generations, and current latch head."""
+        previous_hash = GENESIS_HASH
+        previous_generation = 0
+        history: list[dict[str, Any]] = []
+        rows = list(connection.execute(
+            "SELECT * FROM application_access_events ORDER BY sequence"
+        ))
+        for row in rows:
+            if not row["event_id"] or not row["previous_hash"] or not row["event_hash"]:
+                raise IntegrityError("application access event integrity metadata is missing")
+            if row["previous_hash"] != previous_hash:
+                raise IntegrityError("application access event previous hash is invalid")
+            expected_hash = hash_event(
+                previous_hash,
+                self._application_access_material(row),
+            )
+            if row["event_hash"] != expected_hash:
+                raise IntegrityError("application access event hash is invalid")
+            generation = int(row["generation"])
+            if generation != previous_generation + 1:
+                raise IntegrityError("application access generation sequence is invalid")
+            history.append({
+                "sequence": int(row["sequence"]),
+                "enabled": bool(row["enabled"]),
+                "generation": generation,
+                "actor": str(row["actor"]),
+                "reason": str(row["reason"]),
+                "changed_at": str(row["changed_at"]),
+                "event_id": str(row["event_id"]),
+                "previous_hash": str(row["previous_hash"]),
+                "event_hash": str(row["event_hash"]),
+            })
+            previous_generation = generation
+            previous_hash = str(row["event_hash"])
+
+        latch = connection.execute(
+            "SELECT enabled, generation, actor, reason FROM application_access WHERE singleton = 1"
+        ).fetchone()
+        if latch is None:
+            raise IntegrityError("application access latch is missing")
+        latch_generation = int(latch["generation"])
+        if history:
+            latest = history[-1]
+            if (
+                latch_generation != latest["generation"]
+                or bool(latch["enabled"]) != latest["enabled"]
+                or str(latch["actor"]) != latest["actor"]
+                or str(latch["reason"]) != latest["reason"]
+            ):
+                raise IntegrityError("application access latch does not match verified audit head")
+        elif latch_generation != 0:
+            raise IntegrityError("application access latch has generation without audit history")
+        return tuple(history)
+
+    def application_access_history(self) -> tuple[dict[str, Any], ...]:
+        """Return the fully verified operational kill-switch audit trail."""
+        with self.connect() as connection:
+            connection.execute("BEGIN")
+            return self._verified_application_access_history(connection)
+
+    @staticmethod
     def _access_state_from_row(row: sqlite3.Row) -> ApplicationAccessState:
         """Translate one latch row without leaking SQLite through the storage contract."""
         return ApplicationAccessState(
@@ -930,6 +1052,8 @@ class Record:
     def application_access_state(self) -> ApplicationAccessState:
         """Return the authoritative global application-access latch."""
         with self.connect() as connection:
+            connection.execute("BEGIN")
+            self._verified_application_access_history(connection)
             row = connection.execute(
                 "SELECT enabled, generation, actor, reason, changed_at "
                 "FROM application_access WHERE singleton = 1"
@@ -988,12 +1112,37 @@ class Record:
                         """,
                         (1 if enabled else 0, generation, actor.strip(), reason.strip()),
                     )
+                    previous = connection.execute(
+                        "SELECT event_hash FROM application_access_events "
+                        "ORDER BY sequence DESC LIMIT 1"
+                    ).fetchone()
+                    previous_hash = previous["event_hash"] if previous else GENESIS_HASH
+                    event_id = str(uuid.uuid4())
+                    material = {
+                        "event_id": event_id,
+                        "enabled": bool(enabled),
+                        "generation": generation,
+                        "actor": actor.strip(),
+                        "reason": reason.strip(),
+                    }
+                    event_hash = hash_event(previous_hash, material)
                     connection.execute(
                         """
-                        INSERT INTO application_access_events (enabled, generation, actor, reason)
-                        VALUES (?, ?, ?, ?)
+                        INSERT INTO application_access_events (
+                            enabled, generation, actor, reason,
+                            event_id, previous_hash, event_hash
+                        )
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
                         """,
-                        (1 if enabled else 0, generation, actor.strip(), reason.strip()),
+                        (
+                            1 if enabled else 0,
+                            generation,
+                            actor.strip(),
+                            reason.strip(),
+                            event_id,
+                            previous_hash,
+                            event_hash,
+                        ),
                     )
                 connection.commit()
             except BaseException:
@@ -1037,6 +1186,7 @@ class Record:
         verified = Record(destination)
         verified.full_replay()
         verified.invocation_history()
+        verified.application_access_history()
 
     def compact(self) -> None:
         """
@@ -1079,6 +1229,7 @@ class Record:
         verified = Record(destination)
         verified.replay()
         verified.invocation_history()
+        verified.application_access_history()
 
     def health(self) -> dict[str, int | float | str]:
         """
@@ -1094,6 +1245,9 @@ class Record:
         with self.connect() as connection:
             event_count = int(connection.execute("SELECT COUNT(*) FROM events").fetchone()[0])
             invocation_event_count = len(self._verified_invocation_history(connection))
+            application_access_event_count = len(
+                self._verified_application_access_history(connection)
+            )
             page_size = int(connection.execute("PRAGMA page_size").fetchone()[0])
             page_count = int(connection.execute("PRAGMA page_count").fetchone()[0])
             free_pages = int(connection.execute("PRAGMA freelist_count").fetchone()[0])
@@ -1103,6 +1257,7 @@ class Record:
             "revision": revision,
             "event_count": event_count,
             "invocation_event_count": invocation_event_count,
+            "application_access_event_count": application_access_event_count,
             "database_bytes": page_size * page_count,
             "free_bytes": page_size * free_pages,
             "replay_ms": round(replay_ms, 3),
@@ -1132,6 +1287,9 @@ class Record:
             )
             event_count = int(connection.execute("SELECT COUNT(*) FROM events").fetchone()[0])
             invocation_event_count = len(self._verified_invocation_history(connection))
+            application_access_event_count = len(
+                self._verified_application_access_history(connection)
+            )
             page_size = int(connection.execute("PRAGMA page_size").fetchone()[0])
             page_count = int(connection.execute("PRAGMA page_count").fetchone()[0])
             free_pages = int(connection.execute("PRAGMA freelist_count").fetchone()[0])
@@ -1142,6 +1300,7 @@ class Record:
             "revision": revision,
             "event_count": event_count,
             "invocation_event_count": invocation_event_count,
+            "application_access_event_count": application_access_event_count,
             "database_bytes": page_size * page_count,
             "free_bytes": page_size * free_pages,
             "replay_ms": round((time.perf_counter() - started) * 1000, 3),
