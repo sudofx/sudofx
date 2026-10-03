@@ -22,6 +22,7 @@ from sudofx import (
     Context,
     FakeIntelligence,
     FakeWorkIntelligence,
+    GovernanceRejectionError,
     InvocationLifecycle,
     Kernel,
     Operation,
@@ -1679,6 +1680,29 @@ json.dump({
         )
         self.assertEqual(result.run.receipt.status, "accepted")
         self.assertEqual(order, ["barrier", "provider"])
+
+    def test_runtime_rejection_cannot_escape_as_an_approved_result(self) -> None:
+        """A rejected proposal is durable evidence, never authorization for an effect."""
+        runtime = Runtime(self.kernel, self.kernel.record)
+
+        class RejectedProvider:
+            def propose(inner_self, context):
+                return Proposal("runtime-rejected", context.revision, ())
+
+        with self.assertRaises(GovernanceRejectionError) as raised:
+            runtime.run(
+                RejectedProvider(),
+                provenance=SubmissionProvenance("model", "fixture", "unit-test"),
+            )
+
+        self.assertEqual(raised.exception.receipt.status, "rejected")
+        self.assertEqual(self.kernel.context().revision, 0)
+        self.assertEqual(self.kernel.record.history()[-1]["status"], "rejected")
+        lifecycle = self.kernel.record.invocation_history()
+        self.assertEqual(lifecycle[-2]["stage"], "governed")
+        self.assertEqual(lifecycle[-2]["detail"], "rejected")
+        self.assertEqual(lifecycle[-1]["stage"], "completed")
+        self.assertEqual(lifecycle[-1]["detail"], "rejected")
 
     def test_runtime_records_provider_failure_without_fabricating_proposal_receipt(self) -> None:
         """Provider failure is durable invocation evidence but never a proposal event."""
