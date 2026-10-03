@@ -879,13 +879,20 @@ json.dump({
         self.assertEqual(accepted.status, "accepted")
         rejected = host.submit(ApplicationIntent("feedback-bad", 1, "missing", {"value": 2}))
         self.assertEqual(rejected.status, "rejected")
-        kernel.submit(Proposal("unrelated", 1, (Operation("set", "other", True),)))
+        for index in range(20):
+            kernel.submit(
+                Proposal(
+                    f"unrelated-{index}",
+                    kernel.context().revision,
+                    (Operation("set", f"other-{index}", True),),
+                )
+            )
 
         feedback = host.recent_governance(limit=2)
         self.assertEqual([item["proposal_id"] for item in feedback], ["feedback-ok", "feedback-bad"])
         self.assertEqual([item["status"] for item in feedback], ["accepted", "rejected"])
         self.assertTrue(feedback[-1]["reasons"])
-        self.assertNotIn("unrelated", json.dumps(feedback))
+        self.assertNotIn("unrelated-", json.dumps(feedback))
 
     def test_application_context_and_effect_capability_are_bounded(self) -> None:
         """Apps see their state only and may request only declared, unexecuted effects."""
