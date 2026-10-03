@@ -260,37 +260,51 @@ class ApplicationHost:
         """
         if limit <= 0:
             return ()
-        context = self.kernel.context(receipt_limit=max(limit * 4, limit))
+
+        # Keep one backend-owned read snapshot while expanding only the receipt
+        # search window. A fixed heuristic window can silently omit this app's
+        # latest governance facts when unrelated applications are noisy.
         matched: list[dict[str, JsonValue]] = []
-        for receipt in reversed(context.recent_receipts):
-            proposal = receipt.get("proposal")
-            if not isinstance(proposal, dict):
-                continue
-            operations = proposal.get("operations")
-            if not isinstance(operations, list):
-                continue
-            if not any(
-                isinstance(operation, dict)
-                and operation.get("action") == "apply_application"
-                and operation.get("key") == self.application_id
-                for operation in operations
-            ):
-                continue
-            matched.append(
-                {
-                    "proposal_id": str(proposal.get("proposal_id", "")),
-                    "status": str(receipt.get("status", "")),
-                    "reasons": [
-                        str(reason)
-                        for reason in receipt.get("reasons", [])
-                        if isinstance(reason, str)
-                    ],
-                    "revision_before": int(receipt.get("revision_before", context.revision)),
-                    "revision_after": int(receipt.get("revision_after", context.revision)),
-                }
-            )
-            if len(matched) >= limit:
-                break
+        with self.kernel.record.read_transaction() as transaction:
+            revision, _ = transaction.replay()
+            window = max(limit, 8)
+            while True:
+                receipts = transaction.recent(window)
+                matched.clear()
+                for receipt in reversed(receipts):
+                    proposal = receipt.get("proposal")
+                    if not isinstance(proposal, dict):
+                        continue
+                    operations = proposal.get("operations")
+                    if not isinstance(operations, list):
+                        continue
+                    if not any(
+                        isinstance(operation, dict)
+                        and operation.get("action") == "apply_application"
+                        and operation.get("key") == self.application_id
+                        for operation in operations
+                    ):
+                        continue
+                    matched.append(
+                        {
+                            "proposal_id": str(proposal.get("proposal_id", "")),
+                            "status": str(receipt.get("status", "")),
+                            "reasons": [
+                                str(reason)
+                                for reason in receipt.get("reasons", [])
+                                if isinstance(reason, str)
+                            ],
+                            "revision_before": int(receipt.get("revision_before", revision)),
+                            "revision_after": int(receipt.get("revision_after", revision)),
+                        }
+                    )
+                    if len(matched) >= limit:
+                        break
+
+                if len(matched) >= limit or len(receipts) < window:
+                    break
+                window *= 2
+
         matched.reverse()
         return tuple(matched)
 
