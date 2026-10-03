@@ -53,7 +53,11 @@
     .then(results=>results.flatMap(result=>result.status==='fulfilled'?result.value:[]))
     .catch(()=>[]);
 
-  fetch(LIVE_URL+'?v='+Date.now(),{cache:'no-store'})
+  let refreshInFlight=false;
+  const refreshLive=()=>{
+    if(refreshInFlight)return Promise.resolve();
+    refreshInFlight=true;
+    return fetch(LIVE_URL+'?v='+Date.now(),{cache:'no-store'})
     .then(r=>{if(!r.ok)throw new Error('live projection unavailable');return r.json()})
     .then(async raw=>{
       const local=raw.application_observability?.applications||[];
@@ -117,6 +121,7 @@
 
       const traffic=q('[data-traffic-window]');
       if(traffic){
+        const openTraffic=new Set([...traffic.querySelectorAll('details[open][data-invocation-id]')].map(el=>el.dataset.invocationId).filter(Boolean));
         traffic.replaceChildren();
         const rows=d.applications.flatMap(app=>{
           const recent=Array.isArray(app.invocations?.recent)?app.invocations.recent:[];
@@ -128,6 +133,7 @@
           traffic.append(empty);
         } else rows.forEach(({app,inv})=>{
           const card=document.createElement('details');card.className='panel traffic-item';
+          const invocationId=String(inv.invocation_id||'');card.dataset.invocationId=invocationId;if(invocationId&&openTraffic.has(invocationId))card.open=true;
           const stages=Array.isArray(inv.stages)?inv.stages:[];
           const ctx=inv.context||{};
           const summary=document.createElement('summary');summary.className='traffic-summary';
@@ -240,5 +246,13 @@
       const summary=q('[data-live-summary] p');if(summary)summary.textContent='Live projection is temporarily unavailable. Static product information remains usable.';
       const fresh=q('[data-metrics-freshness]');if(fresh)fresh.textContent='Live metrics are temporarily unavailable. No authority is stored in this page.';
       setText('[data-experiment-note]','Live experiment telemetry is temporarily unavailable.');
-    });
+    })
+    .finally(()=>{refreshInFlight=false});
+  };
+
+  refreshLive();
+  const LIVE_REFRESH_MS=5000;
+  setInterval(refreshLive,LIVE_REFRESH_MS);
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')refreshLive()});
+  window.addEventListener('focus',refreshLive);
 })();
