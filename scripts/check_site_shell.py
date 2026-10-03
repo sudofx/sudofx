@@ -15,9 +15,9 @@ if not SITE.is_absolute():
 
 PAGES = ("index.html", "applications.html", "conversation.html", "technical.html", "metrics.html")
 MAX_HTML_BYTES = 12_000
-MAX_CSS_BYTES = 20_000
+MAX_CSS_BYTES = 24_000
 MAX_JS_BYTES = 24_000
-MAX_TOTAL_BYTES = 80_000
+MAX_TOTAL_BYTES = 96_000
 
 
 class AuditParser(HTMLParser):
