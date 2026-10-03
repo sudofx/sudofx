@@ -92,6 +92,35 @@ class ConversationServerTests(unittest.TestCase):
             privacy = state["privacy"]
             self.assertEqual(privacy["commitments"], [])
 
+    def test_provider_failure_does_not_wedge_next_role(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            database = Path(temporary) / "conversation.sqlite"
+            failing_provider = (
+                sys.executable,
+                "-c",
+                "import sys; sys.exit(1)",
+            )
+            service = ConversationService(database, provider_command=failing_provider)
+
+            with self.assertRaises(Exception):
+                service.converse("Hello")
+
+            status = service.status()
+            self.assertEqual(status["next_role"], "human")
+            self.assertTrue(status["provider_configured"])
+
+    def test_startup_recovers_orphaned_pending_assistant_turn(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            database = Path(temporary) / "conversation.sqlite"
+            from applications.conversation.runtime import commit_human_turn
+
+            commit_human_turn("Hello", data_path=database, private_mode=True)
+            service = ConversationService(
+                database,
+                provider_command=(sys.executable, "-c", "import sys; sys.exit(0)"),
+            )
+            self.assertEqual(service.status()["next_role"], "human")
+
     def test_direct_identifier_is_rejected_before_provider_invocation(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             service = ConversationService(Path(temporary) / "conversation.sqlite")
