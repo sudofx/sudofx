@@ -95,7 +95,7 @@
     auth.hidden=true;
     if(status.provider_configured!==true){
       setState('Private transport connected · Gemini not configured','offline');
-      help.textContent='This Codespace does not have GEMINI_API_KEY loaded. Add the Codespaces secret, then restart the Codespace.';
+      help.textContent='This Codespace does not have the provider credential loaded. Add the Codespaces secret, then restart the Codespace.';
       setEnabled(false);
       return;
     }
