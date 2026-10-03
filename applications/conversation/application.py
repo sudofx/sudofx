@@ -125,6 +125,7 @@ def _privacy_state(current: JsonValue) -> dict[str, JsonValue]:
             "turn_count": 0,
             "next_role": "human",
             "observations": [],
+            "verified_observations": [],
             "commitments": [],
         }
     if not isinstance(current, dict):
@@ -135,6 +136,7 @@ def _privacy_state(current: JsonValue) -> dict[str, JsonValue]:
             "turn_count": 0,
             "next_role": "human",
             "observations": [],
+            "verified_observations": [],
             "commitments": [],
         }
     if not isinstance(raw, dict):
@@ -472,7 +474,8 @@ def private_assistant_message(current: JsonValue, payload: JsonValue) -> Applica
 
     previous = [str(item) for item in privacy["observations"]]
     merged: list[str] = []
-    for item in [*previous, *observations]:
+    new_legacy_observations = [] if has_verified_observations else observations
+    for item in [*previous, *new_legacy_observations]:
         if item not in merged:
             merged.append(item)
     merged = merged[-MAX_DURABLE_OBSERVATIONS:]
