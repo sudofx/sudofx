@@ -15,6 +15,7 @@ from applications.conversation import (
 from applications.conversation.server import ConversationService
 from sudofx import ApplicationHost, ApplicationRegistry, Kernel
 from sudofx.governance import Governance
+from sudofx.providers import ProviderQuotaError
 from sudofx.record import Record
 
 
@@ -35,10 +36,10 @@ class ConversationServerTests(unittest.TestCase):
                 "import json,sys; d=json.load(sys.stdin); "
                 "s=d['state']['app:conversation']; m=s['current_message']; "
                 "obs=s.get('observations',[]); "
-                "out=({'content':'Saved.','observations':['The test is comparing blue and green.']} "
+                "out=({'content':'Saved.','observations':['compare blue and green']} "
                 "if m.startswith('First') else "
                 "({'content':'We were comparing blue and green.','observations':[]} "
-                "if 'The test is comparing blue and green.' in obs else "
+                "if 'compare blue and green' in obs else "
                 "{'content':'Continuity missing.','observations':[]})); "
                 "json.dump(out,sys.stdout)",
             )
@@ -69,7 +70,7 @@ class ConversationServerTests(unittest.TestCase):
             self.assertNotIn("First, compare blue and green", serialized)
             self.assertNotIn("What were we trying to figure out earlier?", serialized)
             self.assertNotIn("We were comparing blue and green.", serialized)
-            self.assertIn("The test is comparing blue and green.", serialized)
+            self.assertIn("compare blue and green", serialized)
 
     def test_persistent_response_suffix_is_governed_until_revoked(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -92,7 +93,7 @@ class ConversationServerTests(unittest.TestCase):
                 "(('Already correct.\\n\\n'+" + repr(footer) + ") if m.startswith('Correct footer') else "
                 "(('Duplicated.\\n\\n'+" + repr(footer) + "+'\\n\\n'+" + repr(footer) + ") if m.startswith('Duplicate footer') else "
                 "'A fresh provider omitted it.'))))); "
-                "json.dump({'content':content,'observations':['Commitment persistence is under test.'],'commitment_updates':updates},sys.stdout)",
+                "json.dump({'content':content,'observations':['footer on its own line'],'commitment_updates':updates},sys.stdout)",
             )
             service = ConversationService(database, provider_command=provider)
 
@@ -119,7 +120,10 @@ class ConversationServerTests(unittest.TestCase):
             state = ApplicationHost(kernel, registry, "conversation").context().state
             privacy = state["privacy"]
             self.assertEqual(privacy["commitments"], [])
-            self.assertIn("Commitment persistence is under test.", privacy["observations"])
+            self.assertIn(
+                "footer on its own line",
+                [item["text"] for item in privacy["verified_observations"]],
+            )
 
     def test_new_line_suffix_enforcement_canonicalizes_provider_output(self) -> None:
         footer = "- Required footer"
@@ -184,6 +188,36 @@ class ConversationServerTests(unittest.TestCase):
             status = service.status()
             self.assertEqual(status["next_role"], "human")
             self.assertTrue(status["provider_configured"])
+
+    def test_provider_process_preserves_quota_classification_and_safe_details(self) -> None:
+        """A child HTTP 429 must not degrade into an opaque generic failure."""
+        with tempfile.TemporaryDirectory() as temporary:
+            database = Path(temporary) / "conversation.sqlite"
+            diagnostic = json.dumps(
+                {
+                    "error_type": "ProviderQuotaError",
+                    "message": "Gemini quota exhausted (HTTP 429)",
+                    "details": {
+                        "category": "quota",
+                        "http_status": 429,
+                        "quota_ids": ["GenerateRequestsPerDay"],
+                    },
+                }
+            )
+            provider = (
+                sys.executable,
+                "-c",
+                "import sys; sys.stderr.write(" + repr(diagnostic) + "); sys.exit(78)",
+            )
+            service = ConversationService(database, provider_command=provider)
+
+            with self.assertRaisesRegex(ProviderQuotaError, "HTTP 429") as raised:
+                service.converse("Classify this provider failure accurately.")
+
+            self.assertEqual(raised.exception.details["http_status"], 429)
+            lifecycle = Record(database).invocation_history()
+            self.assertEqual(lifecycle[-1]["outcome"], "quota_exhausted")
+            self.assertEqual(service.status()["next_role"], "human")
 
     def test_startup_recovers_orphaned_pending_assistant_turn(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

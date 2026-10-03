@@ -5,8 +5,15 @@ from __future__ import annotations
 import json
 import os
 import sys
+from typing import Any
 
-from sudofx import GenerationRequest, GeminiGenerationProvider
+from sudofx import (
+    GenerationRequest,
+    GeminiGenerationProvider,
+    ProviderError,
+    ProviderQuotaError,
+    ProviderTemporaryError,
+)
 
 
 SYSTEM_PROMPT = """You are the stateless response engine for a sudofx Conversation proof.
@@ -66,6 +73,28 @@ The current human message is transient. Prior conversation text is intentionally
 not present. Durable observations include provenance and have already passed the
 runtime's exact-excerpt check.
 """
+
+
+def _failure_envelope(error: Exception) -> dict[str, Any]:
+    """Return bounded diagnostics for the parent process, never provider input.
+
+    The shared Gemini boundary already removes credentials from ``details``.
+    This adapter deliberately emits only that sanitized metadata and a bounded,
+    implementation-owned message; prompts and provider response bodies never
+    cross stderr and therefore cannot leak into server logs or HTTP errors.
+    """
+    details = getattr(error, "details", {})
+    return {
+        "error_type": type(error).__name__,
+        "message": str(error)[:500],
+        "details": details if isinstance(details, dict) else {},
+    }
+
+
+def _report_failure(error: Exception) -> None:
+    """Write one machine-readable diagnostic envelope to the private parent."""
+    json.dump(_failure_envelope(error), sys.stderr, ensure_ascii=False)
+    sys.stderr.write("\n")
 
 
 def main() -> int:
@@ -144,4 +173,17 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    # Exit codes are part of the application-owned process protocol. Preserve
+    # retry/quota meaning so sudofx can journal the right generic outcome; an
+    # unhandled traceback would collapse every vendor condition into exit 1.
+    try:
+        raise SystemExit(main())
+    except ProviderQuotaError as error:
+        _report_failure(error)
+        raise SystemExit(78)
+    except ProviderTemporaryError as error:
+        _report_failure(error)
+        raise SystemExit(75)
+    except (ProviderError, RuntimeError, ValueError, json.JSONDecodeError) as error:
+        _report_failure(error)
+        raise SystemExit(1)

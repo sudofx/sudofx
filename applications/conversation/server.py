@@ -19,6 +19,7 @@ from urllib.parse import urlsplit
 
 from sudofx import ApplicationAccessError, ApplicationHost, ApplicationRegistry, Kernel
 from sudofx.governance import Governance
+from sudofx.providers import ProviderError, ProviderQuotaError, ProviderTemporaryError
 from sudofx.record import Record
 
 from .application import CONVERSATION_APPLICATION, private_bounded_context
@@ -164,6 +165,12 @@ def _handler(service: ConversationService):
                 self._json(503, {"error": error.code})
             except ValueError as error:
                 self._json(400, {"error": str(error)})
+            except ProviderQuotaError as error:
+                self._json(429, {"error": str(error)})
+            except ProviderTemporaryError as error:
+                self._json(503, {"error": str(error)})
+            except ProviderError as error:
+                self._json(502, {"error": str(error)})
             except Exception:
                 self._json(502, {"error": "the fresh provider turn failed"})
 

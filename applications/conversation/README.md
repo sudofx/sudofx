@@ -59,6 +59,10 @@ For each assistant turn:
 7. discard provider-local state and raw response text after presentation.
 
 A provider can be replaced without changing Conversation's durable semantics.
+The disposable provider process returns bounded, credential-sanitized failure
+metadata over stderr and uses distinct temporary/quota exit codes. The parent
+runtime converts those codes into generic sudofx invocation outcomes while raw
+provider payloads, prompts, and response text remain outside durable state.
 
 ## Browser and transport
 

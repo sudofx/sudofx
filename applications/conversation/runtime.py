@@ -110,12 +110,39 @@ class ConversationIntelligence:
             check=False,
             env=os.environ.copy(),
         )
+
+        # stderr is a private process protocol, not durable application state.
+        # Parse only the adapter's bounded JSON envelope; never persist or echo
+        # arbitrary subprocess output, which could contain prompts or secrets
+        # if a future provider implementation regresses its logging discipline.
+        diagnostic: dict[str, object] = {}
+        try:
+            candidate = json.loads(completed.stderr)
+            if isinstance(candidate, dict):
+                diagnostic = candidate
+        except (json.JSONDecodeError, TypeError):
+            pass
+        message = diagnostic.get("message")
+        safe_message = (
+            message
+            if isinstance(message, str) and message.strip()
+            else "conversation provider failed before returning a valid response"
+        )
+        details = diagnostic.get("details")
+
+        def provider_error(error_type: type[ProviderError]) -> ProviderError:
+            """Rehydrate only generic failure meaning and sanitized metadata."""
+            error = error_type(safe_message)
+            if isinstance(details, dict):
+                error.details = details
+            return error
+
         if completed.returncode == 75:
-            raise ProviderTemporaryError("conversation provider temporarily unavailable")
+            raise provider_error(ProviderTemporaryError)
         if completed.returncode == 78:
-            raise ProviderQuotaError("conversation provider quota exhausted")
+            raise provider_error(ProviderQuotaError)
         if completed.returncode != 0:
-            raise ProviderError("conversation provider failed before returning a valid response")
+            raise provider_error(ProviderError)
         try:
             response = json.loads(completed.stdout)
         except json.JSONDecodeError as error:

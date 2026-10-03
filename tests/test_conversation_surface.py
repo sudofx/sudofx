@@ -35,7 +35,10 @@ class ConversationSurfaceTests(unittest.TestCase):
         self.assertIn("navigator.clipboard.readText", script)
         self.assertIn("event.metaKey||event.ctrlKey", script)
         self.assertIn("key==='c'", script)
-        self.assertIn("key==='v'", script)
+        # Keyboard paste belongs exclusively to the browser. An async custom
+        # handler can insert clipboard text after native paste already landed,
+        # duplicating user input even if it eventually calls preventDefault().
+        self.assertNotIn("if(key==='v'", script)
         self.assertIn("data-conversation-export", page)
         self.assertIn("conversation-markdown.js", page)
         self.assertIn("SudofxConversationMarkdown.render", script)

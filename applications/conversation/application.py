@@ -146,6 +146,7 @@ def _privacy_state(current: JsonValue) -> dict[str, JsonValue]:
     observations = raw.get("observations")
     verified_observations = raw.get("verified_observations", [])
     commitments = raw.get("commitments", [])
+    last_human = raw.get("last_human")
     if not isinstance(turn_count, int) or turn_count < 0:
         raise ValueError("conversation privacy turn count is invalid")
     if next_role not in {"human", "assistant"}:
@@ -191,13 +192,30 @@ def _privacy_state(current: JsonValue) -> dict[str, JsonValue]:
             "placement": placement,
         }
         normalized_commitments.append(normalized)
-    return {
+    normalized: dict[str, JsonValue] = {
         "turn_count": turn_count,
         "next_role": next_role,
         "observations": list(observations),
         "verified_observations": normalized_verified,
         "commitments": normalized_commitments,
     }
+    # The current human-message digest is authority metadata, not transcript
+    # content.  Verified observations must remain bound to that exact turn at
+    # the commit boundary, so normalization may validate this field but must
+    # not silently discard it before private_assistant_message compares it.
+    if last_human is not None:
+        if (
+            not isinstance(last_human, dict)
+            or not _valid_digest(last_human.get("message_digest"))
+            or not isinstance(last_human.get("message_chars"), int)
+            or not (1 <= last_human["message_chars"] <= MAX_MESSAGE_CHARS)
+        ):
+            raise ValueError("conversation last human message metadata is invalid")
+        normalized["last_human"] = {
+            "message_digest": last_human["message_digest"],
+            "message_chars": last_human["message_chars"],
+        }
+    return normalized
 
 
 def _valid_digest(value: object) -> bool:
