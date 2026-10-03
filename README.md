@@ -60,6 +60,7 @@ Implemented and exercised on `master`:
 - bounded context with explicit omission evidence
 - provider-neutral execution boundaries
 - application identity, versioning, actions, policy re-evaluation, migration boundaries, and event-log storage
+- a database-backed global application access kill switch with generation fencing for in-flight work
 - a privacy-bounded governed Conversation application that survives process replacement from SQLite alone
 - a runnable private/local chat transport whose visible transcript stays transient while SQLite stores governed observations
 - an encrypted GitHub Actions transport seam for a future authenticated cloud gateway
@@ -101,6 +102,12 @@ GitHub Actions / providers / browser
 Only the SQLite record is operational truth.
 
 Pages, workflow state, JSON, Markdown, reports, summaries, handoff packets, and browser state are views, transport, evidence, or exports. They must never become a competing authoritative store.
+
+## Application kill switch
+
+sudofx owns a global application-access latch in authoritative SQLite. The operator can STOP or RESTORE connected-application access through the dedicated **sudofx — application access** workflow. STOP does not shut down sudofx itself: inspection, recovery, and operator work remain available while application-origin work is denied.
+
+Each access transition advances a generation token. Application work captures that generation before execution and the kernel rechecks it inside the commit transaction, so work that began before a STOP/RESTORE boundary cannot commit afterward using stale authority. Connected deployments with separate databases must consult the central sudofx latch before beginning provider work; WAKE✳︎ now performs that preflight before each cloud research cycle.
 
 ## Applications, not plugins
 
