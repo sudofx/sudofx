@@ -12,7 +12,7 @@ from sudofx.models import JsonValue
 
 APPLICATION_ID = "conversation"
 APPLICATION_VERSION = "1"
-MAX_MESSAGE_CHARS = 4000
+MAX_MESSAGE_CHARS = 10000
 DEFAULT_CONTEXT_TURNS = 8
 
 # Privacy-preserving runtime state is intentionally not a transcript.  These
