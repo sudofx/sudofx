@@ -12,7 +12,12 @@ from applications.conversation import (
     private_message_descriptor,
     validate_private_message,
 )
-from applications.conversation.runtime import commit_assistant_turn, commit_human_turn
+from applications.conversation.runtime import (
+    commit_assistant_turn,
+    commit_human_turn,
+    recover_failed_private_turn,
+    recover_rejected_private_turn,
+)
 from applications.conversation.server import ConversationService
 from sudofx import ApplicationHost, ApplicationRegistry, Kernel, SubmissionProvenance
 from sudofx.governance import Governance
@@ -61,6 +66,58 @@ class ConversationPrivacyTests(unittest.TestCase):
             serialized = json.dumps(state, sort_keys=True)
             self.assertNotIn("Are we still testing continuity?", serialized)
             self.assertNotIn("Recovered continuity", serialized)
+
+    def test_governance_rejection_recovery_is_not_provider_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "record.sqlite"
+            commit_human_turn(
+                "Test a governed rejection without storing transcript text.",
+                data_path=path,
+                private_mode=True,
+                provenance=SubmissionProvenance("human", "fixture", "unit-test"),
+            )
+
+            recover_rejected_private_turn(
+                data_path=path,
+                receipt_id="receipt-governance-rejected",
+            )
+
+            registry = ApplicationRegistry((CONVERSATION_APPLICATION,))
+            kernel = Kernel(Record(path), Governance(application_registry=registry))
+            state = ApplicationHost(kernel, registry, "conversation").context().state
+            privacy = state["privacy"]
+            self.assertEqual(privacy["next_role"], "human")
+            self.assertEqual(
+                privacy["last_governance_rejection"],
+                {"receipt_id": "receipt-governance-rejected"},
+            )
+            self.assertNotIn("last_provider_failure", privacy)
+
+    def test_provider_failure_recovery_remains_distinct(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "record.sqlite"
+            commit_human_turn(
+                "Test provider failure classification separately.",
+                data_path=path,
+                private_mode=True,
+                provenance=SubmissionProvenance("human", "fixture", "unit-test"),
+            )
+
+            recover_failed_private_turn(
+                data_path=path,
+                category="ProviderTemporaryError",
+            )
+
+            registry = ApplicationRegistry((CONVERSATION_APPLICATION,))
+            kernel = Kernel(Record(path), Governance(application_registry=registry))
+            state = ApplicationHost(kernel, registry, "conversation").context().state
+            privacy = state["privacy"]
+            self.assertEqual(privacy["next_role"], "human")
+            self.assertEqual(
+                privacy["last_provider_failure"],
+                {"category": "ProviderTemporaryError"},
+            )
+            self.assertNotIn("last_governance_rejection", privacy)
 
     def test_full_private_turn_persists_observations_not_transcript(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
