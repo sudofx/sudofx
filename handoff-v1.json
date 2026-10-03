@@ -1,0 +1,32 @@
+{
+  "handoff_version": 1,
+  "instructions": {
+    "assumption": "You have no prior conversation or hidden project context.",
+    "grounding_rule": "Use only this packet. Distinguish packet evidence from inference, treat digests as unreadable commitments, and do not invent omitted history.",
+    "task": "Reconstruct the current objective, summarize what has already happened, identify the current frontier, and propose exactly one next action."
+  },
+  "packet_digest": "a18390ef4e71c38def2ea408198bb694ad59e41ff68f09b8be4e2b20ecd3bbf7",
+  "receipt_provenance": [],
+  "record_revision": 857,
+  "source_event_head": "beadf240163305c5b71f1ccb633e21dcbf9217c25b3b186835cfc9c714796da5",
+  "work": {
+    "accepted_result_count": 22,
+    "accepted_results_recent": [
+      "Operator explicitly authorized the evolving overnight Gemini continuity trial."
+    ],
+    "constraints": [
+      "Gemini observations are evidence of model behavior, not authoritative project truth.",
+      "Only bounded derived context may cross the provider boundary."
+    ],
+    "id": "handoff-v1",
+    "objective": "Test whether a fresh intelligence with no prior conversation can reconstruct sudofx: durable governed context must survive model replacement; WAKE\u2733\ufe0e was the experimental predecessor; SQLite is authoritative; models propose and the system governs; the current frontier is proving portable continuity from sanitized context alone; working style favors plain language, compression, direct correction, and action over unnecessary explanation.",
+    "omitted_accepted_results_count": 21,
+    "omitted_accepted_results_digest": "ed92369c75c18f2521aaa41eb88ed423f0ff4297e4ca69868cf54a9406b5dccc",
+    "open_obligations": [
+      "Run bounded fresh-Gemini continuity cycles until the operator stops the chain; preserve model output as untrusted observation, not truth."
+    ],
+    "status": "open",
+    "work_revision": 44
+  },
+  "work_id": "handoff-v1"
+}

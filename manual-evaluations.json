@@ -1,0 +1,83 @@
+{
+  "application_id": "handoff",
+  "comparable_batch": {
+    "max_score": 7,
+    "packet_digest": "6c0b17d9921f0c0ba9935390f39768de7b38cd9aa957a2f4a23f7929f95c3d85",
+    "score": 7,
+    "scorer_version": 2,
+    "tests": 1,
+    "vendors": [
+      "Claude"
+    ]
+  },
+  "latest": {
+    "packet_digest": "6c0b17d9921f0c0ba9935390f39768de7b38cd9aa957a2f4a23f7929f95c3d85",
+    "score": 7,
+    "scorer_version": 2,
+    "test_id": "UUID-091489",
+    "vendor": "Claude"
+  },
+  "projection_kind": "disposable-handoff-application-view",
+  "projection_schema": 2,
+  "recent": [
+    {
+      "packet_digest": "5585dd77d198d06c0c758f9d522cb3d68d48056a319a5cf05a46adaaf83c381a",
+      "score": 5,
+      "scorer_version": null,
+      "test_id": "UUID-309115",
+      "vendor": "Claude"
+    },
+    {
+      "packet_digest": "e39d45a5119103e7bb45f245cc70c22b64f3a3a01879bfe4d017555b18db8bb2",
+      "score": 7,
+      "scorer_version": null,
+      "test_id": "UUID-234320",
+      "vendor": "Gemini"
+    },
+    {
+      "packet_digest": "e39d45a5119103e7bb45f245cc70c22b64f3a3a01879bfe4d017555b18db8bb2",
+      "score": 7,
+      "scorer_version": null,
+      "test_id": "UUID-272135",
+      "vendor": "DeepSeek"
+    },
+    {
+      "packet_digest": "e39d45a5119103e7bb45f245cc70c22b64f3a3a01879bfe4d017555b18db8bb2",
+      "score": 5,
+      "scorer_version": null,
+      "test_id": "UUID-176016",
+      "vendor": "Claude"
+    },
+    {
+      "packet_digest": "d9557d119225a4f3061bb513b48272571c4b8694afc46b67da20f59b2a15c93e",
+      "score": 6,
+      "scorer_version": null,
+      "test_id": "UUID-500039",
+      "vendor": "ChatGPT"
+    },
+    {
+      "packet_digest": "d9557d119225a4f3061bb513b48272571c4b8694afc46b67da20f59b2a15c93e",
+      "score": 6,
+      "scorer_version": null,
+      "test_id": "UUID-113653",
+      "vendor": "Claude"
+    },
+    {
+      "packet_digest": "d9557d119225a4f3061bb513b48272571c4b8694afc46b67da20f59b2a15c93e",
+      "score": 7,
+      "scorer_version": null,
+      "test_id": "UUID-636863",
+      "vendor": "DeepSeek"
+    },
+    {
+      "packet_digest": "6c0b17d9921f0c0ba9935390f39768de7b38cd9aa957a2f4a23f7929f95c3d85",
+      "score": 7,
+      "scorer_version": 2,
+      "test_id": "UUID-091489",
+      "vendor": "Claude"
+    }
+  ],
+  "record_revision": 857,
+  "total_tests": 11,
+  "work_id": "handoff-v1"
+}
