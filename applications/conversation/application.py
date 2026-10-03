@@ -285,6 +285,28 @@ def enforce_response_commitments(
     return content
 
 
+def private_provider_failure(current: JsonValue, payload: JsonValue) -> ApplicationDecision:
+    """Close one failed private provider turn without persisting transcript text."""
+    if not isinstance(payload, dict):
+        return ApplicationDecision(False, reasons=("private provider failure metadata must be an object",))
+    category = payload.get("category")
+    if not isinstance(category, str) or not category.strip() or len(category) > 80:
+        return ApplicationDecision(False, reasons=("private provider failure category is invalid",))
+    try:
+        privacy = _privacy_state(current)
+    except ValueError as error:
+        return ApplicationDecision(False, reasons=(str(error),))
+    if privacy["next_role"] != "assistant":
+        return ApplicationDecision(False, reasons=("conversation has no pending assistant turn",))
+    state = dict(current) if isinstance(current, dict) else {}
+    state["privacy"] = {
+        **privacy,
+        "next_role": "human",
+        "last_provider_failure": {"category": category.strip()},
+    }
+    return ApplicationDecision(True, state)
+
+
 def private_assistant_message(current: JsonValue, payload: JsonValue) -> ApplicationDecision:
     """Commit response metadata plus compact observations, never response text."""
     if not isinstance(payload, dict):
@@ -345,6 +367,7 @@ CONVERSATION_APPLICATION = ApplicationDefinition(
         ApplicationAction("assistant_message", assistant_message),
         ApplicationAction("private_human_message", private_human_message),
         ApplicationAction("private_assistant_message", private_assistant_message),
+        ApplicationAction("private_provider_failure", private_provider_failure),
     ),
 )
 
