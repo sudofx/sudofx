@@ -250,6 +250,50 @@ class ApplicationHost:
             state=app_state,
         )
 
+    def recent_governance(self, *, limit: int = 3) -> tuple[dict[str, JsonValue], ...]:
+        """Return bounded governance outcomes for this application only.
+
+        This is a derived view over authoritative receipts, not duplicated
+        application state.  It lets a fresh intelligence know what governance
+        actually accepted or rejected without exposing unrelated applications
+        or asking the model to infer reasons from conversational behavior.
+        """
+        if limit <= 0:
+            return ()
+        context = self.kernel.context(receipt_limit=max(limit * 4, limit))
+        matched: list[dict[str, JsonValue]] = []
+        for receipt in reversed(context.recent_receipts):
+            proposal = receipt.get("proposal")
+            if not isinstance(proposal, dict):
+                continue
+            operations = proposal.get("operations")
+            if not isinstance(operations, list):
+                continue
+            if not any(
+                isinstance(operation, dict)
+                and operation.get("action") == "apply_application"
+                and operation.get("key") == self.application_id
+                for operation in operations
+            ):
+                continue
+            matched.append(
+                {
+                    "proposal_id": str(proposal.get("proposal_id", "")),
+                    "status": str(receipt.get("status", "")),
+                    "reasons": [
+                        str(reason)
+                        for reason in receipt.get("reasons", [])
+                        if isinstance(reason, str)
+                    ],
+                    "revision_before": int(receipt.get("revision_before", context.revision)),
+                    "revision_after": int(receipt.get("revision_after", context.revision)),
+                }
+            )
+            if len(matched) >= limit:
+                break
+        matched.reverse()
+        return tuple(matched)
+
     def submit(
         self,
         intent: ApplicationIntent,
