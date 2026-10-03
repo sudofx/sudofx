@@ -7,7 +7,11 @@ import sys
 import tempfile
 import unittest
 
-from applications.conversation import CONVERSATION_APPLICATION
+from applications.conversation import (
+    CONVERSATION_APPLICATION,
+    enforce_response_commitments,
+    private_bounded_context,
+)
 from applications.conversation.server import ConversationService
 from sudofx import ApplicationHost, ApplicationRegistry, Kernel
 from sudofx.governance import Governance
@@ -70,51 +74,99 @@ class ConversationServerTests(unittest.TestCase):
     def test_persistent_response_suffix_is_governed_until_revoked(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             database = Path(temporary) / "conversation.sqlite"
-            footer = "My nickname is Stereo, and we are many. 🙂"
+            footer = "Persistent footer."
+            updated = "Updated footer."
             provider = (
                 sys.executable,
                 "-c",
                 "import json,sys; d=json.load(sys.stdin); "
                 "s=d['state']['app:conversation']; m=s['current_message']; "
-                "active=s.get('active_commitments',[]); "
-                "updates=([{'op':'upsert','kind':'response_suffix','text':" + repr(footer) + "}] "
+                "updates=([{'op':'upsert','kind':'response_suffix','text':" + repr(footer) + ",'placement':'new_line'}] "
                 "if m.startswith('Set footer') else "
-                "([{'op':'clear','kind':'response_suffix'}] if m.startswith('Stop footer') else [])); "
-                "content=('Footer set.' if m.startswith('Set footer') else "
-                "('Footer stopped.' if m.startswith('Stop footer') else 'A fresh provider forgot the footer.')); "
-                "json.dump({'content':content,'observations':[],'commitment_updates':updates},sys.stdout)",
+                "([{'op':'upsert','kind':'response_suffix','text':" + repr(updated) + ",'placement':'new_line'}] "
+                "if m.startswith('Update footer') else "
+                "([{'op':'clear','kind':'response_suffix'}] if m.startswith('Stop footer') else []))); "
+                "content=(('Footer set.'+" + repr(footer) + ") if m.startswith('Set footer') else "
+                "(('Updated.'+" + repr(updated) + ") if m.startswith('Update footer') else "
+                "('Footer stopped.' if m.startswith('Stop footer') else "
+                "(('Already correct.\\n\\n'+" + repr(footer) + ") if m.startswith('Correct footer') else "
+                "(('Duplicated.\\n\\n'+" + repr(footer) + "+'\\n\\n'+" + repr(footer) + ") if m.startswith('Duplicate footer') else "
+                "'A fresh provider omitted it.'))))); "
+                "json.dump({'content':content,'observations':['Commitment persistence is under test.'],'commitment_updates':updates},sys.stdout)",
             )
             service = ConversationService(database, provider_command=provider)
 
-            first = service.converse("Set footer for every response until I tell you to stop.")
+            first = service.converse("Set footer on its own line for every response until I tell you to stop.")
             second = service.converse("Are you sure?")
-            third = service.converse("Stop footer now.")
-            fourth = service.converse("Is it gone?")
+            third = service.converse("Correct footer already.")
+            fourth = service.converse("Duplicate footer attempt.")
+            fifth = service.converse("Update footer to the new value.")
+            sixth = service.converse("Still active?")
+            seventh = service.converse("Stop footer now.")
+            eighth = service.converse("Is it gone?")
 
-            self.assertTrue(first["content"].endswith(footer))
-            self.assertTrue(second["content"].endswith(footer))
-            self.assertEqual(third["content"], "Footer stopped.")
-            self.assertEqual(fourth["content"], "A fresh provider forgot the footer.")
+            self.assertEqual(first["content"], "Footer set.\n\n" + footer)
+            self.assertEqual(second["content"], "A fresh provider omitted it.\n\n" + footer)
+            self.assertEqual(third["content"], "Already correct.\n\n" + footer)
+            self.assertEqual(fourth["content"], "Duplicated.\n\n" + footer)
+            self.assertEqual(fifth["content"], "Updated.\n\n" + updated)
+            self.assertEqual(sixth["content"], "A fresh provider omitted it.\n\n" + updated)
+            self.assertEqual(seventh["content"], "Footer stopped.")
+            self.assertEqual(eighth["content"], "A fresh provider omitted it.")
 
             registry = ApplicationRegistry((CONVERSATION_APPLICATION,))
             kernel = Kernel(Record(database), Governance(application_registry=registry))
             state = ApplicationHost(kernel, registry, "conversation").context().state
             privacy = state["privacy"]
             self.assertEqual(privacy["commitments"], [])
+            self.assertIn("Commitment persistence is under test.", privacy["observations"])
 
-    def test_flat_provider_commitment_shape_is_governed(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            database = Path(temporary) / "conversation.sqlite"
-            footer = "Persistent footer."
-            provider = (
-                sys.executable,
-                "-c",
-                "import json,sys; json.load(sys.stdin); "
-                "json.dump({'content':'Okay.','observations':[],'response_suffix':" + repr(footer) + ",'clear_response_suffix':False},sys.stdout)",
-            )
-            service = ConversationService(database, provider_command=provider)
-            result = service.converse("Keep a footer active.")
-            self.assertTrue(result["content"].endswith(footer))
+    def test_new_line_suffix_enforcement_canonicalizes_provider_output(self) -> None:
+        footer = "- Required footer"
+        current = {
+            "privacy": {
+                "turn_count": 2,
+                "next_role": "assistant",
+                "observations": [],
+                "commitments": [
+                    {
+                        "kind": "response_suffix",
+                        "text": footer,
+                        "placement": "new_line",
+                    }
+                ],
+            }
+        }
+        cases = {
+            "Again." + footer: "Again.\n\n" + footer,
+            "Again.\n\n" + footer: "Again.\n\n" + footer,
+            "Again.\n\n" + footer + "\n\n" + footer: "Again.\n\n" + footer,
+            "Again.": "Again.\n\n" + footer,
+            "Again.   \n\n" + footer + "   ": "Again.\n\n" + footer,
+        }
+        for provider_output, expected in cases.items():
+            with self.subTest(provider_output=provider_output):
+                self.assertEqual(
+                    enforce_response_commitments(current, provider_output, []),
+                    expected,
+                )
+
+    def test_old_suffix_commitment_without_placement_keeps_legacy_end_semantics(self) -> None:
+        footer = "Legacy footer."
+        current = {
+            "privacy": {
+                "turn_count": 2,
+                "next_role": "assistant",
+                "observations": [],
+                "commitments": [{"kind": "response_suffix", "text": footer}],
+            }
+        }
+        projection = private_bounded_context(current)
+        self.assertEqual(projection["active_commitments"][0]["placement"], "end")
+        self.assertEqual(
+            enforce_response_commitments(current, "Attached." + footer, []),
+            "Attached." + footer,
+        )
 
     def test_provider_failure_does_not_wedge_next_role(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
