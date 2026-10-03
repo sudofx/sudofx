@@ -89,10 +89,18 @@
   const useLocalTransport=async()=>{
     const response=await fetch('/api/conversation/status',{cache:'no-store'});
     if(!response.ok)throw new Error('Private local Conversation transport is unavailable.');
+    const status=await response.json();
     localMode=true;
     gateway='';
     auth.hidden=true;
-    setState('Private local transport connected · provider remains stateless','ready');
+    if(status.provider_configured!==true){
+      setState('Private transport connected · Gemini not configured','offline');
+      help.textContent='This Codespace does not have GEMINI_API_KEY loaded. Add the Codespaces secret, then restart the Codespace.';
+      setEnabled(false);
+      return;
+    }
+    const model=status.provider_model?(' · '+status.provider_model):'';
+    setState('Private local transport connected · provider remains stateless'+model,'ready');
     help.textContent='Visible transcript text exists only in this page and the active request.';
     setEnabled(true);
   };
