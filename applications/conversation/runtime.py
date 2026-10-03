@@ -138,6 +138,7 @@ class ConversationIntelligence:
                     self.last_content,
                     observations,
                     commitment_updates,
+                    source_message=context.state["app:conversation"].get("current_message"),
                 )
             except ValueError as error:
                 raise ProviderError(str(error)) from error
