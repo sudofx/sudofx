@@ -90,7 +90,9 @@
   const toDocument = transcript => {
     const sections = transcript.map(item => {
       const speaker = item.role === 'human' ? 'You' : 'Assistant';
-      return '## ' + speaker + '\n\n' + String(item.text).trim();
+      // Export the displayed transcript's UTC instant without creating a store.
+      const stamp = item.timestamp ? ' · ' + item.timestamp : '';
+      return '## ' + speaker + stamp + '\n\n' + String(item.text).trim();
     });
     return '# sudofx Conversation\n\n' + sections.join('\n\n---\n\n') + '\n';
   };

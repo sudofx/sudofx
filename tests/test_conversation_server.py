@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 import json
 from pathlib import Path
 import sys
@@ -39,9 +40,18 @@ class ConversationServerTests(unittest.TestCase):
             )
             service = ConversationService(database, provider_command=provider)
 
+            started_at = datetime.now(timezone.utc)
             first = service.converse("First, compare blue and green for this continuity test.")
             second = service.converse("What were we trying to figure out earlier?")
 
+            # Transport timestamps bracket completed governed work in UTC;
+            # they are metadata, not a transcript or a second durable record.
+            for result in (first, second):
+                received = datetime.fromisoformat(result["received_at"])
+                completed = datetime.fromisoformat(result["completed_at"])
+                self.assertEqual(received.utcoffset(), timezone.utc.utcoffset(received))
+                self.assertLessEqual(started_at.replace(microsecond=0), received)
+                self.assertLessEqual(received, completed)
             self.assertEqual(first["content"], "Saved.")
             self.assertEqual(second["content"], "We were comparing blue and green.")
             self.assertEqual(second["status"]["turn_count"], 4)

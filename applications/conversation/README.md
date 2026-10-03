@@ -63,6 +63,12 @@ A provider can be replaced without changing Conversation's durable semantics.
 
 `web/conversation.html` is a disposable chat presentation. Its visible transcript is DOM-only: reloading or clearing the page discards it.
 
+Each bubble shows a timestamp in the browser's local timezone, including seconds.
+The private server supplies UTC request-receipt and governed-response completion
+times; transports without timestamp fields fall back to browser send/arrival time.
+These times stay in the disposable browser transcript and its Markdown export.
+They do not replace SQLite receipt timestamps or introduce durable chat state.
+
 The public shell never receives a PAT and never becomes authority.
 
 Three transport/runtime patterns are defined:

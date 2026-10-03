@@ -37,13 +37,27 @@
     if(paste)paste.disabled=!enabled;
     if(enabled)input.focus();
   };
-  const bubble=(role,text)=>{
+  // Message times are disposable presentation metadata, never replay authority.
+  // Legacy gateways omit them; browser arrival time keeps that transport usable.
+  const timestampNode=stamp=>{
+    const parsed=new Date(stamp);
+    const date=Number.isNaN(parsed.getTime())?new Date():parsed;
+    const time=document.createElement('time');
+    time.dateTime=date.toISOString();
+    time.textContent=date.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    time.title=date.toLocaleString(undefined,{timeZoneName:'short'});
+    return time;
+  };
+  const bubble=(role,text,stamp=new Date().toISOString())=>{
     if(intro)intro.hidden=true;
     const article=document.createElement('article');
     article.className='conversation-bubble '+(role==='human'?'human':'assistant');
     const meta=document.createElement('span');
     meta.textContent=role==='human'?'You':'Assistant';
-    transcript.push({role,text});
+    const time=timestampNode(stamp);
+    meta.append(document.createTextNode(' · '),time);
+    const entry={role,text,timestamp:time.dateTime};
+    transcript.push(entry);
     const body=window.SudofxConversationMarkdown.render(text);
     const copy=document.createElement('button');
     copy.type='button';
@@ -65,6 +79,12 @@
     article.append(meta,body,copy);
     messages.append(article);
     messages.scrollTop=messages.scrollHeight;
+    return serverStamp=>{
+      // Reconcile the optimistic send time only after the server confirms receipt.
+      const confirmed=timestampNode(serverStamp);
+      time.replaceWith(confirmed);
+      entry.timestamp=confirmed.dateTime;
+    };
   };
   const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 
@@ -81,7 +101,7 @@
       if(!response.ok)throw new Error((await response.text())||'Conversation reply failed.');
       const data=await response.json();
       if(!data||typeof data.content!=='string')throw new Error('Conversation gateway returned an invalid reply.');
-      return data.content;
+      return data;
     }
     throw new Error('Conversation reply did not arrive before the polling window closed.');
   };
@@ -167,7 +187,7 @@
     const data=await response.json().catch(()=>({}));
     if(!response.ok)throw new Error(data.error||'Conversation request failed.');
     if(!data||typeof data.content!=='string')throw new Error('Conversation transport returned an invalid reply.');
-    return data.content;
+    return data;
   };
 
   const sendRemote=async message=>{
@@ -247,7 +267,7 @@
     if(!message)return;
     busy=true;
     setEnabled(false);
-    bubble('human',message);
+    const confirmReceived=bubble('human',message);
     input.value='';
     setState('Governed turn in progress…','busy');
     help.textContent=localMode
@@ -255,7 +275,8 @@
       :'Encrypting transport, reconstructing bounded context, and invoking a fresh provider.';
     try{
       const reply=localMode?await sendLocal(message):await sendRemote(message);
-      bubble('assistant',reply);
+      if(reply.received_at)confirmReceived(reply.received_at);
+      bubble('assistant',reply.content,reply.completed_at);
       setState('Ready · next turn will use a fresh provider invocation','ready');
       help.textContent='Continuity is reconstructed from governed observations, not this screen.';
     }catch(error){

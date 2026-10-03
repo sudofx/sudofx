@@ -8,6 +8,7 @@ exposes no observation contents through its status endpoint.
 from __future__ import annotations
 
 import argparse
+from datetime import datetime, timezone
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
@@ -76,14 +77,27 @@ class ConversationService:
         }
 
     def converse(self, message: str) -> dict[str, Any]:
-        """Run exactly one human -> fresh provider -> governed assistant turn."""
+        """Return a governed response, status, and transient UTC transport times.
+
+        Calls serialize against this service's database; rejected input/provider
+        failures propagate without a success response. No transcript is stored.
+        """
+        # These UTC transport times describe receipt and governed completion,
+        # not new durable state. SQLite receipts remain the audit authority.
+        received_at = datetime.now(timezone.utc).isoformat(timespec="milliseconds")
         with self._lock:
             content = run_private_turn(
                 message,
                 data_path=self.data_path,
                 provider_command=self.provider_command,
             )
-            return {"content": content, "status": self.status()}
+            completed_at = datetime.now(timezone.utc).isoformat(timespec="milliseconds")
+            return {
+                "content": content,
+                "received_at": received_at,
+                "completed_at": completed_at,
+                "status": self.status(),
+            }
 
 
 def _handler(service: ConversationService):
