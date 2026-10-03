@@ -864,6 +864,29 @@ json.dump({
         )
         self.assertNotIn("app:counter", kernel.context().state)
 
+    def test_application_recent_governance_is_bounded_and_scoped(self) -> None:
+        """Fresh app invocations see recorded outcomes without unrelated receipt leakage."""
+        definition = ApplicationDefinition(
+            "feedback",
+            "1",
+            (ApplicationAction("keep", lambda current, payload: ApplicationDecision(True, payload)),),
+        )
+        registry = ApplicationRegistry((definition,))
+        kernel = Kernel(self.kernel.record, Governance(application_registry=registry))
+        host = ApplicationHost(kernel, registry, "feedback")
+
+        accepted = host.submit(ApplicationIntent("feedback-ok", 0, "keep", {"value": 1}))
+        self.assertEqual(accepted.status, "accepted")
+        rejected = host.submit(ApplicationIntent("feedback-bad", 1, "missing", {"value": 2}))
+        self.assertEqual(rejected.status, "rejected")
+        kernel.submit(Proposal("unrelated", 1, (Operation("set", "other", True),)))
+
+        feedback = host.recent_governance(limit=2)
+        self.assertEqual([item["proposal_id"] for item in feedback], ["feedback-ok", "feedback-bad"])
+        self.assertEqual([item["status"] for item in feedback], ["accepted", "rejected"])
+        self.assertTrue(feedback[-1]["reasons"])
+        self.assertNotIn("unrelated", json.dumps(feedback))
+
     def test_application_context_and_effect_capability_are_bounded(self) -> None:
         """Apps see their state only and may request only declared, unexecuted effects."""
         definition = ApplicationDefinition(
