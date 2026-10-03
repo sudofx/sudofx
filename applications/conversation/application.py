@@ -593,10 +593,12 @@ def private_assistant_descriptor(
     if update_error is not None:
         raise ValueError(update_error)
     durable_observations = [item["text"] for item in verified] if source_message is not None else normalized
-    return {
+    descriptor: dict[str, JsonValue] = {
         "message_digest": hashlib.sha256(content.encode("utf-8")).hexdigest(),
         "message_chars": len(content),
         "observations": durable_observations,
-        "verified_observations": verified,
         "commitment_updates": normalized_updates,
     }
+    if source_message is not None:
+        descriptor["verified_observations"] = verified
+    return descriptor
