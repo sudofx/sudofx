@@ -26,6 +26,7 @@ from .kernel import Kernel, RunResult
 from .models import SubmissionProvenance
 from .providers import Intelligence, ProviderQuotaError, ProviderTemporaryError
 from .storage import (
+    ApplicationAccessError,
     ContextDeliveryReceipt,
     InvocationEvent,
     InvocationJournal,
@@ -292,6 +293,13 @@ class Runtime:
         effect_barrier: Callable[[], None] | None = None,
     ) -> InvocationResult:
         """Execute one disposable intelligence with reconstructable lifecycle evidence."""
+        application_generation: int | None = None
+        if context_scope is not None and context_scope.get("kind") == "application":
+            access = self.kernel.application_access_state()
+            if not access.enabled:
+                raise ApplicationAccessError()
+            application_generation = access.generation
+
         context = self.kernel.context(work_id=work_id)
         lifecycle = InvocationLifecycle.begin(
             self.journal,
@@ -301,17 +309,27 @@ class Runtime:
             context_scope=context_scope,
         )
 
+        def guarded_barrier() -> None:
+            if application_generation is not None:
+                self.kernel.require_application_access(application_generation)
+            if effect_barrier is not None:
+                effect_barrier()
+
         try:
             proposal = lifecycle.invoke(
                 lambda: intelligence.propose(context),
-                effect_barrier=effect_barrier,
+                effect_barrier=guarded_barrier if application_generation is not None or effect_barrier is not None else None,
             )
         except InvocationBarrierError as error:
             raise error.cause
 
         lifecycle.proposal_received(proposal.proposal_id)
         try:
-            receipt = self.kernel.submit(proposal, provenance=provenance)
+            receipt = self.kernel.submit(
+                proposal,
+                provenance=provenance,
+                application_access_generation=application_generation,
+            )
         except Exception as error:
             lifecycle.fail(proposal_id=proposal.proposal_id, detail=type(error).__name__)
             raise
