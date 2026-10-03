@@ -256,7 +256,11 @@ class ApplicationHost:
         *,
         provenance: SubmissionProvenance | None = None,
     ) -> Receipt:
-        """Submit one application intent through ordinary Kernel governance."""
+        """Submit one application intent through the global access gate and Kernel."""
+        access = self.kernel.application_access_state()
+        if not access.enabled:
+            from .storage import ApplicationAccessError
+            raise ApplicationAccessError()
         definition = self.definition
         raw_context = self.kernel.context()
         envelope = raw_context.state.get(application_key(self.application_id))
@@ -302,7 +306,11 @@ class ApplicationHost:
             operations=(operation,),
             rationale=intent.rationale,
         )
-        return self.kernel.submit(proposal, provenance=provenance)
+        return self.kernel.submit(
+            proposal,
+            provenance=provenance,
+            application_access_generation=access.generation,
+        )
 
     def request_effect(self, capability: str, payload: JsonValue = None) -> EffectRequest:
         """Construct an unexecuted effect request only when the app declared it."""
