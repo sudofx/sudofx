@@ -62,16 +62,10 @@
     })
     .then(raw=>{
       const d=normalize(raw);
-      const invocationTimes=d.applications.flatMap(app=>(Array.isArray(app.invocations?.recent)?app.invocations.recent:[]).flatMap(inv=>{
-        const value=inv.updated_at||inv.started_at;if(!value)return [];
-        const parsed=Date.parse(String(value).replace(' ','T')+(String(value).includes('Z')?'':'Z'));
-        return Number.isFinite(parsed)?[parsed]:[];
-      }));
-      const latestActivity=invocationTimes.length?Math.max(...invocationTimes):NaN;
-      const activityAge=Number.isFinite(latestActivity)?Date.now()-latestActivity:Infinity;
-      if(activityAge<=15*60*1000)setRuntimeLight('running','sudofx status: recent governed application activity observed');
-      else if(activityAge<=60*60*1000)setRuntimeLight('stale','sudofx status: application evidence available; latest activity is not recent');
-      else setRuntimeLight('stopped','sudofx status: no recent application activity visible');
+      const quickCheck=String(d.health.quick_check||'').trim().toLowerCase();
+      if(quickCheck==='ok')setRuntimeLight('running','sudofx status: authoritative database health check is OK');
+      else if(quickCheck)setRuntimeLight('stopped','sudofx status: authoritative database health check is '+quickCheck);
+      else setRuntimeLight('stale','sudofx status: live projection loaded, but database health is not reported');
       const summary=q('[data-live-summary] p');
       if(summary){
         const events=d.health.event_count!==undefined?' · '+d.health.event_count+' governed events':'';
