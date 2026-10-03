@@ -12,27 +12,38 @@ from sudofx import GenerationRequest, GeminiGenerationProvider
 SYSTEM_PROMPT = """You are the stateless response engine for a sudofx Conversation proof.
 
 You have no hidden memory. Everything you know about prior turns comes from the
-bounded durable observations supplied with this request.
+bounded durable observations and commitments supplied with this request.
 
 Return JSON only with exactly these fields:
 - content: the assistant reply to the current human message.
 - observations: zero to four short semantic observations useful for future
   continuity.
-- response_suffix: exact persistent suffix text requested by the human in this
-  turn, or an empty string when no suffix is being created/changed.
-- clear_response_suffix: true only when the human explicitly revokes the
-  persistent response suffix; otherwise false.
+- commitment_updates: zero to two explicit persistent commitment changes.
+
+Commitment update shape:
+- upsert a response suffix:
+  {"op":"upsert","kind":"response_suffix","text":"...","placement":"end"}
+  or
+  {"op":"upsert","kind":"response_suffix","text":"...","placement":"new_line"}
+- clear a response suffix:
+  {"op":"clear","kind":"response_suffix"}
 
 Commitment rules:
-- set response_suffix to the exact required text when the human explicitly
-  requires text at the end of every future response until revoked;
-- preserve the required suffix text exactly;
-- set clear_response_suffix to true when the human explicitly revokes that
-  persistent suffix requirement;
+- propose an update only when the human explicitly creates, changes, or revokes
+  a persistent response obligation;
+- response_suffix means exact required text at the end of future responses;
+- placement "end" requires only exact ending text;
+- placement "new_line" requires the suffix as its own final paragraph, separated
+  from preceding response text by a blank line;
+- use "new_line" when the human explicitly requires a new line, its own line, or
+  equivalent footer placement;
+- preserve required suffix text exactly;
+- clear the commitment only when the human explicitly revokes it;
 - do not turn casual wording, one-turn requests, or ordinary preferences into
   commitments;
-- active_commitments in the supplied state are mandatory. The runtime also
-  enforces them deterministically.
+- active_commitments in the supplied state are already authoritative. Do not
+  re-propose them merely to keep them active. Runtime enforces them
+  deterministically.
 
 Observation rules:
 - do not copy the transcript or quote the user;
@@ -73,10 +84,26 @@ def main() -> int:
                         "items": {"type": "string"},
                         "maxItems": 4,
                     },
-                    "response_suffix": {"type": "string"},
-                    "clear_response_suffix": {"type": "boolean"},
+                    "commitment_updates": {
+                        "type": "array",
+                        "maxItems": 2,
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "op": {"type": "string", "enum": ["upsert", "clear"]},
+                                "kind": {"type": "string", "enum": ["response_suffix"]},
+                                "text": {"type": "string"},
+                                "placement": {
+                                    "type": "string",
+                                    "enum": ["end", "new_line"],
+                                },
+                            },
+                            "required": ["op", "kind"],
+                            "additionalProperties": False,
+                        },
+                    },
                 },
-                "required": ["content", "observations", "response_suffix", "clear_response_suffix"],
+                "required": ["content", "observations", "commitment_updates"],
                 "additionalProperties": False,
             },
         )
@@ -85,13 +112,13 @@ def main() -> int:
     value = json.loads(response.text)
     if (
         not isinstance(value, dict)
-        or set(value) != {"content", "observations", "response_suffix", "clear_response_suffix"}
+        or set(value) != {"content", "observations", "commitment_updates"}
         or not isinstance(value["content"], str)
         or not value["content"].strip()
         or not isinstance(value["observations"], list)
         or any(not isinstance(item, str) for item in value["observations"])
-        or not isinstance(value["response_suffix"], str)
-        or not isinstance(value["clear_response_suffix"], bool)
+        or not isinstance(value["commitment_updates"], list)
+        or any(not isinstance(item, dict) for item in value["commitment_updates"])
     ):
         raise ValueError("Gemini conversation output does not match the privacy-bounded schema")
 
@@ -99,8 +126,7 @@ def main() -> int:
         {
             "content": value["content"].strip(),
             "observations": value["observations"],
-            "response_suffix": value["response_suffix"],
-            "clear_response_suffix": value["clear_response_suffix"],
+            "commitment_updates": value["commitment_updates"],
         },
         sys.stdout,
     )
