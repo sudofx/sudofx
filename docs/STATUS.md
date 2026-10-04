@@ -41,6 +41,7 @@ The success condition is not that one model remembers. The success condition is 
 - WAKE✳︎ provider attempts share sudofx invocation IDs/evidence, survive fresh-process recovery, and use the generic pre-effect durability barrier without importing Gemini-specific exception types into the engine.
 - A schema-v11 global application-access latch now lets the operator STOP or RESTORE application-origin access while leaving sudofx itself online; application commits are generation-fenced against stale in-flight work, and STOP/RESTORE transitions are protected by an independently hash-chained audit trail.
 - Emergency STOP has no full-suite dependency and may preempt ordinary serialized sudofx authority work; RESTORE requires the full suite to pass before reopening connected-application access.
+- The recovered `continuity@1` seven-cubed matrix is now a reusable sudofx extension: 343 stable coordinates, deterministic traversal, and an immutable versioned definition that applications may use while keeping campaign progress/results in their own governed SQLite state.
 
 ## Current architecture
 
@@ -58,6 +59,9 @@ runtime
     ├─ invocation lifecycle
     ├─ provider/effect boundary
     └─ recovery/accounting
+    ↓
+matrix extension
+    └─ deterministic shared coordinate grammar (no authority)
     ↓
 applications
     ├─ conversation
