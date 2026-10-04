@@ -15,6 +15,7 @@ class ConversationSurfaceTests(unittest.TestCase):
         script = (ROOT / "web" / "assets" / "conversation.js").read_text(encoding="utf-8")
         markdown_script = (ROOT / "web" / "assets" / "conversation-markdown.js").read_text(encoding="utf-8")
         config = (ROOT / "web" / "conversation-config.json").read_text(encoding="utf-8")
+        server = (ROOT / "applications" / "conversation" / "server.py").read_text(encoding="utf-8")
 
         self.assertIn("data-conversation-form", page)
         self.assertIn("/api/conversation/status", script)
@@ -27,6 +28,9 @@ class ConversationSurfaceTests(unittest.TestCase):
         self.assertIn("reply.assistant_number", script)
         self.assertIn("padStart(4,'0')", script)
         self.assertIn("/api/conversation/buffer/clear", script)
+        self.assertIn("/api/conversation/matrix/start", server)
+        self.assertIn("/api/conversation/matrix/result", server)
+        self.assertIn("/api/conversation/matrix/stop", server)
         self.assertIn("item.assistantNumber", markdown_script)
         self.assertIn("padStart(4, '0')", markdown_script)
         self.assertNotIn("location.hostname===\'localhost\'", script)
