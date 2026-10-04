@@ -8,7 +8,12 @@ import json
 import re
 from urllib.parse import parse_qsl, urlsplit
 
-from sudofx import ApplicationAction, ApplicationDecision, ApplicationDefinition
+from sudofx import (
+    ApplicationAction,
+    ApplicationDecision,
+    ApplicationDefinition,
+    continuity_matrix,
+)
 from sudofx.models import JsonValue
 
 
@@ -742,6 +747,178 @@ def private_assistant_message(current: JsonValue, payload: JsonValue) -> Applica
     return ApplicationDecision(True, state)
 
 
+MATRIX_VERDICTS = {"pass", "fail", "uncertain"}
+
+
+def _matrix_campaign_state(current: JsonValue) -> dict[str, JsonValue] | None:
+    """Validate and normalize Conversation's optional governed matrix campaign.
+
+    Matrix definitions remain source-level reusable semantics. Only campaign
+    progress is operational truth, so completed cells live inside Conversation's
+    existing governed application state rather than in a second store.
+    """
+    if not isinstance(current, dict):
+        return None
+    raw = current.get("matrix_campaign")
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        raise ValueError("conversation matrix campaign must be an object")
+
+    matrix = continuity_matrix()
+    if raw.get("matrix_id") != matrix.matrix_id or raw.get("matrix_version") != matrix.version:
+        raise ValueError("conversation matrix campaign uses an unsupported matrix version")
+    if raw.get("definition_digest") != matrix.definition_digest:
+        raise ValueError("conversation matrix definition digest does not match installed semantics")
+    active = raw.get("active")
+    completed = raw.get("completed")
+    if not isinstance(active, bool) or not isinstance(completed, list):
+        raise ValueError("conversation matrix campaign state is invalid")
+
+    normalized_completed: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for item in completed:
+        if (
+            not isinstance(item, dict)
+            or not isinstance(item.get("coordinate_id"), str)
+            or item.get("verdict") not in MATRIX_VERDICTS
+        ):
+            raise ValueError("conversation matrix result is invalid")
+        coordinate = matrix.coordinate_by_id(item["coordinate_id"])
+        if coordinate.coordinate_id in seen:
+            raise ValueError("conversation matrix campaign contains duplicate coordinates")
+        seen.add(coordinate.coordinate_id)
+        normalized = {
+            "coordinate_id": coordinate.coordinate_id,
+            "verdict": str(item["verdict"]),
+        }
+        evidence_digest = item.get("evidence_digest")
+        if evidence_digest is not None:
+            if not _valid_digest(evidence_digest):
+                raise ValueError("conversation matrix evidence digest is invalid")
+            normalized["evidence_digest"] = evidence_digest
+        normalized_completed.append(normalized)
+
+    return {
+        "matrix_id": matrix.matrix_id,
+        "matrix_version": matrix.version,
+        "definition_digest": matrix.definition_digest,
+        "active": active,
+        "completed": normalized_completed,
+    }
+
+
+def start_matrix_campaign(current: JsonValue, payload: JsonValue) -> ApplicationDecision:
+    """Opt Conversation into the canonical continuity matrix without changing chat defaults."""
+    if payload not in (None, {}, {"matrix_id": "continuity", "matrix_version": "1"}):
+        return ApplicationDecision(False, reasons=("unsupported Conversation matrix campaign",))
+    try:
+        existing = _matrix_campaign_state(current)
+    except ValueError as error:
+        return ApplicationDecision(False, reasons=(str(error),))
+
+    matrix = continuity_matrix()
+    completed = list(existing["completed"]) if existing is not None else []
+    state = dict(current) if isinstance(current, dict) else {}
+    state["matrix_campaign"] = {
+        "matrix_id": matrix.matrix_id,
+        "matrix_version": matrix.version,
+        "definition_digest": matrix.definition_digest,
+        "active": True,
+        "completed": completed,
+    }
+    return ApplicationDecision(True, state)
+
+
+def record_matrix_result(current: JsonValue, payload: JsonValue) -> ApplicationDecision:
+    """Persist one privacy-safe matrix outcome through normal Conversation governance."""
+    if not isinstance(payload, dict):
+        return ApplicationDecision(False, reasons=("Conversation matrix result must be an object",))
+    coordinate_id = payload.get("coordinate_id")
+    verdict = payload.get("verdict")
+    evidence_digest = payload.get("evidence_digest")
+    if not isinstance(coordinate_id, str) or verdict not in MATRIX_VERDICTS:
+        return ApplicationDecision(False, reasons=("Conversation matrix result is invalid",))
+    if evidence_digest is not None and not _valid_digest(evidence_digest):
+        return ApplicationDecision(False, reasons=("Conversation matrix evidence digest is invalid",))
+
+    try:
+        campaign = _matrix_campaign_state(current)
+    except ValueError as error:
+        return ApplicationDecision(False, reasons=(str(error),))
+    if campaign is None or not campaign["active"]:
+        return ApplicationDecision(False, reasons=("Conversation matrix campaign is not active",))
+
+    matrix = continuity_matrix()
+    try:
+        coordinate = matrix.coordinate_by_id(coordinate_id)
+    except ValueError as error:
+        return ApplicationDecision(False, reasons=(str(error),))
+
+    completed = [dict(item) for item in campaign["completed"]]
+    if any(item["coordinate_id"] == coordinate.coordinate_id for item in completed):
+        return ApplicationDecision(False, reasons=("Conversation matrix coordinate is already completed",))
+
+    result = {"coordinate_id": coordinate.coordinate_id, "verdict": str(verdict)}
+    if evidence_digest is not None:
+        result["evidence_digest"] = evidence_digest
+    completed.append(result)
+
+    state = dict(current) if isinstance(current, dict) else {}
+    state["matrix_campaign"] = {**campaign, "completed": completed}
+    return ApplicationDecision(True, state)
+
+
+def stop_matrix_campaign(current: JsonValue, payload: JsonValue) -> ApplicationDecision:
+    """Disable matrix execution while preserving governed results for later reconstruction."""
+    if payload not in (None, {}):
+        return ApplicationDecision(False, reasons=("Conversation matrix stop takes no payload",))
+    try:
+        campaign = _matrix_campaign_state(current)
+    except ValueError as error:
+        return ApplicationDecision(False, reasons=(str(error),))
+    if campaign is None:
+        return ApplicationDecision(False, reasons=("Conversation matrix campaign has not started",))
+
+    state = dict(current) if isinstance(current, dict) else {}
+    state["matrix_campaign"] = {**campaign, "active": False}
+    return ApplicationDecision(True, state)
+
+
+def matrix_campaign_projection(state: JsonValue) -> dict[str, JsonValue]:
+    """Return bounded matrix progress and the next deterministic cell for a fresh provider."""
+    campaign = _matrix_campaign_state(state)
+    if campaign is None:
+        return {"enabled": False}
+
+    matrix = continuity_matrix()
+    completed_ids = [str(item["coordinate_id"]) for item in campaign["completed"]]
+    next_cell = matrix.next_uncovered(completed_ids) if campaign["active"] else None
+    projection: dict[str, JsonValue] = {
+        "enabled": bool(campaign["active"]),
+        "matrix_id": matrix.matrix_id,
+        "matrix_version": matrix.version,
+        "definition_digest": matrix.definition_digest,
+        "completed_count": len(completed_ids),
+        "total_cells": matrix.cell_count,
+    }
+    if next_cell is not None:
+        selections: dict[str, JsonValue] = {}
+        for axis, key in zip(matrix.axes, next_cell.value_keys, strict=True):
+            value = next(value for value in axis.values if value.key == key)
+            selections[axis.key] = {
+                "key": value.key,
+                "label": value.label,
+                "description": value.description,
+            }
+        projection["next_coordinate"] = {
+            "coordinate_id": next_cell.coordinate_id,
+            "ordinal": next_cell.ordinal,
+            "selections": selections,
+        }
+    return projection
+
+
 CONVERSATION_APPLICATION = ApplicationDefinition(
     APPLICATION_ID,
     APPLICATION_VERSION,
@@ -755,6 +932,9 @@ CONVERSATION_APPLICATION = ApplicationDefinition(
         ApplicationAction("private_assistant_message", private_assistant_message),
         ApplicationAction("private_governance_rejection", private_governance_rejection),
         ApplicationAction("private_provider_failure", private_provider_failure),
+        ApplicationAction("start_matrix_campaign", start_matrix_campaign),
+        ApplicationAction("record_matrix_result", record_matrix_result),
+        ApplicationAction("stop_matrix_campaign", stop_matrix_campaign),
     ),
 )
 
@@ -784,7 +964,7 @@ def private_bounded_context(state: JsonValue) -> dict[str, JsonValue]:
     privacy = _privacy_state(state)
     verified = [dict(item) for item in privacy["verified_observations"]]
     observations = [item["text"] for item in verified]
-    return {
+    projection: dict[str, JsonValue] = {
         "application_id": APPLICATION_ID,
         "application_version": APPLICATION_VERSION,
         "turn_count": privacy["turn_count"],
@@ -796,6 +976,10 @@ def private_bounded_context(state: JsonValue) -> dict[str, JsonValue]:
         "active_commitments": [dict(item) for item in privacy["commitments"]],
         "active_commitment_count": len(privacy["commitments"]),
     }
+    matrix_projection = matrix_campaign_projection(state)
+    if matrix_projection["enabled"]:
+        projection["matrix_campaign"] = matrix_projection
+    return projection
 
 
 def private_assistant_descriptor(
