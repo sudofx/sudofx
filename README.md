@@ -110,6 +110,14 @@ sudofx owns a global application-access latch in authoritative SQLite. The opera
 
 Each access transition advances a generation token and is recorded in an independently hash-chained operational audit. Application work captures that generation before execution and the kernel rechecks it inside the commit transaction, so work that began before a STOP/RESTORE boundary cannot commit afterward using stale authority. Emergency STOP deliberately has no full-test-suite dependency and may preempt ordinary serialized authority work; RESTORE is stricter and requires the full test suite to pass before access is reopened. Connected deployments with separate databases must consult the central sudofx latch before beginning provider work.
 
+## Reusable matrix extension
+
+sudofx now includes an opt-in deterministic matrix contract in `src/sudofx/matrix.py`. The canonical `continuity@1` definition restores the original 7×7×7 continuity experiment: seven semantic lenses × seven exposure modes × seven pressure modes = 343 stable cells.
+
+The matrix is an **extension**, not a new authority surface. It owns immutable coordinate definitions, stable IDs, definition digests, and deterministic traversal. It does not invoke providers, write SQLite, schedule work, or decide what an application result means. An application may use a coordinate ID inside its own deterministic actions and persist campaign progress/results through its ordinary governed `app:*` state. This keeps one authoritative database while allowing Conversation, Handoff, WAKE✳︎, or future applications to reuse the same experiment grammar without being modified by sudofx.
+
+Changing the meaning of an already-versioned coordinate requires a new matrix version rather than rewriting v1.
+
 ## Applications, not plugins
 
 A complete domain system built on sudofx is an **application**.
