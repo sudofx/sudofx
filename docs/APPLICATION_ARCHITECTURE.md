@@ -10,12 +10,14 @@ A complete domain system built on sudofx is an **application**.
 
 WAKE✳︎ is the first substantial application migration in the separate `sudofx/wake` repository. Its Phase E architectural exit condition is now satisfied on WAKE `master`: operational authority and generic runtime responsibilities are sudofx-owned while WAKE retains its domain/research policy. It is not primarily a plugin: its research state, policy, workflows, presentation, and external integrations define an application identity rather than an optional capability that can be removed while leaving the same product behind.
 
+A reusable cross-application experiment grammar may be implemented as an **extension** when it supplies deterministic source-level semantics but owns no durable campaign state or provider authority. The matrix contract in `src/sudofx/matrix.py` is the first concrete example: applications may opt into stable matrix coordinates while persisting their own progress/results through normal governed actions.
+
 Use these terms:
 
 - **kernel** — smallest durable authority boundary
 - **runtime** — context, invocation, recovery, and effect coordination around the kernel
 - **application** — complete domain behavior built on sudofx
-- **extension** — optional capability added to sudofx or an application
+- **extension** — optional capability added to sudofx or an application; it may expose deterministic reusable semantics but does not gain durable authority merely by being imported
 - **plugin** — optional packaging/loading mechanism if dynamic installation is implemented
 
 ## Current implementation evidence
