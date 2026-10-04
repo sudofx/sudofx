@@ -40,7 +40,7 @@
       <div>
         <div class="app-top"><span class="status-dot"></span><span>Minimal continuity proof</span></div>
         <h2>Conversation</h2>
-        <p>A privacy-bounded governed chat proof. Every provider call starts fresh. sudofx reconstructs continuity from bounded durable observations while raw human and assistant transcript text stays transient.</p>
+        <p>A privacy-bounded governed chat proof. Every provider call starts fresh. sudofx reconstructs durable continuity from bounded SQLite observations, while the private runtime may carry only the immediately previous successful exchange in volatile process memory so adjacent references still make sense. Raw transcript text never becomes durable Conversation state.</p>
         <div class="link-row"><a class="button primary" href="conversation.html">Open Conversation</a><a class="button" href="https://github.com/sudofx/sudofx/tree/master/applications/conversation" target="_blank" rel="noopener noreferrer">Implementation</a></div>
       </div>
     </article>
