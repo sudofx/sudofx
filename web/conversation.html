@@ -25,7 +25,7 @@
 <section class="page-hero shell conversation-hero">
   <div class="eyebrow">Conversation proof</div>
   <h1>Talk normally.<br><span>Memory stays governed.</span></h1>
-  <p class="lede">Every Gemini call starts fresh. sudofx reconstructs bounded observations from SQLite so continuity can survive even though the provider keeps no chat session.</p>
+  <p class="lede">Every Gemini call starts fresh. sudofx reconstructs bounded observations from SQLite, while the private runtime may carry one immediately previous successful exchange in volatile memory for adjacent references. Provider chat-session memory is never required.</p>
   <article class="panel eli compact"><div class="tag">What is different?</div><p>Your screen can look like a normal chat, but the durable record is not a transcript. Raw human and assistant text stays transient; SQLite keeps only governed message fingerprints, bounded observations, receipts, and lifecycle evidence.</p></article>
 </section>
 
@@ -68,7 +68,7 @@
 
 <section class="section shell">
   <div class="grid two">
-    <article class="panel"><div class="tag">Each turn</div><h3>Human → sudofx → fresh Gemini</h3><p>The current message crosses the provider boundary once. Previous raw turns are not replayed. The provider receives only the current transient message plus bounded durable observations.</p></article>
+    <article class="panel"><div class="tag">Each turn</div><h3>Human → sudofx → fresh Gemini</h3><p>The provider receives the current transient message, bounded durable observations, and—when available—the immediately previous successful exchange as a disposable active window. Older raw turns are never replayed, and restart or Clear removes that volatile window without changing SQLite authority.</p></article>
     <article class="panel"><div class="tag">Continuity test</div><h3>Try losing the screen</h3><p>After several turns, reload the page and ask what you were trying to figure out earlier. A coherent answer should come from reconstructed sudofx observations, not provider session memory.</p></article>
   </div>
 </section>
