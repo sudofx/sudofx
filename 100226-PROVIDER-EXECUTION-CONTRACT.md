@@ -13,6 +13,13 @@ Applications own domain meaning. sudofx owns the generic provider machinery.
 A provider never becomes application authority and an application never needs
 to reimplement vendor network transport in order to use the engine.
 
+Provider-neutral generation may declare the read-only capabilities
+`read_public_url` and `search_public_web`. An application owns when those
+capabilities are requested and which targets are admissible; deployment owns
+whether either is granted. Provider adapters may map them to native managed
+tools, but retrieved content remains untrusted transient evidence and never
+acquires kernel or database authority.
+
 The intended flow is:
 
 ```text

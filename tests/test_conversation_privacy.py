@@ -8,6 +8,7 @@ import unittest
 
 from applications.conversation import (
     CONVERSATION_APPLICATION,
+    conversation_web_tools,
     private_bounded_context,
     private_message_descriptor,
     validate_private_message,
@@ -30,12 +31,34 @@ class ConversationPrivacyTests(unittest.TestCase):
             "My email is rob@example.com",
             "Call me at 619-555-1212",
             "My name is Example Person",
-            "See https://example.com/private",
             "My SSN is 123-45-6789",
         ):
             with self.subTest(message=message):
                 with self.assertRaises(ValueError):
                     validate_private_message(message)
+
+    def test_public_web_targets_are_explicit_and_private_targets_fail_closed(self) -> None:
+        github = "https://github.com/sudofx/wake"
+        self.assertEqual(validate_private_message(github), github)
+        self.assertEqual(conversation_web_tools(github), ("read_public_url",))
+        self.assertEqual(
+            conversation_web_tools("Search the web for current sudofx documentation"),
+            ("search_public_web",),
+        )
+        self.assertEqual(
+            conversation_web_tools(f"Search the web and compare {github}"),
+            ("read_public_url", "search_public_web"),
+        )
+        for unsafe in (
+            "http://example.com",
+            "https://localhost/private",
+            "https://127.0.0.1/private",
+            "https://user:password@example.com/private",
+            "https://example.com/?access_token=secret",
+        ):
+            with self.subTest(unsafe=unsafe):
+                with self.assertRaises(ValueError):
+                    validate_private_message(unsafe)
 
     def test_private_descriptor_contains_no_message_text(self) -> None:
         message = "We are trying to understand whether durable observations preserve continuity."
@@ -43,6 +66,40 @@ class ConversationPrivacyTests(unittest.TestCase):
         self.assertEqual(descriptor["message_chars"], len(message))
         self.assertEqual(len(descriptor["message_digest"]), 64)
         self.assertNotIn(message, json.dumps(descriptor))
+
+    def test_web_citations_are_transient_and_never_become_observations(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "record.sqlite"
+            url = "https://github.com/sudofx/wake"
+            commit_human_turn(
+                f"Read {url}",
+                data_path=path,
+                private_mode=True,
+                provenance=SubmissionProvenance("human", "fixture", "unit-test"),
+            )
+            provider = (
+                sys.executable,
+                "-c",
+                "import json,sys; json.load(sys.stdin); json.dump({"
+                "'content':'WAKE is a public repository.',"
+                "'observations':['https://github.com/sudofx/wake'],"
+                "'commitment_updates':[],"
+                "'sources':[{'url':'https://github.com/sudofx/wake','title':'WAKE'}]"
+                "},sys.stdout)",
+            )
+            reply = commit_assistant_turn(
+                data_path=path,
+                provider_command=provider,
+                private_message=f"Read {url}",
+                provenance=SubmissionProvenance("model", "fixture", "unit-test"),
+            )
+            self.assertIn("[WAKE](https://github.com/sudofx/wake)", reply)
+
+            registry = ApplicationRegistry((CONVERSATION_APPLICATION,))
+            kernel = Kernel(Record(path), Governance(application_registry=registry))
+            state = ApplicationHost(kernel, registry, "conversation").context().state
+            self.assertEqual(private_bounded_context(state)["observations"], [])
+            self.assertNotIn(url, json.dumps(state, sort_keys=True))
 
     def test_private_http_service_uses_one_sqlite_authority_without_transcript(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

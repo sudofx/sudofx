@@ -18,7 +18,7 @@ from sudofx import (
     ProviderQuotaError,
     ProviderTemporaryError,
 )
-from sudofx.generation import build_gemini_request
+from sudofx.generation import build_gemini_request, extract_gemini_web_evidence
 
 
 class GeminiTransportTests(unittest.TestCase):
@@ -59,6 +59,7 @@ class GeminiTransportTests(unittest.TestCase):
                 response_schema={"type": "object"},
                 reasoning_effort="low",
                 max_output_tokens=512,
+                tools=("read_public_url", "search_public_web"),
             ),
         )
         self.assertEqual(safe_model, "gemini-test")
@@ -77,8 +78,36 @@ class GeminiTransportTests(unittest.TestCase):
         )
         self.assertEqual(body["generationConfig"]["maxOutputTokens"], 512)
         self.assertEqual(body["generationConfig"]["thinkingConfig"], {"thinkingLevel": "low"})
+        self.assertEqual(body["tools"], [{"url_context": {}}, {"google_search": {}}])
         self.assertNotIn("deployment-secret", request.full_url)
         self.assertNotIn("deployment-secret", request.data.decode("utf-8"))
+
+    def test_web_evidence_is_bounded_to_public_metadata(self) -> None:
+        evidence = extract_gemini_web_evidence(
+            {
+                "candidates": [
+                    {
+                        "groundingMetadata": {
+                            "webSearchQueries": ["sudofx wake"],
+                            "groundingChunks": [
+                                {"web": {"uri": "https://github.com/sudofx/wake", "title": "WAKE"}}
+                            ],
+                        },
+                        "urlContextMetadata": {
+                            "urlMetadata": [
+                                {
+                                    "retrievedUrl": "https://github.com/sudofx/wake",
+                                    "urlRetrievalStatus": "URL_RETRIEVAL_STATUS_SUCCESS",
+                                }
+                            ]
+                        },
+                    }
+                ]
+            }
+        )
+        self.assertEqual(evidence["sources"], [{"url": "https://github.com/sudofx/wake", "title": "WAKE"}])
+        self.assertEqual(evidence["search_queries"], ["sudofx wake"])
+        self.assertEqual(evidence["url_retrievals"][0]["status"], "URL_RETRIEVAL_STATUS_SUCCESS")
 
     def test_request_json_centralizes_only_success_transport(self) -> None:
         class Response:

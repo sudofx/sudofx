@@ -155,6 +155,31 @@ class ConversationIntelligence:
         self.last_content = content.strip()
 
         if self.private_mode:
+            sources = response.get("sources", [])
+            if not isinstance(sources, list) or len(sources) > 12:
+                raise ProviderError("conversation provider returned invalid web sources")
+            normalized_sources: list[dict[str, str]] = []
+            for source in sources:
+                if (
+                    not isinstance(source, dict)
+                    or not isinstance(source.get("url"), str)
+                    or not source["url"].startswith("https://")
+                ):
+                    raise ProviderError("conversation provider returned invalid web sources")
+                title = source.get("title")
+                normalized = {
+                    "url": source["url"][:2000],
+                    "title": title[:200] if isinstance(title, str) else source["url"][:200],
+                }
+                if normalized not in normalized_sources:
+                    normalized_sources.append(normalized)
+            if normalized_sources:
+                # Citation projection is part of the transient response. Page
+                # bodies and search snippets never enter the governed proposal.
+                citations = "\n".join(
+                    f"- [{item['title']}]({item['url']})" for item in normalized_sources
+                )
+                self.last_content = self.last_content.rstrip() + "\n\nSources:\n" + citations
             observations = response.get("observations", [])
             commitment_updates = response.get("commitment_updates", [])
             try:

@@ -47,6 +47,7 @@ class GenerationRequest:
     response_schema: dict[str, Any] | None = None
     max_output_tokens: int | None = None
     reasoning_effort: str | None = None
+    tools: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -97,6 +98,9 @@ def build_gemini_request(
         raise ValueError("max_output_tokens must be positive when supplied")
     if request.reasoning_effort not in {None, "low", "medium", "high"}:
         raise ValueError("reasoning_effort must be low, medium, high, or None")
+    unknown_tools = set(request.tools) - {"read_public_url", "search_public_web"}
+    if unknown_tools:
+        raise ValueError("generation request contains an unsupported tool")
 
     safe_model = sanitize_gemini_model(request.model)
     generation: dict[str, Any] = {
@@ -119,6 +123,15 @@ def build_gemini_request(
         body["systemInstruction"] = {
             "parts": [{"text": request.system}],
         }
+    if request.tools:
+        # These names are provider-neutral application capabilities. Gemini's
+        # wire spellings remain isolated here so applications do not learn a
+        # vendor request schema merely to authorize read-only web evidence.
+        vendor_tools = {
+            "read_public_url": {"url_context": {}},
+            "search_public_web": {"google_search": {}},
+        }
+        body["tools"] = [vendor_tools[name] for name in request.tools]
 
     encoded = json.dumps(body, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
     http_request = urllib.request.Request(
@@ -171,6 +184,55 @@ def extract_gemini_text(response: dict[str, Any]) -> str:
     if not text:
         raise ProviderError("Gemini candidate contained no text")
     return text
+
+
+def extract_gemini_web_evidence(response: dict[str, Any]) -> dict[str, Any]:
+    """Return bounded public-source metadata without retaining fetched content."""
+
+    candidates = response.get("candidates")
+    first = candidates[0] if isinstance(candidates, list) and candidates else {}
+    if not isinstance(first, dict):
+        return {"sources": [], "search_queries": [], "url_retrievals": []}
+
+    sources: list[dict[str, str]] = []
+    grounding = first.get("groundingMetadata")
+    if isinstance(grounding, dict):
+        chunks = grounding.get("groundingChunks", [])
+        if isinstance(chunks, list):
+            for chunk in chunks[:20]:
+                web = chunk.get("web") if isinstance(chunk, dict) else None
+                uri = web.get("uri") if isinstance(web, dict) else None
+                title = web.get("title") if isinstance(web, dict) else None
+                if isinstance(uri, str) and uri.startswith("https://"):
+                    source = {"url": uri[:2000], "title": title[:200] if isinstance(title, str) else uri[:200]}
+                    if source not in sources:
+                        sources.append(source)
+                if len(sources) >= 12:
+                    break
+        raw_queries = grounding.get("webSearchQueries", [])
+        queries = [item[:500] for item in raw_queries[:8] if isinstance(item, str)] if isinstance(raw_queries, list) else []
+    else:
+        queries = []
+
+    retrievals: list[dict[str, str]] = []
+    url_context = first.get("urlContextMetadata")
+    raw_metadata = url_context.get("urlMetadata", []) if isinstance(url_context, dict) else []
+    if isinstance(raw_metadata, list):
+        for item in raw_metadata[:20]:
+            if not isinstance(item, dict):
+                continue
+            url = item.get("retrievedUrl")
+            status = item.get("urlRetrievalStatus")
+            if isinstance(url, str) and url.startswith("https://"):
+                retrievals.append(
+                    {
+                        "url": url[:2000],
+                        "status": status[:100] if isinstance(status, str) else "unknown",
+                    }
+                )
+                if not any(source["url"] == url for source in sources) and len(sources) < 12:
+                    sources.append({"url": url[:2000], "title": url[:200]})
+    return {"sources": sources, "search_queries": queries, "url_retrievals": retrievals}
 
 
 def _safe_error_payload(
@@ -398,6 +460,7 @@ class GeminiGenerationProvider:
             ),
             "usage": payload.get("usageMetadata", {}),
             "model_version": payload.get("modelVersion", safe_model),
+            "web_evidence": extract_gemini_web_evidence(payload),
         }
         return GenerationResponse(
             provider=self.provider,

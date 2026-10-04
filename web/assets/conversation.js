@@ -87,6 +87,11 @@
     };
   };
   const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+  const scopedError=(data,fallback,scope='conversation.transport')=>{
+    const error=new Error(data&&data.error?data.error:fallback);
+    error.scope=data&&typeof data.error_scope==='string'?data.error_scope:scope;
+    return error;
+  };
 
   const poll=async requestId=>{
     for(let attempt=0;attempt<80;attempt++){
@@ -98,7 +103,10 @@
         await sleep(1500);
         continue;
       }
-      if(!response.ok)throw new Error((await response.text())||'Conversation reply failed.');
+      if(!response.ok){
+        const data=await response.json().catch(()=>({}));
+        throw scopedError(data,'Conversation reply failed.');
+      }
       const data=await response.json();
       if(!data||typeof data.content!=='string')throw new Error('Conversation gateway returned an invalid reply.');
       return data;
@@ -120,8 +128,11 @@
       return;
     }
     const model=status.provider_model?(' · '+status.provider_model):'';
-    setState('Private local transport connected · provider remains stateless'+model,'ready');
-    help.textContent='Visible transcript text exists only in this page and the active request.';
+    const web=Array.isArray(status.web_capabilities)&&status.web_capabilities.length
+      ?' · explicit web tools enabled'
+      :'';
+    setState('Private local transport connected · provider remains stateless'+model+web,'ready');
+    help.textContent=status.web_privacy_notice||'Visible transcript text exists only in this page and the active request.';
     setEnabled(true);
   };
 
@@ -185,7 +196,7 @@
       body:JSON.stringify({message})
     });
     const data=await response.json().catch(()=>({}));
-    if(!response.ok)throw new Error(data.error||'Conversation request failed.');
+    if(!response.ok)throw scopedError(data,'Conversation request failed.');
     if(!data||typeof data.content!=='string')throw new Error('Conversation transport returned an invalid reply.');
     return data;
   };
@@ -204,9 +215,8 @@
       throw new Error('Operator sign in expired.');
     }
     if(!response.ok){
-      let detail='Conversation request failed.';
-      try{const data=await response.json();if(data&&data.error)detail=data.error}catch{}
-      throw new Error(detail);
+      const data=await response.json().catch(()=>({}));
+      throw scopedError(data,'Conversation request failed.');
     }
     const data=await response.json();
     if(!data||typeof data.request_id!=='string')throw new Error('Conversation gateway did not return a request ID.');
@@ -272,7 +282,8 @@
       setState('Ready · next turn will use a fresh provider invocation','ready');
       help.textContent='Continuity is reconstructed from governed observations, not this screen.';
     }catch(error){
-      bubble('assistant','Transport error: '+(error instanceof Error?error.message:'Conversation request failed.'));
+      const scope=error&&typeof error.scope==='string'?error.scope:'conversation.transport';
+      bubble('assistant',scope+' error: '+(error instanceof Error?error.message:'Conversation request failed.'));
       setState('Conversation transport needs attention','offline');
       help.textContent='No failed browser request is treated as durable success.';
     }finally{

@@ -34,6 +34,7 @@ The success condition is not that one model remembers. The success condition is 
 - The conversation proof survives complete Python interpreter replacement across multiple rounds; continuity is reconstructed from SQLite alone.
 - The private Conversation server runs the same governed path end-to-end while raw browser transcript text remains transient.
 - Conversation preserves multiple simultaneous human-authorized commitments across fresh providers: suffixes are enforced deterministically, semantic response instructions remain explicit, and provider-invented commitment text is discarded before it can affect a reply or durable state.
+- Conversation can read validated public HTTPS URLs and perform explicitly requested public-web searches through bounded provider capabilities; private targets fail closed, citations remain transient presentation, and web content cannot become a durable observation merely because it was retrieved.
 - Handoff packet/scoring/evaluation semantics now live in `applications/handoff/`; new evaluations persist under `app:handoff` rather than as handoff-specific generic work operations.
 - WAKE✳︎ domain migration preserves its own policy above the generic sudofx authority boundary.
 - WAKE✳︎ provider attempts share sudofx invocation IDs/evidence, survive fresh-process recovery, and use the generic pre-effect durability barrier without importing Gemini-specific exception types into the engine.

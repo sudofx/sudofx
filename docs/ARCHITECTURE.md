@@ -63,6 +63,8 @@ The append-only invocation journal records provider/runtime attempts separately 
 
 `InvocationLifecycle` owns generic request/context/attempt evidence, interruption recovery, and external-effect ordering. `invoke()` runs a caller-supplied durability barrier before the external effect and records provider failure classes without granting the provider authority. Applications may supply an error classifier for provider-specific exceptions; they may not bypass the durability barrier or mutate the journal directly.
 
+Provider-neutral generation requests may declare the read-only `read_public_url` and `search_public_web` capabilities. The Gemini adapter maps those names to URL Context and Google Search; no fetch implementation or vendor tool spelling enters Kernel. Conversation validates public targets and explicit search intent, deployment configuration may narrow the granted set, and only bounded citation metadata returns to presentation. Retrieved bodies and snippets are transient untrusted evidence.
+
 This allows WAKE✳︎ to keep Gemini-specific fallback and quota policy above the kernel while reusing the same provider-attempt and effect-ordering contract as other applications.
 
 ### GitHub Actions

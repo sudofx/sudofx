@@ -74,6 +74,18 @@ class ConversationService:
             "next_role": str(projection["next_role"]),
             "provider_configured": provider_configured,
             "provider_model": os.environ.get("GEMINI_MODEL", "").strip() or None,
+            "web_capabilities": [
+                item.strip()
+                for item in os.environ.get(
+                    "CONVERSATION_WEB_CAPABILITIES",
+                    "read_public_url,search_public_web",
+                ).split(",")
+                if item.strip()
+            ],
+            "web_privacy_notice": (
+                "Explicit URL and web-search turns use managed Gemini web tools; "
+                "provider retention and search charges may differ from private-only turns."
+            ),
             "transcript_persisted": False,
         }
 
@@ -122,6 +134,10 @@ def _handler(service: ConversationService):
             self.end_headers()
             self.wfile.write(body)
 
+        def _error(self, status: int, scope: str, message: str) -> None:
+            """Expose bounded ownership without leaking internal exception detail."""
+            self._json(status, {"error": message, "error_scope": scope})
+
         def do_GET(self) -> None:
             requested = urlsplit(self.path)
             if requested.path == "/api/conversation/status":
@@ -138,15 +154,15 @@ def _handler(service: ConversationService):
 
         def do_POST(self) -> None:
             if self.path != "/api/conversation":
-                self._json(404, {"error": "not found"})
+                self._error(404, "conversation.transport", "not found")
                 return
             try:
                 length = int(self.headers.get("Content-Length", ""))
             except ValueError:
-                self._json(400, {"error": "invalid request length"})
+                self._error(400, "conversation.transport", "invalid request length")
                 return
             if length <= 0 or length > MAX_REQUEST_BYTES:
-                self._json(413, {"error": "request too large"})
+                self._error(413, "conversation.transport", "request too large")
                 return
             try:
                 payload = json.loads(self.rfile.read(length))
@@ -155,24 +171,24 @@ def _handler(service: ConversationService):
                     raise ValueError("message must be text")
                 if service.provider_command is None:
                     if not os.environ.get("GEMINI_API_KEY", "").strip():
-                        self._json(503, {"error": "Gemini is not configured in this Codespace: GEMINI_API_KEY is missing"})
+                        self._error(503, "conversation.deployment", "Gemini is not configured in this Codespace: GEMINI_API_KEY is missing")
                         return
                     if not os.environ.get("GEMINI_MODEL", "").strip():
-                        self._json(503, {"error": "Gemini is not configured in this Codespace: GEMINI_MODEL is missing"})
+                        self._error(503, "conversation.deployment", "Gemini is not configured in this Codespace: GEMINI_MODEL is missing")
                         return
                 self._json(200, service.converse(message))
             except ApplicationAccessError as error:
-                self._json(503, {"error": error.code})
+                self._error(503, "sudofx", error.code)
             except ValueError as error:
-                self._json(400, {"error": str(error)})
+                self._error(400, "conversation.app", str(error))
             except ProviderQuotaError as error:
-                self._json(429, {"error": str(error)})
+                self._error(429, "conversation.provider", str(error))
             except ProviderTemporaryError as error:
-                self._json(503, {"error": str(error)})
+                self._error(503, "conversation.provider", str(error))
             except ProviderError as error:
-                self._json(502, {"error": str(error)})
+                self._error(502, "conversation.provider", str(error))
             except Exception:
-                self._json(502, {"error": "the fresh provider turn failed"})
+                self._error(502, "conversation.runtime", "the fresh provider turn failed")
 
     return Handler
 

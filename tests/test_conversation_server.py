@@ -28,6 +28,19 @@ class ConversationServerTests(unittest.TestCase):
         self.assertIn("requested = urlsplit(self.path)", source)
         self.assertIn('requested.path in {"/", "/conversation"}', source)
 
+    def test_http_failures_expose_bounded_owner_scopes(self) -> None:
+        """The UI must distinguish app/provider faults from sudofx authority faults."""
+        source = (Path(__file__).resolve().parents[1] / "applications" / "conversation" / "server.py").read_text(encoding="utf-8")
+        for scope in (
+            "conversation.app",
+            "conversation.provider",
+            "conversation.transport",
+            "conversation.deployment",
+            "conversation.runtime",
+            "sudofx",
+        ):
+            self.assertIn(f'"{scope}"', source)
+
     def test_two_turn_continuity_uses_observations_not_transcript_storage(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             database = Path(temporary) / "conversation.sqlite"
@@ -304,6 +317,11 @@ class ConversationServerTests(unittest.TestCase):
             status = service.status()
             self.assertEqual(status["next_role"], "human")
             self.assertTrue(status["provider_configured"])
+            self.assertEqual(
+                status["web_capabilities"],
+                ["read_public_url", "search_public_web"],
+            )
+            self.assertIn("retention", status["web_privacy_notice"])
 
     def test_provider_process_preserves_quota_classification_and_safe_details(self) -> None:
         """A child HTTP 429 must not degrade into an opaque generic failure."""

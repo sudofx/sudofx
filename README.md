@@ -63,6 +63,7 @@ Implemented and exercised on `master`:
 - a database-backed global application access kill switch with generation fencing for in-flight work
 - a privacy-bounded governed Conversation application that survives process replacement from SQLite alone
 - a runnable private/local chat transport whose visible transcript stays transient while SQLite stores governed observations and exact human-authorized commitments
+- explicit read-only Conversation URL and public-web search capabilities with bounded citations and private-target rejection
 - an encrypted GitHub Actions transport seam for a future authenticated cloud gateway
 - a first-class Handoff application for bounded fresh-intelligence packets and governed cross-provider grounding evidence
 - GitHub Pages as a lightweight, read-only public shell

@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import hashlib
+import ipaddress
 import json
 import re
+from urllib.parse import parse_qsl, urlsplit
 
 from sudofx import ApplicationAction, ApplicationDecision, ApplicationDefinition
 from sudofx.models import JsonValue
@@ -32,11 +34,66 @@ COMMITMENT_KINDS = {
 
 _DIRECT_IDENTIFIER_PATTERNS = (
     re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.I),
-    re.compile(r"\bhttps?://\S+\b", re.I),
     re.compile(r"(?<!\d)(?:\+?1[\s.-]?)?(?:\(?\d{3}\)?[\s.-]?)\d{3}[\s.-]?\d{4}(?!\d)"),
     re.compile(r"\b\d{3}-\d{2}-\d{4}\b"),
     re.compile(r"\b(?:my name is|i am named|call me|i live at|my address is)\b", re.I),
 )
+
+_URL_PATTERN = re.compile(r"https?://[^\s<>\]\[{}]+", re.I)
+_SENSITIVE_QUERY_KEYS = {"access_token", "api_key", "auth", "key", "secret", "token"}
+_SEARCH_INTENT_PATTERNS = (
+    re.compile(r"\b(?:search|browse)\s+(?:the\s+)?(?:web|internet)\b", re.I),
+    re.compile(r"\bsearch\s+(?:online\s+)?for\b", re.I),
+    re.compile(r"\blook\s+(?:it|this|that|them)\s+up\b", re.I),
+    re.compile(r"\bfind\s+(?:it|this|that|information)\s+online\b", re.I),
+)
+
+
+def public_urls(message: str) -> tuple[str, ...]:
+    """Return validated public HTTPS URLs explicitly present in one turn.
+
+    Conversation delegates retrieval to a managed read-only provider tool, but
+    application policy still rejects local/private targets and credential-like
+    URL components before the message crosses that boundary. DNS resolution is
+    intentionally not performed here: the app never fetches these URLs itself,
+    and the managed URL tool independently blocks private-network retrieval.
+    """
+    urls: list[str] = []
+    for match in _URL_PATTERN.finditer(message):
+        candidate = match.group(0).rstrip(".,;:!?\"')")
+        parsed = urlsplit(candidate)
+        if parsed.scheme.lower() != "https" or not parsed.hostname:
+            raise ValueError("Conversation web access accepts public HTTPS URLs only")
+        if parsed.username is not None or parsed.password is not None:
+            raise ValueError("Conversation URLs must not contain credentials")
+        host = parsed.hostname.rstrip(".").lower()
+        if host == "localhost" or host.endswith((".local", ".internal", ".localhost")):
+            raise ValueError("Conversation cannot access local or private URLs")
+        try:
+            address = ipaddress.ip_address(host)
+        except ValueError:
+            address = None
+        if address is not None and not address.is_global:
+            raise ValueError("Conversation cannot access local or private URLs")
+        for key, _ in parse_qsl(parsed.query, keep_blank_values=True):
+            if key.casefold() in _SENSITIVE_QUERY_KEYS:
+                raise ValueError("Conversation URLs must not contain credential parameters")
+        if candidate not in urls:
+            urls.append(candidate)
+        if len(urls) > 5:
+            raise ValueError("Conversation accepts at most 5 public URLs per turn")
+    return tuple(urls)
+
+
+def conversation_web_tools(message: str) -> tuple[str, ...]:
+    """Select bounded read-only web capabilities from explicit human intent."""
+    urls = public_urls(message)
+    tools: list[str] = []
+    if urls:
+        tools.append("read_public_url")
+    if any(pattern.search(message) for pattern in _SEARCH_INTENT_PATTERNS):
+        tools.append("search_public_web")
+    return tuple(tools)
 
 
 def _turns(current: JsonValue) -> list[dict[str, str]]:
@@ -112,6 +169,10 @@ def validate_private_message(message: str) -> str:
             raise ValueError(
                 "conversation message contains a direct identifier; remove identifying information"
             )
+    # A URL is not inherently a personal identifier. Validate it as an
+    # application capability target while continuing to reject identifiers in
+    # ordinary prose and to exclude URLs from durable observations.
+    public_urls(content)
     return content
 
 
@@ -262,7 +323,11 @@ def private_human_message(current: JsonValue, payload: JsonValue) -> Application
     return ApplicationDecision(True, state)
 
 
-def _normalize_observations(values: object) -> tuple[list[str], str | None]:
+def _normalize_observations(
+    values: object,
+    *,
+    allow_transient_urls: bool = False,
+) -> tuple[list[str], str | None]:
     if not isinstance(values, list):
         return [], "assistant observations must be a list"
     if len(values) > MAX_OBSERVATIONS_PER_TURN:
@@ -277,6 +342,8 @@ def _normalize_observations(values: object) -> tuple[list[str], str | None]:
         for pattern in _DIRECT_IDENTIFIER_PATTERNS:
             if pattern.search(text):
                 return [], "assistant observation contains a direct identifier"
+        if not allow_transient_urls and _URL_PATTERN.search(text):
+            return [], "assistant observation must not persist a URL"
         normalized.append(text)
     return normalized, None
 
@@ -286,13 +353,18 @@ def _verified_observation_records(
     source_message: str,
 ) -> list[dict[str, str]]:
     """Keep only observations that are exact excerpts of the current human message."""
-    normalized, error = _normalize_observations(values)
+    # URL-bearing suggestions are valid untrusted provider output but are not
+    # eligible for durable continuity. Drop them like any other unsupported
+    # claim rather than failing the otherwise valid cited response.
+    normalized, error = _normalize_observations(values, allow_transient_urls=True)
     if error is not None:
         raise ValueError(error)
     source = " ".join(validate_private_message(source_message).split())
     source_digest = hashlib.sha256(source_message.strip().encode("utf-8")).hexdigest()
     records: list[dict[str, str]] = []
     for text in normalized:
+        if _URL_PATTERN.search(text):
+            continue
         if text not in source:
             continue
         records.append(
@@ -366,6 +438,8 @@ def _normalize_commitment_updates(values: object) -> tuple[list[dict[str, str]],
         for pattern in _DIRECT_IDENTIFIER_PATTERNS:
             if pattern.search(text):
                 return [], "assistant commitment contains a direct identifier"
+        if _URL_PATTERN.search(text):
+            return [], "assistant commitment must not persist a URL"
         item: dict[str, str] = {
             "op": "upsert",
             "kind": kind,
@@ -727,7 +801,10 @@ def private_assistant_descriptor(
     if not isinstance(response, str) or not response.strip():
         raise ValueError("assistant response must be non-empty text")
     content = response.strip()
-    normalized, error = _normalize_observations(observations)
+    normalized, error = _normalize_observations(
+        observations,
+        allow_transient_urls=source_message is not None,
+    )
     if error is not None:
         raise ValueError(error)
     verified = (

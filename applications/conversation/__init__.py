@@ -15,6 +15,7 @@ from .application import (
     MAX_OBSERVATIONS_PER_TURN,
     assistant_message,
     bounded_context,
+    conversation_web_tools,
     declared_commitment_updates,
     enforce_response_commitments,
     grounded_commitment_updates,
@@ -24,6 +25,7 @@ from .application import (
     private_bounded_context,
     private_human_message,
     private_message_descriptor,
+    public_urls,
     validate_private_message,
 )
 
@@ -38,6 +40,7 @@ __all__ = [
     "MAX_OBSERVATIONS_PER_TURN",
     "assistant_message",
     "bounded_context",
+    "conversation_web_tools",
     "declared_commitment_updates",
     "enforce_response_commitments",
     "grounded_commitment_updates",
@@ -47,5 +50,6 @@ __all__ = [
     "private_bounded_context",
     "private_human_message",
     "private_message_descriptor",
+    "public_urls",
     "validate_private_message",
 ]
