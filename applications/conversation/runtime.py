@@ -17,6 +17,7 @@ if str(ROOT) not in sys.path:
 
 from .application import (
     CONVERSATION_APPLICATION,
+    MAX_MESSAGE_CHARS,
     bounded_context,
     private_assistant_descriptor,
     private_bounded_context,
@@ -338,8 +339,15 @@ def commit_assistant_turn(
     provenance: SubmissionProvenance | None = None,
     effect_barrier: Callable[[], None] | None = None,
     private_message: str | None = None,
+    previous_exchange: tuple[str, str] | None = None,
 ) -> str:
-    """Reopen SQLite, derive bounded context, invoke one provider, and govern its reply."""
+    """Reopen SQLite, derive bounded context, invoke one provider, and govern its reply.
+
+    ``previous_exchange`` is a caller-owned active-window buffer. Its raw text
+    enters only this invocation context and the context digest; it is never
+    copied into application state, receipts, or lifecycle rows. Callers may
+    omit it after restart without affecting replay of durable authority.
+    """
     kernel, registry = _kernel(data_path)
     host = ApplicationHost(kernel, registry, CONVERSATION_APPLICATION.application_id)
     app_context = host.context()
@@ -356,6 +364,20 @@ def commit_assistant_turn(
         # included in the transient context fingerprint/byte receipt, but the
         # message body is never copied into authoritative semantic state.
         projection = {**projection, "current_message": current}
+        if previous_exchange is not None:
+            previous_human, previous_assistant = previous_exchange
+            if not isinstance(previous_human, str) or not isinstance(previous_assistant, str):
+                raise ValueError("previous Conversation exchange must contain text")
+            if len(previous_human) > MAX_MESSAGE_CHARS or len(previous_assistant) > 20_000:
+                raise ValueError("previous Conversation exchange exceeds the active buffer bound")
+            projection = {
+                **projection,
+                "previous_exchange": {
+                    "human": previous_human,
+                    "assistant": previous_assistant,
+                    "authority": "transient_active_window",
+                },
+            }
 
     bounded = Context(
         revision=app_context.revision,
@@ -393,6 +415,7 @@ def run_private_turn(
     *,
     data_path: Path,
     provider_command: tuple[str, ...] | None = None,
+    previous_exchange: tuple[str, str] | None = None,
 ) -> str:
     """Run one privacy-bounded turn against an explicitly supplied authority DB.
 
@@ -407,6 +430,7 @@ def run_private_turn(
             data_path=data_path,
             provider_command=provider_command,
             private_message=message,
+            previous_exchange=previous_exchange,
         )
     except GovernanceRejectionError as error:
         try:

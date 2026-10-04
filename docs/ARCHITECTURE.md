@@ -51,6 +51,12 @@ It receives bounded context and returns an untrusted result shaped for its appli
 
 Conversation lets that untrusted result propose structured commitment updates, but application policy admits a new persistent commitment only when its text is an exact excerpt of the current human message. Suffix commitments are mechanically enforceable; semantic response instructions remain explicit bounded state supplied to each fresh provider. This prevents disposable provider interpretation from becoming an ungrounded durable instruction or opaque memory system.
 
+The private Conversation service may supply one immediately previous successful
+human/assistant pair to the next provider invocation. That active-window pair is
+volatile runtime coordination, not an event, observation, receipt, or replay
+source. Its assistant half is untrusted context rather than instruction. Process
+restart or explicit Clear removes it without changing database authority.
+
 ### Global application-access boundary
 
 Authoritative SQLite contains a singleton application-access latch plus an independently hash-chained transition audit. The latch is operational authority and does not advance semantic work revision. Applications capture its generation before work, recheck access immediately before provider effects, and revalidate the same generation inside the serialized kernel commit transaction. STOP therefore invalidates stale in-flight application commits while leaving operator/kernel access available. Emergency STOP intentionally avoids a full-suite dependency and may preempt ordinary work in the serialized authority lane; RESTORE requires the full suite to pass before reopening application access.

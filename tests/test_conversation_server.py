@@ -73,8 +73,11 @@ class ConversationServerTests(unittest.TestCase):
                 self.assertLessEqual(received, completed)
             self.assertEqual(first["content"], "Saved.")
             self.assertEqual(second["content"], "We were comparing blue and green.")
+            self.assertEqual(first["assistant_number"], 1)
+            self.assertEqual(second["assistant_number"], 2)
             self.assertEqual(second["status"]["turn_count"], 4)
             self.assertEqual(second["status"]["provider_invocations"], 2)
+            self.assertEqual(second["status"]["active_buffer_messages"], 2)
             self.assertFalse(second["status"]["transcript_persisted"])
 
             registry = ApplicationRegistry((CONVERSATION_APPLICATION,))
@@ -85,6 +88,53 @@ class ConversationServerTests(unittest.TestCase):
             self.assertNotIn("What were we trying to figure out earlier?", serialized)
             self.assertNotIn("We were comparing blue and green.", serialized)
             self.assertIn("compare blue and green", serialized)
+
+    def test_previous_exchange_is_transient_context_and_can_be_cleared(self) -> None:
+        """Adjacent references work without creating a second durable transcript."""
+        with tempfile.TemporaryDirectory() as temporary:
+            database = Path(temporary) / "conversation.sqlite"
+            provider = (
+                sys.executable,
+                "-c",
+                "import json,sys; d=json.load(sys.stdin); "
+                "s=d['state']['app:conversation']; m=s['current_message']; "
+                "p=s.get('previous_exchange'); "
+                "content=('WAKE uses an inspectable record instead of hidden memory.' "
+                "if m.startswith('Tell me') else "
+                "('It means continuity comes from records you can inspect.' "
+                "if p and p['assistant'].startswith('WAKE uses') else "
+                "'The adjacent context is unavailable.')); "
+                "json.dump({'content':content,'observations':[],'commitment_updates':[]},sys.stdout)",
+            )
+            service = ConversationService(database, provider_command=provider)
+
+            first = service.converse("Tell me what WAKE means.")
+            second = service.converse("What does any of that even mean?")
+
+            self.assertEqual(
+                second["content"],
+                "It means continuity comes from records you can inspect.",
+            )
+            self.assertEqual((first["assistant_number"], second["assistant_number"]), (1, 2))
+            self.assertEqual(service.status()["active_buffer_messages"], 2)
+
+            # Clearing is deliberately narrower than resetting Conversation:
+            # governed counts remain, but the next process-fresh model receives
+            # no raw adjacent text to interpret an ambiguous reference.
+            service.clear_active_buffer()
+            self.assertEqual(service.status()["active_buffer_messages"], 0)
+            third = service.converse("What did that mean?")
+            self.assertEqual(third["content"], "The adjacent context is unavailable.")
+            self.assertEqual(third["assistant_number"], 3)
+
+            durable_bytes = database.read_bytes()
+            for raw_text in (
+                b"Tell me what WAKE means.",
+                b"WAKE uses an inspectable record instead of hidden memory.",
+                b"What does any of that even mean?",
+                b"It means continuity comes from records you can inspect.",
+            ):
+                self.assertNotIn(raw_text, durable_bytes)
 
     def test_persistent_response_suffix_is_governed_until_revoked(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -274,6 +324,9 @@ class ConversationServerTests(unittest.TestCase):
             "Again." + footer: "Again.\n\n" + footer,
             "Again.\n\n" + footer: "Again.\n\n" + footer,
             "Again.\n\n" + footer + "\n\n" + footer: "Again.\n\n" + footer,
+            "Again.\n\n" + footer + "\n\nSources:\n- [proof](https://example.com)": (
+                "Again.\n\nSources:\n- [proof](https://example.com)\n\n" + footer
+            ),
             "Again.": "Again.\n\n" + footer,
             "Again.   \n\n" + footer + "   ": "Again.\n\n" + footer,
         }

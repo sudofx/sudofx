@@ -5,7 +5,8 @@ Conversation is the smallest interactive application built on sudofx.
 Its purpose is to demonstrate a strict continuity boundary:
 
 - every provider invocation starts fresh;
-- the provider receives the current transient message plus bounded context reconstructed from sudofx;
+- the provider receives the current transient message, the immediately previous
+  process-local exchange when available, and bounded context reconstructed from sudofx;
 - raw human and assistant transcript text is not durable Conversation state;
 - human and assistant turns cross deterministic application governance;
 - SQLite, not provider/session memory or the browser, carries continuity;
@@ -41,7 +42,12 @@ For an assistant turn, authoritative state may retain:
 
 Observations are bounded and screened for common direct identifiers. On the private production path, a durable observation must also be an exact contiguous excerpt of the current human message. The runtime drops unsupported provider observations before submission, records the source human-message digest with accepted observations, and exposes only those verified observations to later provider calls. Historical observations created before this rule remain in replayable history but are quarantined from future provider context. That screening is deliberately conservative and is not claimed to be a perfect PII detector. Users should not enter secrets or direct identifiers.
 
-The raw current human message is transient provider context. Previous raw turns are not replayed to the provider.
+The raw current human message is transient provider context. The private server
+also keeps exactly one successful human/assistant pair in process memory and
+supplies it to the next fresh provider. This active-window buffer exists so
+adjacent references such as “that” and “any of that” remain intelligible. It is
+not SQLite authority, is never replayed after restart, and is discarded by the
+Clear action; older raw turns are never replayed.
 
 Public-web access is an explicit read-only application capability. A validated public HTTPS URL enables `read_public_url` for that turn; explicit phrases such as “search the web” enable `search_public_web`. Local/private hosts, non-HTTPS targets, credential-bearing URLs, sensitive query parameters, and more than five URLs fail before provider invocation. Gemini URL Context and Google Search are managed provider effects behind sudofx's ordinary invocation barrier. Retrieved bodies and snippets remain transient; bounded citations are projected into the reply and URL-bearing provider observations are discarded. `CONVERSATION_WEB_CAPABILITIES` may narrow the deployment to either capability or neither; its default enables both. Managed web-tool turns have provider retention and possible search-cost characteristics distinct from private-only turns, which the local UI discloses.
 
@@ -60,7 +66,8 @@ For each assistant turn:
 
 1. reopen/reconstruct authoritative state;
 2. build the bounded Conversation observation projection;
-3. add the current transient human message;
+3. add the current transient human message and, when present, the server-owned
+   immediately previous exchange;
 4. invoke one fresh provider request through sudofx's shared generation boundary;
 5. validate the untrusted response and proposed observations;
 6. govern and commit only privacy-bounded assistant metadata/observations;
@@ -74,7 +81,12 @@ provider payloads, prompts, and response text remain outside durable state.
 
 ## Browser and transport
 
-`web/conversation.html` is a disposable chat presentation. Its visible transcript is DOM-only: reloading or clearing the page discards it.
+`web/conversation.html` is a disposable chat presentation. Its visible transcript
+is DOM-only: reloading discards the screen, and Clear discards both the screen
+and the server's one-exchange active buffer without resetting governed SQLite
+continuity. Successful assistant bubbles and Markdown exports carry a monotonic
+display number derived from the authoritative completed-turn count (`#0001`,
+`#0002`, and so on); transport errors are labeled System and consume no number.
 
 Each bubble shows a timestamp in the browser's local timezone, including seconds.
 The private server supplies UTC request-receipt and governed-response completion

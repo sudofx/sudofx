@@ -603,11 +603,19 @@ def enforce_response_commitments(
         suffix = commitment["text"]
         placement = commitment.get("placement", "end")
         if placement == "new_line":
-            # Canonicalize trailing provider attempts before re-applying the
-            # governed suffix. This repairs attached, duplicated, or
-            # whitespace-padded copies without touching matching text earlier
-            # in the response body.
-            body = content.rstrip()
+            # Citations and deterministic follow-ups may be appended after a
+            # provider-authored footer. Remove exact standalone copies from
+            # every paragraph before installing one canonical final copy; the
+            # visible response must never display the same commitment twice.
+            paragraphs = [
+                paragraph
+                for paragraph in content.split("\n\n")
+                if paragraph.strip() != suffix
+            ]
+            body = "\n\n".join(paragraphs).rstrip()
+            # Some providers attach the requested footer directly to prose.
+            # Preserve the older repair contract for that malformed ending,
+            # after standalone copies elsewhere have already been removed.
             while body.endswith(suffix):
                 body = body[: -len(suffix)].rstrip()
             content = suffix if not body else body + "\n\n" + suffix

@@ -89,7 +89,12 @@
 
   const toDocument = transcript => {
     const sections = transcript.map(item => {
-      const speaker = item.role === 'human' ? 'You' : 'Assistant';
+      const number = Number.isInteger(item.assistantNumber) && item.assistantNumber > 0
+        ? ' #' + String(item.assistantNumber).padStart(4, '0')
+        : '';
+      const speaker = item.role === 'human'
+        ? 'You'
+        : (item.role === 'system' ? 'System' : 'Assistant' + number);
       // Export the displayed transcript's UTC instant without creating a store.
       const stamp = item.timestamp ? ' · ' + item.timestamp : '';
       return '## ' + speaker + stamp + '\n\n' + String(item.text).trim();

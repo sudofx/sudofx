@@ -48,15 +48,18 @@
     time.title=date.toLocaleString(undefined,{timeZoneName:'short'});
     return time;
   };
-  const bubble=(role,text,stamp=new Date().toISOString())=>{
+  const bubble=(role,text,stamp=new Date().toISOString(),assistantNumber=null)=>{
     if(intro)intro.hidden=true;
     const article=document.createElement('article');
     article.className='conversation-bubble '+(role==='human'?'human':'assistant');
     const meta=document.createElement('span');
-    meta.textContent=role==='human'?'You':'Assistant';
+    const numbered=Number.isInteger(assistantNumber)&&assistantNumber>0
+      ?' #'+String(assistantNumber).padStart(4,'0')
+      :'';
+    meta.textContent=role==='human'?'You':(role==='system'?'System':'Assistant'+numbered);
     const time=timestampNode(stamp);
     meta.append(document.createTextNode(' · '),time);
-    const entry={role,text,timestamp:time.dateTime};
+    const entry={role,text,timestamp:time.dateTime,assistantNumber};
     transcript.push(entry);
     const body=window.SudofxConversationMarkdown.render(text);
     const copy=document.createElement('button');
@@ -278,12 +281,12 @@
     try{
       const reply=localMode?await sendLocal(message):await sendRemote(message);
       if(reply.received_at)confirmReceived(reply.received_at);
-      bubble('assistant',reply.content,reply.completed_at);
+      bubble('assistant',reply.content,reply.completed_at,reply.assistant_number);
       setState('Ready · next turn will use a fresh provider invocation','ready');
       help.textContent='Continuity is reconstructed from governed observations, not this screen.';
     }catch(error){
       const scope=error&&typeof error.scope==='string'?error.scope:'conversation.transport';
-      bubble('assistant',scope+' error: '+(error instanceof Error?error.message:'Conversation request failed.'));
+      bubble('system',scope+' error: '+(error instanceof Error?error.message:'Conversation request failed.'));
       setState('Conversation transport needs attention','offline');
       help.textContent='No failed browser request is treated as durable success.';
     }finally{
@@ -321,13 +324,18 @@
     });
   }
 
-  clear.addEventListener('click',()=>{
+  clear.addEventListener('click',async()=>{
+    // Clearing the visible page also clears the server's one-exchange buffer
+    // when using the same-origin runtime. Durable SQLite continuity remains.
+    if(localMode){
+      await fetch('/api/conversation/buffer/clear',{method:'POST',credentials:'same-origin',cache:'no-store'}).catch(()=>{});
+    }
     transcript.length=0;
     messages.querySelectorAll('.conversation-bubble').forEach(node=>node.remove());
     if(intro)intro.hidden=false;
     const connected=localMode||Boolean(gateway);
-    setState(connected?'Screen cleared · governed continuity remains':'Private gateway not connected',connected?'ready':'offline');
-    help.textContent=connected?'The browser transcript is gone. sudofx observations were not reset.':'No private Conversation transport is configured.';
+    setState(connected?'Screen and active buffer cleared · governed continuity remains':'Private gateway not connected',connected?'ready':'offline');
+    help.textContent=connected?'The browser transcript and adjacent-turn buffer are gone. sudofx observations were not reset.':'No private Conversation transport is configured.';
   });
 
   checkSession().catch(error=>{

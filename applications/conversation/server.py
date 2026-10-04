@@ -1,9 +1,10 @@
 """Private HTTP transport for the Conversation application.
 
 SQLite remains authoritative and every semantic provider invocation is a fresh
-subprocess. Raw message and response text cross this process only long enough
-to serve the current HTTP request. The server persists no transcript and
-exposes no observation contents through its status endpoint.
+subprocess. Raw message and response text remain process-local. The service
+retains only the immediately previous successful exchange as a disposable
+active window; it persists no transcript and exposes no observation contents
+through its status endpoint.
 """
 from __future__ import annotations
 
@@ -33,12 +34,18 @@ MAX_REQUEST_BYTES = 16_384
 
 
 class ConversationService:
-    """Serialize governed turns around one explicitly owned SQLite record."""
+    """Serialize governed turns around SQLite plus one disposable exchange.
+
+    SQLite owns durable continuity. ``_previous_exchange`` exists only to make
+    ordinary conversational references resolvable across adjacent requests;
+    restart or an explicit clear drops it without changing authoritative state.
+    """
 
     def __init__(self, data_path: Path, *, provider_command: tuple[str, ...] | None = None) -> None:
         self.data_path = data_path
         self.provider_command = provider_command
         self._lock = threading.Lock()
+        self._previous_exchange: tuple[str, str] | None = None
         self._recover_orphaned_turn()
 
     def _recover_orphaned_turn(self) -> None:
@@ -71,6 +78,7 @@ class ConversationService:
             "application_access_generation": access.generation,
             "observation_count": int(projection["observation_count"]),
             "provider_invocations": turn_count // 2,
+            "active_buffer_messages": 2 if self._previous_exchange is not None else 0,
             "next_role": str(projection["next_role"]),
             "provider_configured": provider_configured,
             "provider_model": os.environ.get("GEMINI_MODEL", "").strip() or None,
@@ -93,7 +101,8 @@ class ConversationService:
         """Return a governed response, status, and transient UTC transport times.
 
         Calls serialize against this service's database; rejected input/provider
-        failures propagate without a success response. No transcript is stored.
+        failures propagate without a success response. Only the latest
+        successful exchange remains in process memory; no transcript is stored.
         """
         # These UTC transport times describe receipt and governed completion,
         # not new durable state. SQLite receipts remain the audit authority.
@@ -103,14 +112,26 @@ class ConversationService:
                 message,
                 data_path=self.data_path,
                 provider_command=self.provider_command,
+                previous_exchange=self._previous_exchange,
             )
+            # Advance the active window only after the assistant turn commits.
+            # A rejected or failed attempt must not erase the last coherent pair
+            # that the next fresh provider can safely use for local references.
+            self._previous_exchange = (message.strip(), content)
             completed_at = datetime.now(timezone.utc).isoformat(timespec="milliseconds")
+            status = self.status()
             return {
                 "content": content,
                 "received_at": received_at,
                 "completed_at": completed_at,
-                "status": self.status(),
+                "assistant_number": int(status["provider_invocations"]),
+                "status": status,
             }
+
+    def clear_active_buffer(self) -> None:
+        """Forget disposable adjacent-turn text without altering SQLite."""
+        with self._lock:
+            self._previous_exchange = None
 
 
 def _handler(service: ConversationService):
@@ -153,6 +174,10 @@ def _handler(service: ConversationService):
             super().do_GET()
 
         def do_POST(self) -> None:
+            if self.path == "/api/conversation/buffer/clear":
+                service.clear_active_buffer()
+                self._json(200, {"cleared": True})
+                return
             if self.path != "/api/conversation":
                 self._error(404, "conversation.transport", "not found")
                 return
