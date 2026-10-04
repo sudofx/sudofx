@@ -2,7 +2,7 @@
 
 **Date:** October 2, 2026
 **Project:** sudofx
-**Status:** Active next-frontier contract
+**Status:** Complete at the current provider-execution boundary; retained as implementation evidence
 
 ## Purpose
 
