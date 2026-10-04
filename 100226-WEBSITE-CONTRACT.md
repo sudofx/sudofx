@@ -72,7 +72,8 @@ Different classes must never be visually collapsed into one “score.”
 Current concrete implementations:
 
 - **WAKE✳︎** — substantial research application. sudofx owns generic authority/runtime primitives; WAKE owns research policy and domain behavior.
-- **Conversation** — minimal governed conversation proof demonstrating fresh-process reconstruction from SQLite-backed durable state.
+- **Conversation** — privacy-bounded governed conversation proof demonstrating fresh-process reconstruction from SQLite-backed durable state, with only one disposable adjacent exchange retained in process memory for local references.
+- **Handoff** — portable continuity application that builds bounded governed packets for fresh intelligences and records packet-grounding evidence through the normal application boundary.
 
 Future or experimental concepts are not listed as active applications until they actually use the application contract.
 
