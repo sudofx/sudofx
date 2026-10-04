@@ -23,8 +23,18 @@ from sudofx.governance import Governance
 from sudofx.providers import ProviderError, ProviderQuotaError, ProviderTemporaryError
 from sudofx.record import Record
 
-from .application import CONVERSATION_APPLICATION, private_bounded_context
-from .runtime import recover_failed_private_turn, run_private_turn
+from .application import (
+    CONVERSATION_APPLICATION,
+    matrix_campaign_projection,
+    private_bounded_context,
+)
+from .runtime import (
+    record_matrix_result,
+    recover_failed_private_turn,
+    run_private_turn,
+    start_matrix_campaign,
+    stop_matrix_campaign,
+)
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -72,6 +82,7 @@ class ConversationService:
             and os.environ.get("GEMINI_MODEL", "").strip()
         )
         access = kernel.application_access_state()
+        matrix = matrix_campaign_projection(state)
         return {
             "turn_count": turn_count,
             "application_access_enabled": access.enabled,
@@ -93,6 +104,14 @@ class ConversationService:
             "web_privacy_notice": (
                 "Explicit URL and web-search turns use managed Gemini web tools; "
                 "provider retention and search charges may differ from private-only turns."
+            ),
+            "matrix_enabled": bool(matrix["enabled"]),
+            "matrix_completed_count": int(matrix.get("completed_count", 0)),
+            "matrix_total_cells": int(matrix.get("total_cells", 343)),
+            "matrix_next_coordinate_id": (
+                matrix.get("next_coordinate", {}).get("coordinate_id")
+                if isinstance(matrix.get("next_coordinate"), dict)
+                else None
             ),
             "transcript_persisted": False,
         }
@@ -127,6 +146,33 @@ class ConversationService:
                 "assistant_number": int(status["provider_invocations"]),
                 "status": status,
             }
+
+
+    def start_matrix_campaign(self) -> dict[str, Any]:
+        """Enable the canonical matrix through Conversation's governed SQLite state."""
+        with self._lock:
+            return start_matrix_campaign(data_path=self.data_path)
+
+    def record_matrix_result(
+        self,
+        coordinate_id: str,
+        verdict: str,
+        *,
+        evidence_digest: str | None = None,
+    ) -> dict[str, Any]:
+        """Record one cell result without persisting transcript or response text."""
+        with self._lock:
+            return record_matrix_result(
+                coordinate_id,
+                verdict,
+                data_path=self.data_path,
+                evidence_digest=evidence_digest,
+            )
+
+    def stop_matrix_campaign(self) -> dict[str, Any]:
+        """Stop matrix execution while preserving governed results."""
+        with self._lock:
+            return stop_matrix_campaign(data_path=self.data_path)
 
     def clear_active_buffer(self) -> None:
         """Forget disposable adjacent-turn text without altering SQLite."""
@@ -174,6 +220,52 @@ def _handler(service: ConversationService):
             super().do_GET()
 
         def do_POST(self) -> None:
+            if self.path == "/api/conversation/matrix/start":
+                try:
+                    self._json(200, {"matrix": service.start_matrix_campaign()})
+                except ApplicationAccessError as error:
+                    self._error(503, "sudofx", error.code)
+                except (ValueError, RuntimeError) as error:
+                    self._error(400, "conversation.app", str(error))
+                return
+            if self.path == "/api/conversation/matrix/stop":
+                try:
+                    self._json(200, {"matrix": service.stop_matrix_campaign()})
+                except ApplicationAccessError as error:
+                    self._error(503, "sudofx", error.code)
+                except (ValueError, RuntimeError) as error:
+                    self._error(400, "conversation.app", str(error))
+                return
+            if self.path == "/api/conversation/matrix/result":
+                try:
+                    length = int(self.headers.get("Content-Length", ""))
+                    if length <= 0 or length > MAX_REQUEST_BYTES:
+                        raise ValueError("invalid matrix result request length")
+                    payload = json.loads(self.rfile.read(length))
+                    if not isinstance(payload, dict):
+                        raise ValueError("matrix result must be an object")
+                    coordinate_id = payload.get("coordinate_id")
+                    verdict = payload.get("verdict")
+                    evidence_digest = payload.get("evidence_digest")
+                    if not isinstance(coordinate_id, str) or not isinstance(verdict, str):
+                        raise ValueError("matrix result requires coordinate_id and verdict")
+                    if evidence_digest is not None and not isinstance(evidence_digest, str):
+                        raise ValueError("matrix evidence_digest must be text")
+                    self._json(
+                        200,
+                        {
+                            "matrix": service.record_matrix_result(
+                                coordinate_id,
+                                verdict,
+                                evidence_digest=evidence_digest,
+                            )
+                        },
+                    )
+                except ApplicationAccessError as error:
+                    self._error(503, "sudofx", error.code)
+                except (ValueError, RuntimeError, json.JSONDecodeError) as error:
+                    self._error(400, "conversation.app", str(error))
+                return
             if self.path == "/api/conversation/buffer/clear":
                 service.clear_active_buffer()
                 self._json(200, {"cleared": True})
