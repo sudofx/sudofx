@@ -46,7 +46,7 @@ Record → Context → Proposal → Governance → Transition → Receipt → Re
 
 **Models propose. The system governs.**
 
-## Current status — October 3, 2026
+## Current status — October 4, 2026
 
 The project has moved beyond the original continuity proof into a reusable engine/application architecture.
 
@@ -72,7 +72,7 @@ Implemented and exercised on `master`:
 - quarantined continuity/overnight experiments under `experiments/`; the former manual-handoff experiment has migrated to `applications/handoff/` with compatibility shims retained temporarily
 - WAKE✳︎ Phase E architectural migration complete on the separate `sudofx/wake` repository's `master`: sudofx owns operational authority/runtime primitives while WAKE retains research policy
 
-The October 2 public product-surface contract is complete and preserved in [100226-WEBSITE-CONTRACT.md](100226-WEBSITE-CONTRACT.md). The completed A–E architecture contract remains preserved in [100126-CONTRACT.md](100126-CONTRACT.md) as historical evidence.
+The October 2 public product-surface, provider-execution, and application-observability contracts are complete at their stated boundaries and retained as implementation evidence. The completed A–E architecture contract remains preserved in [100126-CONTRACT.md](100126-CONTRACT.md) as historical evidence.
 
 See [docs/STATUS.md](docs/STATUS.md) for the phase-by-phase state,
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for authority boundaries, and
