@@ -2,7 +2,7 @@
 
 **Date:** October 2, 2026  
 **Project:** sudofx  
-**Status:** Active product/engine boundary contract
+**Status:** Complete at the current product/engine boundary; retained as implementation evidence
 
 ## Purpose
 
