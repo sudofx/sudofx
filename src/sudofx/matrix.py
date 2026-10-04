@@ -204,6 +204,22 @@ class MatrixDefinition:
             value_keys=tuple(value_keys),
         )
 
+    def coordinate_by_id(self, coordinate_id: str) -> MatrixCoordinate:
+        """Resolve one durable coordinate ID under this exact matrix version.
+
+        Applications should validate persisted or externally supplied cell IDs
+        against the definition they actually declared. IDs from another matrix
+        or version fail closed rather than being interpreted approximately.
+        """
+        prefix = f"{self.matrix_id}@{self.version}:"
+        if not coordinate_id.startswith(prefix):
+            raise ValueError(f"coordinate does not belong to {self.matrix_id}@{self.version}")
+        value_keys = tuple(coordinate_id[len(prefix):].split("|"))
+        coordinate = self.coordinate(*value_keys)
+        if coordinate.coordinate_id != coordinate_id:
+            raise ValueError("matrix coordinate ID is not canonical")
+        return coordinate
+
     def next_uncovered(
         self, completed_coordinate_ids: Iterable[str]
     ) -> MatrixCoordinate | None:
