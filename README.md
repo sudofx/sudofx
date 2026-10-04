@@ -154,6 +154,8 @@ derived browser projection
 
 Tests also preserve the earlier fresh-process continuity proof. The browser is transport and presentation, not memory.
 
+Conversation now also opts into the shared `continuity@1` matrix extension when explicitly enabled. A governed matrix campaign records only version/digest, completed coordinate IDs, verdicts, and optional evidence digests in Conversation's existing SQLite application state. While active, the next deterministic matrix coordinate is added to the bounded fresh-provider context; ordinary Conversation turns contain no matrix context until a campaign is started. The private same-origin service exposes start/result/stop controls and reports bounded progress without creating another state store.
+
 ## Database-first storage
 
 The database is the single authoritative source of operational truth.
