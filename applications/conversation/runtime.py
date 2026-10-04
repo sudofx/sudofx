@@ -41,6 +41,7 @@ from sudofx import (
     SubmissionProvenance,
 )
 from sudofx.governance import Governance
+from sudofx.models import JsonValue
 from sudofx.providers import ProviderError, ProviderQuotaError, ProviderTemporaryError
 from sudofx.record import Record
 
