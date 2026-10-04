@@ -284,6 +284,77 @@ def commit_human_turn(
         raise RuntimeError(f"human conversation turn was rejected: {'; '.join(human.reasons)}")
 
 
+def start_matrix_campaign(*, data_path: Path = DATA) -> dict[str, JsonValue]:
+    """Opt Conversation into the canonical matrix through its governed app action."""
+    kernel, registry = _kernel(data_path)
+    host = ApplicationHost(kernel, registry, CONVERSATION_APPLICATION.application_id)
+    receipt = host.submit(
+        ApplicationIntent(
+            proposal_id=str(uuid.uuid4()),
+            based_on_revision=host.context().revision,
+            action="start_matrix_campaign",
+            payload={"matrix_id": "continuity", "matrix_version": "1"},
+            rationale="Enable opt-in Conversation continuity matrix campaign",
+        ),
+        provenance=SubmissionProvenance("human", "operator", "conversation-matrix"),
+    )
+    if receipt.status != "accepted":
+        raise RuntimeError(f"Conversation matrix start was rejected: {'; '.join(receipt.reasons)}")
+    return private_bounded_context(host.context().state).get("matrix_campaign", {"enabled": False})
+
+
+def record_matrix_result(
+    coordinate_id: str,
+    verdict: str,
+    *,
+    data_path: Path = DATA,
+    evidence_digest: str | None = None,
+) -> dict[str, JsonValue]:
+    """Commit one matrix result without storing transcript or provider output text."""
+    kernel, registry = _kernel(data_path)
+    host = ApplicationHost(kernel, registry, CONVERSATION_APPLICATION.application_id)
+    payload: dict[str, JsonValue] = {
+        "coordinate_id": coordinate_id,
+        "verdict": verdict,
+    }
+    if evidence_digest is not None:
+        payload["evidence_digest"] = evidence_digest
+    receipt = host.submit(
+        ApplicationIntent(
+            proposal_id=str(uuid.uuid4()),
+            based_on_revision=host.context().revision,
+            action="record_matrix_result",
+            payload=payload,
+            rationale="Record governed Conversation continuity matrix result",
+        ),
+        provenance=SubmissionProvenance("human", "operator", "conversation-matrix"),
+    )
+    if receipt.status != "accepted":
+        raise RuntimeError(f"Conversation matrix result was rejected: {'; '.join(receipt.reasons)}")
+    return private_bounded_context(host.context().state).get("matrix_campaign", {"enabled": False})
+
+
+def stop_matrix_campaign(*, data_path: Path = DATA) -> dict[str, JsonValue]:
+    """Stop matrix execution while retaining governed campaign results in SQLite."""
+    kernel, registry = _kernel(data_path)
+    host = ApplicationHost(kernel, registry, CONVERSATION_APPLICATION.application_id)
+    receipt = host.submit(
+        ApplicationIntent(
+            proposal_id=str(uuid.uuid4()),
+            based_on_revision=host.context().revision,
+            action="stop_matrix_campaign",
+            payload={},
+            rationale="Disable Conversation continuity matrix campaign",
+        ),
+        provenance=SubmissionProvenance("human", "operator", "conversation-matrix"),
+    )
+    if receipt.status != "accepted":
+        raise RuntimeError(f"Conversation matrix stop was rejected: {'; '.join(receipt.reasons)}")
+    state = host.context().state
+    from .application import matrix_campaign_projection
+    return matrix_campaign_projection(state)
+
+
 def recover_rejected_private_turn(
     *,
     data_path: Path,
