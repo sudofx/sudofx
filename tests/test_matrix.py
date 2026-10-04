@@ -1,14 +1,25 @@
 from __future__ import annotations
 
+import tempfile
+from pathlib import Path
 import unittest
 
 from sudofx import (
+    ApplicationAction,
+    ApplicationDecision,
+    ApplicationDefinition,
+    ApplicationHost,
+    ApplicationIntent,
+    ApplicationRegistry,
     CONTINUITY_MATRIX_V1,
     MatrixAxis,
     MatrixDefinition,
     MatrixValue,
     continuity_matrix,
 )
+from sudofx.governance import Governance
+from sudofx.kernel import Kernel
+from sudofx.record import Record
 
 
 class MatrixExtensionTests(unittest.TestCase):
@@ -91,6 +102,59 @@ class MatrixExtensionTests(unittest.TestCase):
         generated = list(matrix.coordinates())
         self.assertEqual(generated[first.ordinal - 1], first)
         self.assertEqual(generated[last.ordinal - 1], last)
+
+    def test_application_can_govern_and_reconstruct_matrix_progress_without_core_changes(self) -> None:
+        """An opt-in app can persist matrix cells through the ordinary SQLite authority path."""
+        matrix = continuity_matrix()
+
+        def record_cell(current, payload):
+            state = dict(current) if isinstance(current, dict) else {"completed": []}
+            if not isinstance(payload, str):
+                return ApplicationDecision(False, reasons=("coordinate ID must be text",))
+            try:
+                matrix.coordinate_by_id(payload)
+            except ValueError as exc:
+                return ApplicationDecision(False, reasons=(str(exc),))
+            completed = list(state.get("completed", []))
+            if payload not in completed:
+                completed.append(payload)
+            return ApplicationDecision(True, {"completed": completed})
+
+        consumer = ApplicationDefinition(
+            "matrix-consumer",
+            "1",
+            (ApplicationAction("record_cell", record_cell),),
+        )
+        registry = ApplicationRegistry((consumer,))
+
+        with tempfile.TemporaryDirectory() as tempdir:
+            path = Path(tempdir) / "record.sqlite"
+            kernel = Kernel(Record(path), Governance(application_registry=registry))
+            host = ApplicationHost(kernel, registry, "matrix-consumer")
+            first = matrix.coordinate("reconstruction", "rich", "clean")
+
+            receipt = host.submit(
+                ApplicationIntent("matrix-cell-1", 0, "record_cell", first.coordinate_id)
+            )
+            self.assertEqual(receipt.status, "accepted")
+            self.assertEqual(host.context().state["completed"], [first.coordinate_id])
+
+            # Replace Kernel, Record, and Host. The matrix extension provides
+            # semantics; SQLite remains the only durable campaign authority.
+            rebuilt = ApplicationHost(
+                Kernel(Record(path), Governance(application_registry=registry)),
+                registry,
+                "matrix-consumer",
+            )
+            self.assertEqual(rebuilt.context().state["completed"], [first.coordinate_id])
+
+    def test_application_matrix_validation_fails_closed_on_other_versions(self) -> None:
+        """A consumer must not silently reinterpret a coordinate from another matrix version."""
+        matrix = continuity_matrix()
+        first = matrix.coordinate("reconstruction", "rich", "clean")
+        self.assertEqual(matrix.coordinate_by_id(first.coordinate_id), first)
+        with self.assertRaises(ValueError):
+            matrix.coordinate_by_id(first.coordinate_id.replace("continuity@1:", "continuity@2:", 1))
 
     def test_next_uncovered_accepts_database_derived_completion_ids(self) -> None:
         """Traversal stays pure while an application's SQLite state owns progress."""
