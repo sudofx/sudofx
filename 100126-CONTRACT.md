@@ -2,8 +2,8 @@
 
 **Date:** October 1, 2026  
 **Project:** sudofx  
-**Status:** Active execution contract  
-**Authority:** Human-approved implementation direction for October 1 work
+**Status:** Complete; retained as historical execution contract  
+**Authority:** Human-approved implementation direction for October 1 work; current implementation authority lives in code, tests, and current architecture/status docs
 
 ## Purpose
 
