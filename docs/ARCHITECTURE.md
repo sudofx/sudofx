@@ -141,6 +141,14 @@ Provider execution is also sealed away from Kernel. CLI/provider paths route thr
 
 Obsolete duplicate surfaces have been retired: the old local cycle runner, the second conversation entry in the broad operator workflow, and uncalled diagnostic CLI flags.
 
+## Matrix extension boundary
+
+`src/sudofx/matrix.py` provides a reusable deterministic experiment grammar above storage/governance and below application-specific campaign policy. The canonical `continuity@1` matrix is the recovered 7×7×7 continuity cube with 343 stable coordinate IDs.
+
+The extension owns only source-level definition and traversal semantics. It has no provider execution, scheduling, database write, or governance bypass. Applications that use a matrix persist completion/results through their own governed application state in SQLite. A coordinate definition is configuration; campaign progress is operational truth and therefore belongs in the database.
+
+Because durable application state may refer to a coordinate ID, an existing matrix version is immutable in meaning. Semantic changes require a new version.
+
 ## Application boundary
 
 Applications sit above the kernel and runtime. They own domain meaning, not durable authority.
