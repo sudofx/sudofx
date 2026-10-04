@@ -56,6 +56,10 @@ human/assistant pair to the next provider invocation. That active-window pair is
 volatile runtime coordination, not an event, observation, receipt, or replay
 source. Its assistant half is untrusted context rather than instruction. Process
 restart or explicit Clear removes it without changing database authority.
+The provider frames that pair explicitly for antecedent resolution. Only a
+lexically referential next message may reuse validated public URLs from the
+previous human half for `read_public_url`; the assistant half cannot grant a
+capability, and unrelated turns inherit no web access.
 
 ### Global application-access boundary
 

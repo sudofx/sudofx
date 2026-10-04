@@ -49,6 +49,13 @@ adjacent references such as “that” and “any of that” remain intelligible
 not SQLite authority, is never replayed after restart, and is discarded by the
 Clear action; older raw turns are never replayed.
 
+The provider prompt presents the current message and adjacent exchange as an
+explicit conversational task rather than leaving them buried in context JSON.
+If the new message lexically refers back and the previous human message supplied
+validated public URLs, `read_public_url` may revisit those URLs for that one
+follow-up. Unrelated turns do not inherit web access, and all ordinary public-
+target validation remains in force.
+
 Public-web access is an explicit read-only application capability. A validated public HTTPS URL enables `read_public_url` for that turn; explicit phrases such as “search the web” enable `search_public_web`. Local/private hosts, non-HTTPS targets, credential-bearing URLs, sensitive query parameters, and more than five URLs fail before provider invocation. Gemini URL Context and Google Search are managed provider effects behind sudofx's ordinary invocation barrier. Retrieved bodies and snippets remain transient; bounded citations are projected into the reply and URL-bearing provider observations are discarded. `CONVERSATION_WEB_CAPABILITIES` may narrow the deployment to either capability or neither; its default enables both. Managed web-tool turns have provider retention and possible search-cost characteristics distinct from private-only turns, which the local UI discloses.
 
 HTTP errors expose a bounded owner rather than labeling every failure as transport: `conversation.app`, `conversation.provider`, `conversation.transport`, `conversation.deployment`, `conversation.runtime`, or `sudofx`. Exception internals and provider payloads remain private.
