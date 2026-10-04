@@ -1,6 +1,6 @@
 # Project status
 
-**Date:** October 3, 2026  
+**Date:** October 4, 2026  
 **Scope:** current implementation on `master` plus the completed Phase E application boundary on WAKE✳︎ `master` in `sudofx/wake`
 
 ## Objective
@@ -84,7 +84,7 @@ This preserves the contract:
 
 ## Completed product-surface contract
 
-The completed A–E architecture contract remains closed. The October 2 public product-surface contract in `100226-WEBSITE-CONTRACT.md` is also complete at its stated boundary.
+The completed A–E architecture contract remains closed. The October 2 public product-surface, provider-execution, and application-observability contracts are also complete at their stated boundaries and retained as implementation evidence.
 
 Implemented and verified:
 
