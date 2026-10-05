@@ -18,7 +18,7 @@ import threading
 from typing import Any
 from urllib.parse import urlsplit
 
-from sudofx import ApplicationAccessError, ApplicationHost, ApplicationRegistry, Kernel
+from sudofx import (\n    ApplicationAccessError,\n    ApplicationHost,\n    ApplicationRegistry,\n    Kernel,\n    build_application_observability,\n)
 from sudofx.governance import Governance
 from sudofx.providers import ProviderError, ProviderQuotaError, ProviderTemporaryError
 from sudofx.record import Record
@@ -116,6 +116,29 @@ class ConversationService:
             "transcript_persisted": False,
         }
 
+    def site_projection(self) -> dict[str, Any]:
+        """Build the disposable website view from this runtime's own SQLite.
+
+        Local development must never substitute the public sudofx-live branch or
+        federated WAKE evidence for the database attached to this server.
+        """
+        record = Record(self.data_path)
+        observability = build_application_observability(record)
+        status = self.status()
+        return {
+            "projection_schema": 2,
+            "projection_kind": "disposable-local-site-view",
+            "authoritative": False,
+            "generated": observability["generated"],
+            "record_revision": observability["record_revision"],
+            "health": record.health(),
+            "summary": {
+                "conversation_turns": status["turn_count"],
+            },
+            "application_observability": observability,
+            "verification": {},
+        }
+
     def converse(self, message: str) -> dict[str, Any]:
         """Return a governed response, status, and transient UTC transport times.
 
@@ -207,6 +230,12 @@ def _handler(service: ConversationService):
 
         def do_GET(self) -> None:
             requested = urlsplit(self.path)
+            if requested.path == "/api/site/live":
+                try:
+                    self._json(200, service.site_projection())
+                except Exception:
+                    self._error(500, "sudofx", "local site projection unavailable")
+                return
             if requested.path == "/api/conversation/status":
                 try:
                     self._json(200, service.status())
