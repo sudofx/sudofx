@@ -39,6 +39,17 @@
   if(themeToggle)themeToggle.addEventListener('change',()=>{const theme=themeToggle.checked?'dark':'light';localStorage.setItem('sudofx-theme',theme);applyTheme(theme)});
   const setRuntimeLight=(state,label)=>{const el=q('[data-runtime-light]');if(!el)return;el.dataset.state=state;el.title=label;el.setAttribute('aria-label',label)};
   setRuntimeLight('checking','sudofx status: checking current projection');
+  const loadPrimaryProjection=async()=>{
+    const local=await fetch(LOCAL_LIVE_URL+'?v='+Date.now(),{cache:'no-store'});
+    if(local.status!==404){
+      if(!local.ok)throw new Error('local live projection unavailable');
+      return {raw:await local.json(),federate:false};
+    }
+    const remote=await fetch(PUBLIC_LIVE_URL+'?v='+Date.now(),{cache:'no-store'});
+    if(!remote.ok)throw new Error('live projection unavailable');
+    return {raw:await remote.json(),federate:true};
+  };
+
   const loadFederatedApplications=()=>fetch(APPLICATION_SOURCES+'?v='+Date.now(),{cache:'no-store'})
     .then(r=>r.ok?r.json():{sources:[]})
     .then(config=>Promise.allSettled((Array.isArray(config.sources)?config.sources:[]).map(source=>
@@ -57,11 +68,11 @@
   const refreshLive=()=>{
     if(refreshInFlight)return Promise.resolve();
     refreshInFlight=true;
-    return fetch(LIVE_URL+'?v='+Date.now(),{cache:'no-store'})
-    .then(r=>{if(!r.ok)throw new Error('live projection unavailable');return r.json()})
-    .then(async raw=>{
+    return loadPrimaryProjection()
+    .then(async source=>{
+      const raw=source.raw;
       const local=raw.application_observability?.applications||[];
-      const external=await loadFederatedApplications();
+      const external=source.federate?await loadFederatedApplications():[];
       raw.application_observability={...(raw.application_observability||{}),applications:[...local,...external]};
       return raw;
     })
