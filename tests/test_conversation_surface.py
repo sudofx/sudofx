@@ -64,6 +64,11 @@ class ConversationSurfaceTests(unittest.TestCase):
         self.assertNotIn("sessionStorage", script)
         self.assertNotIn("GEMINI_API_KEY", script)
         self.assertIn('"gateway_url":""', config.replace(" ", ""))
+        self.assertIn("api/site/live", site_script)
+        self.assertIn("local.status!==404", site_script)
+        self.assertIn("federate:false", site_script)
+        self.assertIn("source.federate?await loadFederatedApplications():[]", site_script)
+        self.assertIn("/api/site/live", server)
 
 
 if __name__ == "__main__":
