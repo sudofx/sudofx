@@ -89,6 +89,30 @@ class ConversationServerTests(unittest.TestCase):
             self.assertNotIn("We were comparing blue and green.", serialized)
             self.assertIn("compare blue and green", serialized)
 
+    def test_local_site_projection_contains_only_local_conversation_evidence(self) -> None:
+        """Local site telemetry must come from this server's SQLite, not cloud federation."""
+        with tempfile.TemporaryDirectory() as temporary:
+            database = Path(temporary) / "conversation.sqlite"
+            provider = (
+                sys.executable,
+                "-c",
+                "import json,sys; json.load(sys.stdin); "
+                "json.dump({'content':'Local reply.','observations':[],'commitment_updates':[]},sys.stdout)",
+            )
+            service = ConversationService(database, provider_command=provider)
+
+            service.converse("Exercise the local runtime.")
+            projection = service.site_projection()
+
+            applications = projection["application_observability"]["applications"]
+            self.assertEqual([app["id"] for app in applications], ["conversation"])
+            self.assertEqual(applications[0]["invocations"]["total"], 1)
+            self.assertEqual(projection["projection_kind"], "disposable-local-site-view")
+            self.assertEqual(
+                projection["record_revision"],
+                Record(database).full_replay()[0],
+            )
+
     def test_previous_exchange_is_transient_context_and_can_be_cleared(self) -> None:
         """Adjacent references work without creating a second durable transcript."""
         with tempfile.TemporaryDirectory() as temporary:
