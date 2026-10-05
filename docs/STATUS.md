@@ -84,7 +84,7 @@ Implemented and verified:
 - GitHub Pages now publishes a lightweight static shell rather than replaying SQLite to regenerate the whole site.
 - Home, Applications, Technical, and Metrics are separate public surfaces.
 - The application catalog presents Conversation and Handoff; external metrics sources are unconfigured.
-- The homepage leads with a natural explanation and ELI15 summaries rather than raw technical telemetry.
+- The homepage leads with a natural explanation and plain-language summaries rather than raw technical telemetry.
 - Technical and metric pages fetch changing public-safe data from the disposable `sudofx-live` projection branch at runtime.
 - Pages rebuild triggers are limited to shell/product-surface source changes; operational state changes do not trigger a site rebuild.
 - The new shell has deployed successfully through GitHub Pages.

@@ -16,7 +16,7 @@ The website must explain sudofx to a first-time visitor before exposing technica
 
 ## Required public surfaces
 
-1. **Home** — a natural explanation of what sudofx is, followed by short ELI15 summaries where useful.
+1. **Home** — a natural explanation of what sudofx is, followed by short plain-language summaries where useful.
 2. **Applications** — applications currently using sudofx, with a plain description and links.
 3. **Technical** — architecture, authority boundaries, replay, storage, governance, runtime, and implementation status.
 4. **Metrics** — derived runtime, continuity, application, and experimental measurements with clear provenance and limitations.
@@ -89,7 +89,7 @@ Future or experimental concepts are not listed as active applications until they
 The public surface was verified on October 2, 2026.
 
 - Home, Applications, Technical, and Metrics are separate public surfaces.
-- The homepage leads with natural-language explanation and short ELI15 summaries.
+- The homepage leads with natural-language explanation and short plain-language summaries.
 - Conversation and Handoff are the currently presented applications.
 - GitHub Pages contains only the lightweight versioned shell.
 - Changing operational state refreshes the historyless `sudofx-live` projection instead of rebuilding Pages.
