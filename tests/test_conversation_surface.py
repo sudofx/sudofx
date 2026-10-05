@@ -13,6 +13,7 @@ class ConversationSurfaceTests(unittest.TestCase):
     def test_surface_supports_private_local_server_without_browser_persistence(self) -> None:
         page = (ROOT / "web" / "conversation.html").read_text(encoding="utf-8")
         script = (ROOT / "web" / "assets" / "conversation.js").read_text(encoding="utf-8")
+        site_script = (ROOT / "web" / "assets" / "site.js").read_text(encoding="utf-8")
         markdown_script = (ROOT / "web" / "assets" / "conversation-markdown.js").read_text(encoding="utf-8")
         config = (ROOT / "web" / "conversation-config.json").read_text(encoding="utf-8")
         server = (ROOT / "applications" / "conversation" / "server.py").read_text(encoding="utf-8")
