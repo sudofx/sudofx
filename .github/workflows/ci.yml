@@ -19,10 +19,8 @@ on:
       - '.github/workflows/operator-start.yml'
       - '.github/workflows/operator-stop.yml'
       - '.github/workflows/sudofx-runner.yml'
-      - '.github/workflows/promote-runtime.yml'
       - '.github/workflows/pages.yml'
       - '.github/workflows/public-live.yml'
-      - '.github/workflows/phase-d-live-proof.yml'
   pull_request:
     paths:
       - 'src/**'

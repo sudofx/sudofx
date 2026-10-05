@@ -5,8 +5,8 @@ STATELESS GENERATION PROVIDER BOUNDARY
 Applications own domain meaning; sudofx owns reusable provider execution.
 
 This module contains provider-neutral generation request/response contracts plus
-the Gemini transport implementation. It deliberately does not know about WAKE,
-Conversation, research policy, work items, or application governance.
+the Gemini transport implementation. It has no knowledge of application domain
+policy, work items, or application governance.
 
 Credentials are deployment inputs. They are never persisted, returned in
 metadata, or copied into provider-visible context beyond the authenticated HTTP

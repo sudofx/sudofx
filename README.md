@@ -17,7 +17,6 @@ Most of my current work explores that question by keeping authority outside the 
 ## Projects
 
 - **[sudofx](https://github.com/sudofx/sudofx)** — a governed engine for durable work across interchangeable intelligences. SQLite is authoritative; models propose and the system governs.
-- **[WAKE✳︎](https://github.com/sudofx/wake)** — an experimental research application built around durable evidence, obligations, correction, and externalized continuity. Its Phase E architectural migration onto the sudofx application boundary is complete.
 - **[lab](https://github.com/sudofx/lab)** — my Docker lab and infrastructure sandbox.
 
 Earlier projects: [pure-bootstrap](https://github.com/sudofx/pure-bootstrap) · [python-digitalocean-backup](https://github.com/sudofx/python-digitalocean-backup)
@@ -46,7 +45,7 @@ Record → Context → Proposal → Governance → Transition → Receipt → Re
 
 **Models propose. The system governs.**
 
-## Current status — October 4, 2026
+## Current status — October 5, 2026
 
 The project has moved beyond the original continuity proof into a reusable engine/application architecture.
 
@@ -70,11 +69,10 @@ Implemented and exercised on `master`:
 - a separate historyless `sudofx-live` branch for disposable public-safe metrics and technical projections, so state changes do not rebuild Pages
 - phone-first operator workflows and explicit Start/Stop control
 - quarantined continuity/overnight experiments under `experiments/`; the former manual-handoff experiment has migrated to `applications/handoff/` with compatibility shims retained temporarily
-- WAKE✳︎ Phase E architectural migration complete on the separate `sudofx/wake` repository's `master`: sudofx owns operational authority/runtime primitives while WAKE retains research policy
 
-The October 2 public product-surface, provider-execution, and application-observability contracts are complete at their stated boundaries and retained as implementation evidence. The completed A–E architecture contract remains preserved in [100126-CONTRACT.md](100126-CONTRACT.md) as historical evidence.
+The public shell, provider execution, and application observability are implemented.
 
-See [docs/STATUS.md](docs/STATUS.md) for the phase-by-phase state,
+See [docs/STATUS.md](docs/STATUS.md) for implementation status,
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for authority boundaries, and
 [docs/APPLICATION_ARCHITECTURE.md](docs/APPLICATION_ARCHITECTURE.md) for the application contract.
 
@@ -114,7 +112,7 @@ Each access transition advances a generation token and is recorded in an indepen
 
 sudofx now includes an opt-in deterministic matrix contract in `src/sudofx/matrix.py`. The canonical `continuity@1` definition restores the original 7×7×7 continuity experiment: seven semantic lenses × seven exposure modes × seven pressure modes = 343 stable cells.
 
-The matrix is an **extension**, not a new authority surface. It owns immutable coordinate definitions, stable IDs, definition digests, and deterministic traversal. It does not invoke providers, write SQLite, schedule work, or decide what an application result means. An application may use a coordinate ID inside its own deterministic actions and persist campaign progress/results through its ordinary governed `app:*` state. This keeps one authoritative database while allowing Conversation, Handoff, WAKE✳︎, or future applications to reuse the same experiment grammar without being modified by sudofx.
+The matrix is an **extension**, not a new authority surface. It owns immutable coordinate definitions, stable IDs, definition digests, and deterministic traversal. It does not invoke providers, write SQLite, schedule work, or decide what an application result means. An application may use a coordinate ID inside its own deterministic actions and persist campaign progress/results through its ordinary governed `app:*` state. This keeps one authoritative database while allowing Conversation, Handoff, or future applications to reuse the same experiment grammar without being modified by sudofx.
 
 Changing the meaning of an already-versioned coordinate requires a new matrix version rather than rewriting v1.
 
@@ -124,11 +122,11 @@ A complete domain system built on sudofx is an **application**.
 
 Applications may define domain state, deterministic policy, context projection, presentation, and requested capabilities. They may not bypass governance, write arbitrary database state, create an independent authoritative event store, or gain authority merely because their code is installed.
 
-WAKE✳︎ is the first substantial application migration. Conversation and Handoff are native sudofx applications exercising different boundaries: privacy-bounded stateless chat and portable fresh-intelligence continuity testing. The older broad “WAKE as plugin” framing is retired; [docs/PLUGIN_ARCHITECTURE.md](docs/PLUGIN_ARCHITECTURE.md) is retained only as a historical redirect.
+Conversation and Handoff are native sudofx applications exercising different boundaries: privacy-bounded stateless chat and portable fresh-intelligence continuity testing.
 
 ## Governed conversation proof
 
-The first small non-WAKE application is `applications/conversation/`.
+The governed conversation application is `applications/conversation/`.
 
 Its flow is:
 
@@ -178,10 +176,9 @@ web/                    lightweight public-site shell; live data is fetched from
 .github/workflows/      CI, operator control, conversation, runtime, Pages
 tests/                  invariant, replay, failure, lifecycle, and application proofs
 experiments/            quarantined continuity and handoff experiment machinery
-docs/                   current architecture/status plus historical design notes
+docs/                   current architecture and implementation status
 AGENTS.md               implementation and documentation discipline
-100126-CONTRACT.md      completed A–E architecture contract
-100226-WEBSITE-CONTRACT.md completed public product-surface contract
+100226-WEBSITE-CONTRACT.md public product-surface specification
 ```
 
 ## Local verification
@@ -200,9 +197,9 @@ Basic kernel commands remain available through the `sudofx` CLI.
 
 The core loop, application boundary, and database-derived continuity mechanics are implemented.
 
-Phases A–E are complete at their stated architectural exit conditions. Multiple governed conversation rounds survive separate Python interpreter replacement from SQLite alone, and WAKE's operational authority/runtime primitives now sit on sudofx while WAKE retains research policy. The reusable package has also completed its current hardening pass: provider execution is runtime-only, experiment-specific packet/prompt machinery is quarantined outside `src/sudofx`, governed namespaces are sealed, and duplicate/dead execution surfaces are retired. The next major step should begin from a new explicit contract or product frontier rather than quietly expanding the kernel.
+Multiple governed conversation rounds survive separate Python interpreter replacement from SQLite alone. Provider execution is runtime-only, experiment-specific packet/prompt machinery stays outside `src/sudofx`, and governed namespaces are sealed. The public shell presents application discovery, technical evidence, metrics, and system light/dark support.
 
-The October 2 public product-surface contract is complete: the homepage, application discovery, dedicated technical/metrics surfaces, shell/live-data split, accessibility/performance guardrails, and system light/dark support are implemented and deployed. The next substantial product or kernel frontier should begin from a new explicit contract.
+The next discussion concerns the sudofx API and extensible application design. No new API design is selected by this cleanup.
 
 The larger experiment remains open:
 
@@ -217,7 +214,6 @@ The kernel is deliberately not:
 - a model identity preservation system
 - a dashboard as system of record
 - a pile of persistent flat-file state
-- WAKE✳︎ with renamed modules
 - a provider-specific orchestration framework
 
 ## License

@@ -13,10 +13,8 @@ The user-facing question is simple:
 
 > Which application is using sudofx, what engine boundary did it cross, and what durable evidence did sudofx record?
 
-This contract answers that question generically. WAKE✳︎ is the first substantial
-external application expected to publish the view, but no WAKE-specific policy,
-research concept, URL, repository, metric, or special case belongs in the sudofx
-engine implementation.
+The observability interface is generic. Application-specific policy, URLs,
+repositories, and metrics do not belong in the engine implementation.
 
 ## Authority rule
 
@@ -71,8 +69,6 @@ their own contracts. Those metrics do not become sudofx engine semantics.
 
 Examples:
 
-- WAKE✳︎ may separately show research cycles, notebooks, evidence, and publication
-  funnels.
 - Conversation may separately show a transcript or turn-oriented UI.
 - sudofx application observability shows only the shared engine boundary:
   governed app actions, runtime invocation lifecycle, context delivery, outcomes,
@@ -84,7 +80,7 @@ A sudofx website or another observer may consume one or more standard
 application-observability documents.
 
 Feed discovery belongs to presentation/product configuration, not the kernel.
-The kernel must not gain knowledge of WAKE✳︎, a particular repository host, or a
+The kernel must not gain knowledge of application internals, a particular repository host, or a
 public URL.
 
 A viewer must tolerate:
@@ -100,7 +96,7 @@ Failure to load a feed must never affect the application or its authority.
 
 ## Removal test
 
-Removing WAKE✳︎ must require no change to:
+Removing an application must require no change to:
 
 - the sudofx kernel
 - governance
@@ -109,7 +105,7 @@ Removing WAKE✳︎ must require no change to:
 - runtime lifecycle
 - the generic observability schema or builder
 
-Only product/catalog configuration that chooses to display WAKE✳︎ may disappear.
+Only product/catalog configuration that chooses to display that application may disappear.
 
 ## Privacy and public-safe rule
 
@@ -158,7 +154,7 @@ This contract does **not** create:
 - a monitoring control plane
 - application-to-application messaging
 - a requirement that all applications be public
-- WAKE-specific engine APIs
+- application-specific engine APIs
 - a new semantic event type merely for presentation
 - permission for a website to infer application health from missing data
 

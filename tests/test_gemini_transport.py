@@ -88,15 +88,15 @@ class GeminiTransportTests(unittest.TestCase):
                 "candidates": [
                     {
                         "groundingMetadata": {
-                            "webSearchQueries": ["sudofx wake"],
+                            "webSearchQueries": ["sudofx engine"],
                             "groundingChunks": [
-                                {"web": {"uri": "https://github.com/sudofx/wake", "title": "WAKE"}}
+                                {"web": {"uri": "https://github.com/sudofx/sudofx", "title": "Example"}}
                             ],
                         },
                         "urlContextMetadata": {
                             "urlMetadata": [
                                 {
-                                    "retrievedUrl": "https://github.com/sudofx/wake",
+                                    "retrievedUrl": "https://github.com/sudofx/sudofx",
                                     "urlRetrievalStatus": "URL_RETRIEVAL_STATUS_SUCCESS",
                                 }
                             ]
@@ -105,8 +105,8 @@ class GeminiTransportTests(unittest.TestCase):
                 ]
             }
         )
-        self.assertEqual(evidence["sources"], [{"url": "https://github.com/sudofx/wake", "title": "WAKE"}])
-        self.assertEqual(evidence["search_queries"], ["sudofx wake"])
+        self.assertEqual(evidence["sources"], [{"url": "https://github.com/sudofx/sudofx", "title": "Example"}])
+        self.assertEqual(evidence["search_queries"], ["sudofx engine"])
         self.assertEqual(evidence["url_retrievals"][0]["status"], "URL_RETRIEVAL_STATUS_SUCCESS")
 
     def test_request_json_centralizes_only_success_transport(self) -> None:

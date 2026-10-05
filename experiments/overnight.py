@@ -11,7 +11,7 @@ EXPERIMENT_STATE_KEY = "experiment:overnight-continuity-v1"
 EXPERIMENT_VERSION = 3
 
 # X axis: what semantic capability is under test.
-PHASES = (
+SEMANTIC_LENSES = (
     "reconstruction",
     "milestone_dropout",
     "observation_dropout",
@@ -21,7 +21,7 @@ PHASES = (
     "adversarial_integrity",
 )
 
-_PHASE_TASKS = {
+_LENS_TASKS = {
     "reconstruction": (
         "Reconstruct the sudofx objective, supported history, active frontier, and next useful test "
         "from the bounded material that survived. Do not invent missing history."
@@ -53,7 +53,7 @@ _PHASE_TASKS = {
 }
 
 # Y axis: how much readable continuity evidence survives. These are deliberately
-# independent from PHASES so every semantic lens is eventually tested against
+# independent from SEMANTIC_LENSES so every semantic lens is eventually tested against
 # every exposure shape.
 EXPOSURES = (
     "rich",
@@ -148,7 +148,7 @@ _PRESSURE_CLAIMS = {
     ),
 }
 
-CUBE_SIZE = len(PHASES) * len(EXPOSURES) * len(PRESSURES)
+CUBE_SIZE = len(SEMANTIC_LENSES) * len(EXPOSURES) * len(PRESSURES)
 
 
 def _next_cube_coordinate(state: dict[str, Any]) -> tuple[int, str, str, str]:
@@ -164,10 +164,10 @@ def _next_cube_coordinate(state: dict[str, Any]) -> tuple[int, str, str, str]:
         matrix_cycle = 1
 
     index = (matrix_cycle - 1) % CUBE_SIZE
-    phase = PHASES[index % len(PHASES)]
-    exposure = EXPOSURES[(index // len(PHASES)) % len(EXPOSURES)]
-    pressure = PRESSURES[(index // (len(PHASES) * len(EXPOSURES))) % len(PRESSURES)]
-    return matrix_cycle, phase, exposure, pressure
+    semantic_lens = SEMANTIC_LENSES[index % len(SEMANTIC_LENSES)]
+    exposure = EXPOSURES[(index // len(SEMANTIC_LENSES)) % len(EXPOSURES)]
+    pressure = PRESSURES[(index // (len(SEMANTIC_LENSES) * len(EXPOSURES))) % len(PRESSURES)]
+    return matrix_cycle, semantic_lens, exposure, pressure
 
 
 def build_trial_directive(previous_state: object) -> dict[str, Any]:
@@ -178,7 +178,7 @@ def build_trial_directive(previous_state: object) -> dict[str, Any]:
         prior_cycle = 0
 
     cycle = prior_cycle + 1
-    matrix_cycle, phase, exposure_name, pressure = _next_cube_coordinate(state)
+    matrix_cycle, semantic_lens, exposure_name, pressure = _next_cube_coordinate(state)
     exposure = dict(_EXPOSURE_PROFILES[exposure_name])
 
     latest = state.get("latest_observation")
@@ -201,13 +201,13 @@ def build_trial_directive(previous_state: object) -> dict[str, Any]:
         "matrix_cycle": matrix_cycle,
         "matrix_size": CUBE_SIZE,
         "coordinate": {
-            "semantic_lens": phase,
+            "semantic_lens": semantic_lens,
             "exposure": exposure_name,
             "pressure": pressure,
         },
-        # Retain phase for compatibility with existing projection and analysis.
-        "phase": phase,
-        "task": _PHASE_TASKS[phase],
+        # Expose the semantic lens directly for bounded experiment consumers.
+        "semantic_lens": semantic_lens,
+        "task": _LENS_TASKS[semantic_lens],
         "exposure": exposure,
         "prior_observation_count": prior_count if exposure["include_counts"] else None,
         "prior_observation_chain_digest": prior_digest if exposure["include_digests"] else None,
@@ -259,7 +259,7 @@ def advance_experiment_state(
         "matrix_cycle": directive["matrix_cycle"],
         "matrix_size": CUBE_SIZE,
         "coordinate": directive["coordinate"],
-        "phase": directive["phase"],
+        "semantic_lens": directive["semantic_lens"],
         "response_count": previous_count + 1,
         "previous_chain_digest": previous_digest,
         "chain_digest": chain_digest,

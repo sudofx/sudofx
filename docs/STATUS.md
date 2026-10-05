@@ -1,7 +1,7 @@
 # Project status
 
-**Date:** October 4, 2026  
-**Scope:** current implementation on `master` plus the completed Phase E application boundary on WAKE✳︎ `master` in `sudofx/wake`
+**Date:** October 5, 2026
+**Scope:** current sudofx implementation
 
 ## Objective
 
@@ -9,15 +9,13 @@ sudofx provides durable, portable, governed context for work performed by interc
 
 The success condition is not that one model remembers. The success condition is that a fresh process can reconstruct enough explicit, governed context from authoritative state to continue useful work correctly.
 
-## Contract phase status
+## Implemented boundaries
 
-| Phase | Current status | Evidence |
-| --- | --- | --- |
-| A — reusable sudofx boundary | **Complete at the current contract boundary** | Kernel/runtime/application separation, invocation lifecycle, provenance, bounded context, provider/effect boundaries, and research-specific exclusions are explicit in code, docs, and executable invariants. |
-| B — harden and sanitize | **Complete at the current contract boundary** | Provider execution is runtime-only; experiments are quarantined outside `src/sudofx`; Pages is read-only; `app:*` and `work:*` namespaces are sealed; duplicate conversation/local-cycle entry points and unreachable diagnostic flags are retired; Gemini HTTP success transport is consolidated without importing vendor policy into the engine. |
-| C — application contract | **Complete at the current contract boundary** | `ApplicationDefinition`, registry/host, deterministic policy re-evaluation, sealed namespaced state, migration/version checks, bounded capabilities, compact event-log storage, and removal tests are implemented and covered by executable invariants. |
-| D — minimal human conversation proof | **Complete at private end-to-end proof level** | Governed human and assistant turns, privacy-bounded database-derived observations, fresh provider invocation, and a mobile-first chat surface are implemented. A private same-origin server provides the runnable path today; public Pages stays presentation-only until an authenticated gateway is configured. |
-| E — WAKE✳︎ migration | **Complete at architectural exit condition on WAKE `master`** | `wake-state` carries only `data/sudofx.sqlite`; fresh initialization is native sudofx; WAKE policy is a versioned application; generic invocation lifecycle, interruption recovery, external-effect ordering, and aggregate invocation accounting use sudofx; legacy SQLite persistence is quarantined to migration/compatibility code. The explicitly promoted `wake-runtime` branch may lag while research is active. |
+- Kernel: deterministic governance, atomic transitions, receipts, provenance, and verified replay.
+- Runtime: bounded context, durable invocation lifecycle, recovery, accounting, and provider/effect ordering.
+- Applications: identity/versioning, sealed namespaces, deterministic policy re-evaluation, explicit migrations, and compact event-log storage.
+- Conversation: private same-origin chat with fresh provider calls and privacy-bounded durable state.
+- Handoff: bounded packet export and governed grounding evaluations.
 
 ## What is already proven mechanically
 
@@ -37,8 +35,6 @@ The success condition is not that one model remembers. The success condition is 
 - Conversation preserves multiple simultaneous human-authorized commitments across fresh providers: suffixes are enforced deterministically, semantic response instructions remain explicit, and provider-invented commitment text is discarded before it can affect a reply or durable state.
 - Conversation can read validated public HTTPS URLs and perform explicitly requested public-web searches through bounded provider capabilities; private targets fail closed, citations remain transient presentation, and web content cannot become a durable observation merely because it was retrieved.
 - Handoff packet/scoring/evaluation semantics now live in `applications/handoff/`; new evaluations persist under `app:handoff` rather than as handoff-specific generic work operations.
-- WAKE✳︎ domain migration preserves its own policy above the generic sudofx authority boundary.
-- WAKE✳︎ provider attempts share sudofx invocation IDs/evidence, survive fresh-process recovery, and use the generic pre-effect durability barrier without importing Gemini-specific exception types into the engine.
 - A schema-v11 global application-access latch now lets the operator STOP or RESTORE application-origin access while leaving sudofx itself online; application commits are generation-fenced against stale in-flight work, and STOP/RESTORE transitions are protected by an independently hash-chained audit trail.
 - Emergency STOP has no full-suite dependency and may preempt ordinary serialized sudofx authority work; RESTORE requires the full suite to pass before reopening connected-application access.
 - The recovered `continuity@1` seven-cubed matrix is now a reusable sudofx extension: 343 stable coordinates, deterministic traversal, and an immutable versioned definition that applications may use while keeping campaign progress/results in their own governed SQLite state.
@@ -66,8 +62,7 @@ matrix extension
     ↓
 applications
     ├─ conversation
-    ├─ handoff
-    └─ WAKE✳︎ migration
+    └─ handoff
     ↓
 derived presentation / external infrastructure
 ```
@@ -82,16 +77,14 @@ This preserves the contract:
 
 > presentation is a projection, not an authority surface.
 
-## Completed product-surface contract
-
-The completed A–E architecture contract remains closed. The October 2 public product-surface, provider-execution, and application-observability contracts are also complete at their stated boundaries and retained as implementation evidence.
+## Public product surface
 
 Implemented and verified:
 
 - GitHub Pages now publishes a lightweight static shell rather than replaying SQLite to regenerate the whole site.
 - Home, Applications, Technical, and Metrics are separate public surfaces.
+- The application catalog presents Conversation and Handoff; external metrics sources are unconfigured.
 - The homepage leads with a natural explanation and ELI15 summaries rather than raw technical telemetry.
-- Applications currently presented are WAKE✳︎, Conversation, and Handoff.
 - Technical and metric pages fetch changing public-safe data from the disposable `sudofx-live` projection branch at runtime.
 - Pages rebuild triggers are limited to shell/product-surface source changes; operational state changes do not trigger a site rebuild.
 - The new shell has deployed successfully through GitHub Pages.
@@ -102,14 +95,17 @@ Implemented and verified:
 - The old monolithic report renderer is no longer a public surface; it remains only an internal/diagnostic export path.
 - Final website CI and Pages runs passed on commit `7d9be2a`.
 
+## Current frontier
+
+Next: discuss the sudofx API and extensible application design before selecting new implementation behavior.
+
 ## Remaining work
 
 1. Preserve the now-hardened boundary: providers execute only through runtime lifecycle/effect seams; experiments remain outside the reusable package; application/work namespaces stay sealed.
-2. Treat further WAKE legacy-store cleanup as compatibility retirement, not as a missing Phase E authority cutover; preserve replay/equivalence while removing dead migration-only coupling.
-3. Before internet-hosting Conversation, deploy an authenticated private gateway/state path; public Pages and public Git refs remain unsuitable as a private chat authority.
-4. Prove broader provider substitution when deliberately authorized.
-5. Continue long-horizon semantic tests; mechanical replay alone does not prove that compressed context preserves useful meaning indefinitely.
-6. Continue retiring the pre-application manual-handoff compatibility path after existing authoritative records no longer depend on it; do not remove historical replay support prematurely.
+2. Before internet-hosting Conversation, deploy an authenticated private gateway/state path; public Pages and public Git refs remain unsuitable as a private chat authority.
+3. Prove broader provider substitution when deliberately authorized.
+4. Continue long-horizon semantic tests; mechanical replay alone does not prove that compressed context preserves useful meaning indefinitely.
+5. Continue retiring the pre-application manual-handoff compatibility path after existing authoritative records no longer depend on it; do not remove historical replay support prematurely.
 
 ## Open risks
 
@@ -123,10 +119,7 @@ Implemented and verified:
 
 ## Current interpretation
 
-The original continuity experiment succeeded strongly enough to justify the October 1 extension.
-
-sudofx is now better described as a **working governed engine with an implemented application boundary** than as a continuity prototype.
-
-The question “can materially different applications use the same authority boundary without forcing the kernel to absorb their domain assumptions?” now has three concrete implementation proofs: Conversation, Handoff, and WAKE✳︎.
-
-The A–E execution contract is satisfied at its stated architectural exit conditions. Remaining items are operational hardening, compatibility retirement, provider breadth, storage/privacy evolution, and long-horizon semantic research—not unfinished A–E architecture. Any new kernel or product semantics should begin from a new explicit frontier rather than silently extending the completed contract.
+sudofx is a working governed engine with an implemented application boundary.
+Conversation and Handoff exercise different domain semantics through that boundary.
+Mechanical replay proves record integrity and reconstruction; it does not prove
+that bounded context preserves useful meaning indefinitely.

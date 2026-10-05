@@ -33,9 +33,6 @@ application
   -> application
 ```
 
-WAKE✳︎ is the first large external application expected to consume this
-boundary. The contract must remain useful if WAKE✳︎ is removed entirely.
-
 ## Ownership
 
 ### Application owns
@@ -76,14 +73,13 @@ must not imply shared credentials.
 The dependency is one-way:
 
 ```text
-WAKE✳︎ -> sudofx
 Conversation -> sudofx
 future applications -> sudofx
 
-sudofx -X-> WAKE✳︎
+sudofx -X-> application internals
 ```
 
-sudofx must never import WAKE modules, research policy, prompts, schemas, or
+sudofx must never import application modules, domain policy, prompts, schemas, or
 configuration.
 
 ## Provider-neutral generation boundary
@@ -122,7 +118,7 @@ Credential ownership is independent of provider implementation ownership.
 
 Therefore:
 
-- WAKE✳︎ can use its own Gemini API key;
+- each application can use its own Gemini API key;
 - sudofx experiments can use a different Gemini API key;
 - both can execute through the same sudofx Gemini transport implementation.
 
@@ -159,7 +155,7 @@ Vendor-specific errors map onto generic categories:
 
 The original provider-specific diagnostic may be retained only in bounded,
 redacted application/runtime evidence when policy permits. Generic sudofx
-behavior must not depend on parsing WAKE-specific error strings.
+behavior must not depend on parsing application-specific error strings.
 
 ## Multi-provider future
 
@@ -175,27 +171,11 @@ governance mechanism merely because a different stateless provider is selected.
 Application prompts and response validators may still vary by provider when
 that is genuinely required, but vendor HTTP mechanics belong in sudofx.
 
-## Migration rule for WAKE✳︎
-
-WAKE currently contains a substantial Gemini transport/provider implementation.
-
-Migration should proceed incrementally:
-
-1. establish the generic sudofx provider-generation contract;
-2. move Gemini HTTP mechanics and generic classification behind that contract;
-3. prove the contract independently in sudofx tests;
-4. update WAKE's pinned sudofx dependency;
-5. replace WAKE's direct Gemini network transport with the sudofx provider API;
-6. retain WAKE prompt/schema/research policy above the boundary;
-7. verify cloud/runtime behavior before promoting the new WAKE runtime.
-
-Do not perform a flag-day rewrite of research governance.
-
 ## Non-goals
 
 This contract does not:
 
-- make sudofx aware of WAKE research semantics;
+- make sudofx aware of application domain semantics;
 - make one shared API key mandatory;
 - centralize every application's database;
 - require applications to share provider quotas;
@@ -209,5 +189,5 @@ A new application should be able to bring domain context and policy to sudofx,
 select a supported stateless provider, and receive an untrusted response without
 implementing vendor HTTP mechanics.
 
-A new provider should be addable to sudofx without changing WAKE's database,
-research governance, or application identity.
+A new provider should be addable to sudofx without changing an application's database,
+domain governance, or application identity.

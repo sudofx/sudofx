@@ -233,7 +233,7 @@
       const coord=d.experiment.coordinate||{};
       setCards('[data-experiment-metrics]',[
         d.experiment.cycle??'—',
-        pretty(coord.semantic_lens||d.experiment.phase||'—'),
+        pretty(coord.semantic_lens||d.experiment.semantic_lens||'—'),
         pretty(coord.exposure||'—'),
         pretty(coord.pressure||'—')
       ]);

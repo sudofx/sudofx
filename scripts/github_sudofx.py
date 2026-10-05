@@ -71,8 +71,8 @@ LIVE_BRANCH = "sudofx-live"
 AUTO_HANDOFF_ID = "handoff-v1"
 AUTO_HANDOFF_OBJECTIVE = (
     "Test whether a fresh intelligence with no prior conversation can reconstruct sudofx: "
-    "durable governed context must survive model replacement; WAKE✳︎ was the experimental "
-    "predecessor; SQLite is authoritative; models propose and the system governs; the current "
+    "durable governed context must survive model replacement; SQLite is authoritative; "
+    "models propose and the system governs; the current "
     "frontier is proving portable continuity from sanitized context alone; working style favors "
     "plain language, compression, direct correction, and action over unnecessary explanation."
 )
@@ -98,7 +98,13 @@ def latest_overnight_proof(kernel: Kernel) -> dict[str, object] | None:
         return None
 
     cycle = observation.get("cycle", experiment.get("cycle"))
-    phase = observation.get("phase", experiment.get("phase"))
+    # The coordinate already records this axis in older observations. Read it
+    # as a projection fallback; presentation must never rewrite durable rows.
+    coordinate = observation.get("coordinate", experiment.get("coordinate", {}))
+    coordinate = coordinate if isinstance(coordinate, dict) else {}
+    semantic_lens = observation.get(
+        "semantic_lens", experiment.get("semantic_lens", coordinate.get("semantic_lens"))
+    )
     task = observation.get("task", "")
     work = kernel.context(work_id=AUTO_HANDOFF_ID).state.get(f"work:{AUTO_HANDOFF_ID}", {})
     assessments = work.get("semantic_assessments", []) if isinstance(work, dict) else []
@@ -190,7 +196,7 @@ def latest_overnight_proof(kernel: Kernel) -> dict[str, object] | None:
             "matrix_cycle": experiment.get("matrix_cycle"),
             "matrix_size": experiment.get("matrix_size"),
             "coordinate": experiment.get("coordinate", {}),
-            "phase": phase,
+            "semantic_lens": semantic_lens,
             "task": task,
         },
         "semantic_review": {
@@ -214,7 +220,7 @@ def latest_overnight_proof(kernel: Kernel) -> dict[str, object] | None:
             "evidence": {
                 "candidate_result": candidate_result,
                 "trial_cycle": cycle,
-                "trial_phase": phase,
+                "trial_semantic_lens": semantic_lens,
             },
         },
     }

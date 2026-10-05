@@ -25,7 +25,7 @@ The website must explain sudofx to a first-time visitor before exposing technica
 
 GitHub Pages is the lightweight presentation shell only.
 
-Changing operational state must **not** require a Pages rebuild. Dynamic public data is fetched from the historyless `sudofx-live` projection branch, following the same pattern already used by WAKE✳︎.
+Changing operational state must **not** require a Pages rebuild. Dynamic public data is fetched from the historyless `sudofx-live` projection branch.
 
 The browser may read public projections. It may never become an authority surface.
 
@@ -36,7 +36,6 @@ The browser may read public projections. It may never become an authority surfac
 - Pages, JSON projections, charts, summaries, and browser state are disposable views.
 - Models remain proposers, not authorities.
 - Presentation paths may not checkpoint migrations, advance revisions, write receipts, or mutate application state.
-- WAKE✳︎ remains application-owned; WAKE research policy does not move into the sudofx kernel.
 - Public metrics use allowlisted, bounded projection fields only.
 - Every “current” technical claim must expose freshness or source revision when available.
 
@@ -71,28 +70,10 @@ Different classes must never be visually collapsed into one “score.”
 
 Current concrete implementations:
 
-- **WAKE✳︎** — substantial research application. sudofx owns generic authority/runtime primitives; WAKE owns research policy and domain behavior.
 - **Conversation** — privacy-bounded governed conversation proof demonstrating fresh-process reconstruction from SQLite-backed durable state, with only one disposable adjacent exchange retained in process memory for local references.
 - **Handoff** — portable continuity application that builds bounded governed packets for fresh intelligences and records packet-grounding evidence through the normal application boundary.
 
 Future or experimental concepts are not listed as active applications until they actually use the application contract.
-
-## Delivery phases
-
-### A — public information contract
-Exit condition: public facts have an identified canonical source and the site map is stable.
-
-### B — static shell
-Exit condition: a fresh checkout can build Home, Applications, Technical, and Metrics without operational state or secrets.
-
-### C — live projection boundary
-Exit condition: changing authoritative state can refresh bounded public data without rebuilding GitHub Pages.
-
-### D — technical and metrics fidelity
-Exit condition: public technical claims and metrics identify their source, scope, freshness, and limits.
-
-### E — hardening and cutover
-Exit condition: mobile, accessibility, performance, metadata, links, and old-surface routing are verified; the rebuilt site is the canonical public front door.
 
 ## Explicit non-goals
 
@@ -101,20 +82,18 @@ Exit condition: mobile, accessibility, performance, metadata, links, and old-sur
 - raw database browsing from the public internet;
 - browser-side authority;
 - duplicating operational truth in Markdown/JSON/HTML;
-- moving WAKE-specific research semantics into sudofx;
 - treating experimental measurements as universal product reliability scores.
-
 
 ## Completion evidence
 
-The contract exit conditions were satisfied on October 2, 2026.
+The public surface was verified on October 2, 2026.
 
 - Home, Applications, Technical, and Metrics are separate public surfaces.
 - The homepage leads with natural-language explanation and short ELI15 summaries.
+- Conversation and Handoff are the currently presented applications.
 - GitHub Pages contains only the lightweight versioned shell.
 - Changing operational state refreshes the historyless `sudofx-live` projection instead of rebuilding Pages.
 - Technical and Metrics surfaces expose source revision, projection provenance, freshness, runtime health, application activity, and experiment context without treating any metric as authority.
-- WAKE✳︎ and Conversation are the two currently presented applications.
 - Read-only live refreshes serialize with the current authority lane so an older verified snapshot cannot overwrite a newer public view.
 - Future overnight observations preserve bounded aggregate compression evidence in SQLite while raw provider context remains transient.
 - The shell provides skip navigation, current-page semantics, reduced-motion behavior, responsive layouts, and automatic system light/dark modes.
@@ -127,4 +106,4 @@ Verification evidence:
 - public-shell deployment: Actions run `37015904203` — success
 - verified shell source commit: `7d9be2a3d7993ef353d24980c9025771c6e23ace`
 
-The next substantial product or kernel change should begin from a new explicit contract rather than silently extending this completed surface.
+Future product or kernel changes require an explicit design decision.

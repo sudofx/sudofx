@@ -130,7 +130,7 @@ def _conversation_panel(state: dict[str, object], repository: str) -> str:
     return f"""
     <section data-conversation>
       <div class="toolbar">
-        <div><span class="eyebrow">Phase D proof</span><h2>Governed conversation</h2></div>
+        <div><span class="eyebrow">Application proof</span><h2>Governed conversation</h2></div>
         <a href="{_escape(workflow_url)}" target="_blank" rel="noopener">Send next message</a>
       </div>
       {omission}
@@ -484,8 +484,8 @@ def render(
     """
     Produce one complete HTML document from a verified kernel snapshot.
 
-    Theme preference deliberately reuses WAKE's origin-scoped key so the two
-    related projects honor the same day/night choice on ``sudofx.github.io``.
+    Theme preference uses a sudofx-owned origin-scoped key. It is disposable
+    browser presentation state and cannot influence governed work.
     The hidden theme control has an explicit 1px box: global form-control width
     rules must not make an invisible element widen the mobile viewport.
     """
@@ -561,7 +561,7 @@ def render(
   <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f4f5fb">
   <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#24283b">
   <title>sudofx — governed work</title>
-  <script>try{{const saved=localStorage.getItem('wake-theme');const dark=saved?saved==='dark':matchMedia('(prefers-color-scheme:dark)').matches;if(dark)document.documentElement.dataset.theme='dark'}}catch{{}}</script>
+  <script>try{{const saved=localStorage.getItem('sudofx-theme');const dark=saved?saved==='dark':matchMedia('(prefers-color-scheme:dark)').matches;if(dark)document.documentElement.dataset.theme='dark'}}catch{{}}</script>
   <style>
     :root {{ color-scheme:light; --paper:#f4f5fb; --surface:#ffffff; --ink:#24283b; --muted:#626b8a;
       --line:#d9ddeb; --green:#3FB950; --accent:#7658b3; --hot:#c52f9b; --pale:#ffffff;
@@ -581,9 +581,7 @@ def render(
     .masthead-actions {{ grid-area:actions; display:flex; align-items:center; justify-content:flex-end; gap:12px; min-width:max-content }}
     .brand {{ color:var(--ink); text-decoration:none; font:900 clamp(30px,8vw,48px)/.85 var(--mono); letter-spacing:-.08em }}
     .brand i {{ color:var(--green); font-style:normal }}
-    .inspired {{ color:var(--muted); text-decoration:none; font:700 9px/1 var(--mono); letter-spacing:.12em; text-transform:uppercase; white-space:nowrap }}
-    .inspired b {{ color:var(--green) }}
-    .brand:hover,.inspired:hover {{ color:var(--hot) }}
+    .brand:hover {{ color:var(--hot) }}
     .eyebrow {{ font:700 11px/1 var(--mono); letter-spacing:.14em; text-transform:uppercase; color:var(--green) }}
     .observer-console {{ margin:0 0 32px; padding:18px; border:1px solid var(--line); border-top:4px solid var(--accent); background:var(--surface) }}
     .observer-console.working {{ border-top-color:var(--green) }}
@@ -749,8 +747,8 @@ def render(
        retaining its full touch target and respecting the phone's content inset. */
     .theme-switch {{ display:inline-flex; align-items:center; justify-content:center; min-width:34px; min-height:30px; cursor:pointer; user-select:none }}
     .theme-switch input {{ position:absolute; width:1px; height:1px; margin:0; opacity:0; pointer-events:none }}
-    /* The theme switch and operator light intentionally share WAKE's visual
-       geometry while keeping separate interaction semantics. */
+    /* The theme switch and operator light use consistent visual geometry
+       while keeping separate interaction semantics. */
     .data-switch-track {{ width:34px; height:18px; box-sizing:border-box; flex:0 0 34px; padding:2px; border:1px solid var(--line); background:var(--surface); border-radius:20px; display:inline-flex; align-items:center; justify-content:flex-start }}
     .data-switch-track i {{ display:block; width:12px; height:12px; flex:0 0 12px; box-sizing:border-box; border-radius:50%; background:var(--muted); transition:transform .15s ease,background .15s ease }}
     .theme-switch input:checked + .data-switch-track i {{ transform:translateX(16px); background:var(--green) }}
@@ -758,7 +756,6 @@ def render(
     @media(max-width:600px) {{ header {{ column-gap:10px; row-gap:16px; padding:28px 0 22px }}
       .brand-block {{ gap:7px; min-width:0 }}
       .brand {{ font-size:clamp(34px,10.8vw,42px) }}
-      .inspired {{ font-size:9px; line-height:1.15; letter-spacing:.07em }}
       .masthead-actions {{ gap:9px }}
       .theme-switch {{ min-width:44px; min-height:38px }}
       .data-switch-track {{ width:42px; height:24px; flex-basis:42px; padding:3px }}
@@ -776,7 +773,7 @@ def render(
 </head>
 <body><main data-published-run-id="{_escape(continuity_proof.get('artifact_run_id', ''))}">
   <header><div class="brand-block"><a class="brand" href="./" aria-label="sudofx home">sudo<i>fx</i></a>
-    <a class="inspired" href="https://sudofx.github.io/wake/" target="_blank" rel="noopener noreferrer">Inspired by WAKE<b>✳︎</b></a></div>
+    </div>
     <div class="masthead-actions">
       <label class="theme-switch" title="Follow system theme"><input id="theme-toggle" type="checkbox" role="switch" aria-label="Use dark theme"><span class="data-switch-track" aria-hidden="true"><i></i></span></label>
       {actions_light_html}
@@ -1276,9 +1273,9 @@ const search=document.querySelector('#search');
 if(search)search.addEventListener('input',()=>{{const q=search.value.toLowerCase();document.querySelectorAll('.receipt').forEach(r=>r.hidden=!r.dataset.search.toLowerCase().includes(q))}});
 document.querySelectorAll('.receipt').forEach(r=>r.addEventListener('click',()=>r.setAttribute('aria-expanded',r.classList.contains('open'))));
 const toggle=document.querySelector('#theme-toggle');
-const saved=()=>{{try{{return localStorage.getItem('wake-theme')}}catch{{return null}}}};
+const saved=()=>{{try{{return localStorage.getItem('sudofx-theme')}}catch{{return null}}}};
 const sync=()=>{{const dark=document.documentElement.dataset.theme==='dark',manual=Boolean(saved());toggle.checked=dark;toggle.setAttribute('aria-label',dark?'Use light theme':'Use dark theme');toggle.closest('.theme-switch').title=manual?`Manual ${{dark?'dark':'light'}} theme`:`Following system ${{dark?'dark':'light'}} theme`}};
-sync();toggle.addEventListener('change',()=>{{const dark=toggle.checked;if(dark)document.documentElement.dataset.theme='dark';else delete document.documentElement.dataset.theme;try{{localStorage.setItem('wake-theme',dark?'dark':'light')}}catch{{}}sync()}});
+sync();toggle.addEventListener('change',()=>{{const dark=toggle.checked;if(dark)document.documentElement.dataset.theme='dark';else delete document.documentElement.dataset.theme;try{{localStorage.setItem('sudofx-theme',dark?'dark':'light')}}catch{{}}sync()}});
 try{{const media=matchMedia('(prefers-color-scheme:dark)');media.addEventListener('change',event=>{{if(saved())return;if(event.matches)document.documentElement.dataset.theme='dark';else delete document.documentElement.dataset.theme;sync()}})}}catch{{}}
 </script></body></html>"""
 

@@ -88,8 +88,6 @@ export.
 
 ## Current architectural vocabulary
 
-The active October 1 contract replaced the broad WAKE-as-plugin direction.
-
 Use these terms in code, comments, reviews, and documentation:
 
 - **kernel** — smallest durable authority boundary
@@ -98,7 +96,7 @@ Use these terms in code, comments, reviews, and documentation:
 - **extension** — optional capability layered onto the engine or an application
 - **plugin** — only a technical loading/packaging mechanism if dynamic installation is actually implemented
 
-WAKE✳︎ is an application migration, not a reason to move research-specific policy into the sudofx kernel.
+Domain-specific policy belongs above the sudofx kernel in applications.
 
 ## Presentation is read-only authority-wise
 
@@ -111,9 +109,8 @@ A presentation-only path may reconstruct a disposable local view of database sta
 When a change materially alters authority, storage, replay, application semantics, operator workflows, or migration status, update the canonical documentation in the same work:
 
 - `README.md` for the repository-level current picture
-- `docs/STATUS.md` for phase/frontier status
+- `docs/STATUS.md` for implementation status and current frontier
 - `docs/ARCHITECTURE.md` for implemented authority boundaries
 - `docs/APPLICATION_ARCHITECTURE.md` for application contract changes
-- `100126-CONTRACT.md` only when the human-approved execution contract itself changes
 
 Historical experiment notes may remain historical, but they must be clearly labeled so they cannot be mistaken for current operating instructions.

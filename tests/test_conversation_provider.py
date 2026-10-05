@@ -17,8 +17,8 @@ class ConversationProviderTests(unittest.TestCase):
         conversation = {
             "current_message": "What details can you tell me about them?",
             "previous_exchange": {
-                "human": "Explain WAKE and sudofx.",
-                "assistant": "WAKE is an application; sudofx is its engine.",
+                "human": "Explain Example and sudofx.",
+                "assistant": "Example is an application; sudofx supplies governed execution.",
                 "authority": "transient_active_window",
             },
         }
@@ -29,12 +29,12 @@ class ConversationProviderTests(unittest.TestCase):
         self.assertTrue(_references_previous_exchange(conversation["current_message"]))
         self.assertIn("CURRENT HUMAN MESSAGE", prompt)
         self.assertIn("IMMEDIATELY PREVIOUS EXCHANGE", prompt)
-        self.assertIn("Explain WAKE and sudofx.", prompt)
+        self.assertIn("Explain Example and sudofx.", prompt)
 
     def test_adjacent_public_urls_can_be_revisited_only_for_a_reference(self) -> None:
         """A follow-up can ground details without granting general URL replay."""
         previous = (
-            "WAKE https://github.com/sudofx/wake and "
+            "Example https://github.com/sudofx/sudofx and "
             "sudofx https://github.com/sudofx/sudofx"
         )
         referential = "What details can you tell me about them?"

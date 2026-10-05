@@ -65,7 +65,7 @@ capability, and unrelated turns inherit no web access.
 
 Authoritative SQLite contains a singleton application-access latch plus an independently hash-chained transition audit. The latch is operational authority and does not advance semantic work revision. Applications capture its generation before work, recheck access immediately before provider effects, and revalidate the same generation inside the serialized kernel commit transaction. STOP therefore invalidates stale in-flight application commits while leaving operator/kernel access available. Emergency STOP intentionally avoids a full-suite dependency and may preempt ordinary work in the serialized authority lane; RESTORE requires the full suite to pass before reopening application access.
 
-Deployments with separate application databases cannot obtain a mathematically atomic distributed fence from a static website or GitHub workflow alone. They must consult the central sudofx authority before beginning new work; WAKE✳︎ performs that check before each cloud cycle. A future always-on central sudofx service can extend the same generation contract across distributed commits.
+Deployments with separate application databases cannot obtain a mathematically atomic distributed fence from a static website or GitHub workflow alone. They must consult the central sudofx authority before beginning new work. A future always-on central sudofx service can extend the same generation contract across distributed commits.
 
 ### Invocation and external-effect boundary
 
@@ -75,7 +75,7 @@ The append-only invocation journal records provider/runtime attempts separately 
 
 Provider-neutral generation requests may declare the read-only `read_public_url` and `search_public_web` capabilities. The Gemini adapter maps those names to URL Context and Google Search; no fetch implementation or vendor tool spelling enters Kernel. Conversation validates public targets and explicit search intent, deployment configuration may narrow the granted set, and only bounded citation metadata returns to presentation. Retrieved bodies and snippets are transient untrusted evidence.
 
-This allows WAKE✳︎ to keep Gemini-specific fallback and quota policy above the kernel while reusing the same provider-attempt and effect-ordering contract as other applications.
+Applications retain vendor-specific fallback and quota policy while reusing generic provider-attempt and effect-ordering guarantees.
 
 ### GitHub Actions
 
@@ -160,8 +160,6 @@ Applications sit above the kernel and runtime. They own domain meaning, not dura
 The implemented contract in `src/sudofx/applications.py` provides stable application identity/version, registered actions, deterministic policy re-evaluation, namespaced state, explicit migration failure, and optional compact event-log storage. A provider or application cannot commit arbitrary next state merely by supplying it; governance reruns the registered application policy before acceptance.
 
 The small `conversation` application proves the boundary with human-origin and assistant-origin turns. Tests replace application/runtime/provider objects between rounds and reconstruct the next turn from SQLite alone.
-
-WAKE✳︎ is the first substantial migration onto this boundary. WAKE-specific research semantics remain application policy in the separate WAKE repository and must not become kernel rules.
 
 ## Presentation boundary
 

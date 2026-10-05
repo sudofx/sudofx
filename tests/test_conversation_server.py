@@ -123,16 +123,16 @@ class ConversationServerTests(unittest.TestCase):
                 "import json,sys; d=json.load(sys.stdin); "
                 "s=d['state']['app:conversation']; m=s['current_message']; "
                 "p=s.get('previous_exchange'); "
-                "content=('WAKE uses an inspectable record instead of hidden memory.' "
+                "content=('Example uses an inspectable record instead of hidden memory.' "
                 "if m.startswith('Tell me') else "
                 "('It means continuity comes from records you can inspect.' "
-                "if p and p['assistant'].startswith('WAKE uses') else "
+                "if p and p['assistant'].startswith('Example uses') else "
                 "'The adjacent context is unavailable.')); "
                 "json.dump({'content':content,'observations':[],'commitment_updates':[]},sys.stdout)",
             )
             service = ConversationService(database, provider_command=provider)
 
-            first = service.converse("Tell me what WAKE means.")
+            first = service.converse("Tell me what Example means.")
             second = service.converse("What does any of that even mean?")
 
             self.assertEqual(
@@ -153,8 +153,8 @@ class ConversationServerTests(unittest.TestCase):
 
             durable_bytes = database.read_bytes()
             for raw_text in (
-                b"Tell me what WAKE means.",
-                b"WAKE uses an inspectable record instead of hidden memory.",
+                b"Tell me what Example means.",
+                b"Example uses an inspectable record instead of hidden memory.",
                 b"What does any of that even mean?",
                 b"It means continuity comes from records you can inspect.",
             ):

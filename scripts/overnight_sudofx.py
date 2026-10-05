@@ -7,7 +7,7 @@ One workflow invocation equals one fresh Gemini instance.
 The model's proposal is governed only on an isolated SQLite snapshot. Production
 work is never advanced from provider output. After the probe succeeds, this
 adapter records a smaller system-owned fact in authoritative SQLite: what Gemini
-said, which deterministic trial phase produced it, and the chained digest of
+said, which deterministic trial semantic lens produced it, and the chained digest of
 earlier observations. The next fresh Gemini receives that latest observation as
 explicitly untrusted evidence.
 
@@ -331,7 +331,7 @@ def _probe(
                 "candidate_open_obligations": obligations,
                 "context_digest": digest,
                 "trial_cycle": directive["cycle"],
-                "trial_phase": directive["phase"],
+                "trial_semantic_lens": directive["semantic_lens"],
                 "exposure_profile": exposure,
             },
         },
@@ -363,7 +363,7 @@ def _record_observation(
     """Persist the model response as experiment evidence without advancing work."""
     observation = {
         "cycle": directive["cycle"],
-        "phase": directive["phase"],
+        "semantic_lens": directive["semantic_lens"],
         "task": directive["task"],
         "candidate_result": proof["candidate_result"],
         "candidate_rationale": proof["candidate_rationale"],
@@ -430,10 +430,10 @@ def _patch_projection(proof: dict[str, Any]) -> None:
     trial = proof.get("overnight_trial", {})
     if isinstance(trial, dict):
         cycle = trial.get("cycle", "?")
-        phase = str(trial.get("phase", "unknown")).upper().replace("_", " ")
+        semantic_lens = str(trial.get("semantic_lens", "unknown")).upper().replace("_", " ")
         html = html.replace(
             '<span class="exchange-status" data-exchange-status>LAST EXCHANGE</span>',
-            f'<span class="exchange-status" data-exchange-status>OVERNIGHT · CYCLE {cycle} · {phase}</span>',
+            f'<span class="exchange-status" data-exchange-status>OVERNIGHT · CYCLE {cycle} · {semantic_lens}</span>',
         )
     path.write_text(html, encoding="utf-8")
 
@@ -539,7 +539,7 @@ def main() -> int:
         json.dumps(
             {
                 "overnight_cycle": directive["cycle"],
-                "phase": directive["phase"],
+                "semantic_lens": directive["semantic_lens"],
                 "context_digest": proof["context_digest"],
                 "observation_recorded": True,
                 "production_work_mutated_by_model": False,

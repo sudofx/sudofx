@@ -126,7 +126,7 @@ class ConversationService:
         """Build the disposable website view from this runtime's own SQLite.
 
         Local development must never substitute the public sudofx-live branch or
-        federated WAKE evidence for the database attached to this server.
+        external application evidence for the database attached to this server.
         """
         record = Record(self.data_path)
         observability = build_application_observability(record)

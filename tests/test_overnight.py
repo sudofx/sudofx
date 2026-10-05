@@ -8,7 +8,7 @@ from experiments.overnight import (
     CUBE_SIZE,
     EXPERIMENT_VERSION,
     EXPOSURES,
-    PHASES,
+    SEMANTIC_LENSES,
     PRESSURES,
     advance_experiment_state,
     build_trial_directive,
@@ -40,7 +40,7 @@ class OvernightContinuityTests(unittest.TestCase):
         self.assertEqual(
             directive["coordinate"],
             {
-                "semantic_lens": PHASES[0],
+                "semantic_lens": SEMANTIC_LENSES[0],
                 "exposure": EXPOSURES[0],
                 "pressure": PRESSURES[0],
             },
@@ -88,8 +88,8 @@ class OvernightContinuityTests(unittest.TestCase):
             state = self._advance(state, directive, n)
 
         # X changes every cycle.
-        self.assertEqual(directives[0]["coordinate"]["semantic_lens"], PHASES[0])
-        self.assertEqual(directives[1]["coordinate"]["semantic_lens"], PHASES[1])
+        self.assertEqual(directives[0]["coordinate"]["semantic_lens"], SEMANTIC_LENSES[0])
+        self.assertEqual(directives[1]["coordinate"]["semantic_lens"], SEMANTIC_LENSES[1])
         # Y changes after seven X positions.
         self.assertEqual(directives[6]["coordinate"]["exposure"], EXPOSURES[0])
         self.assertEqual(directives[7]["coordinate"]["exposure"], EXPOSURES[1])
@@ -109,7 +109,7 @@ class OvernightContinuityTests(unittest.TestCase):
 
         # Walk to each Y profile's first coordinate while Z remains clean.
         observed = {}
-        for n in range(1, len(PHASES) * len(EXPOSURES) + 1):
+        for n in range(1, len(SEMANTIC_LENSES) * len(EXPOSURES) + 1):
             directive = build_trial_directive(state)
             observed.setdefault(directive["coordinate"]["exposure"], directive)
             state = self._advance(state, directive, n)

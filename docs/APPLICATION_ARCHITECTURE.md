@@ -1,14 +1,12 @@
 # Application Architecture
 
-**Status:** Active direction under `100126-CONTRACT.md`
+**Status:** Implemented application boundary; API evolution remains open
 
 ## Decision
 
 sudofx is the governed engine.
 
 A complete domain system built on sudofx is an **application**.
-
-WAKE✳︎ is the first substantial application migration in the separate `sudofx/wake` repository. Its Phase E architectural exit condition is now satisfied on WAKE `master`: operational authority and generic runtime responsibilities are sudofx-owned while WAKE retains its domain/research policy. It is not primarily a plugin: its research state, policy, workflows, presentation, and external integrations define an application identity rather than an optional capability that can be removed while leaving the same product behind.
 
 A reusable cross-application experiment grammar may be implemented as an **extension** when it supplies deterministic source-level semantics but owns no durable campaign state or provider authority. The matrix contract in `src/sudofx/matrix.py` is the first concrete example: applications may opt into stable matrix coordinates while persisting their own progress/results through normal governed actions.
 
@@ -22,17 +20,13 @@ Use these terms:
 
 ## Current implementation evidence
 
-As of October 2, 2026:
+Current implementation:
 
+- `applications/conversation/` owns governed conversation policy and transient chat transport.
 - `src/sudofx/applications.py` implements the application registry/host, deterministic action evaluation, version checks, and compact event-log storage.
-- `applications/conversation/` provides the first small non-WAKE application proof.
 - `applications/handoff/` owns portable handoff packet policy, grounding scoring, target registration, and evaluation evidence; the former manual-handoff experiment is now a compatibility shim.
 - process-replacement tests reconstruct multiple conversation rounds from SQLite alone.
 - `applications/conversation/server.py` provides a private same-origin end-to-end chat transport while `web/conversation.html` remains disposable presentation.
-- the WAKE repository contains a versioned `WAKE_APPLICATION`, a sudofx-backed transitional Store, verified legacy import/archive logic, and Phase E rehearsal workflows.
-- WAKE now writes provider-boundary evidence through sudofx's generic invocation journal and delegates durability-barrier/external-effect ordering to `InvocationLifecycle.invoke()`; Gemini-specific quota/fallback interpretation remains WAKE policy.
-
-These are implementation facts, not a claim that the application contract is permanently frozen. WAKE remains the larger stress test, and its explicitly promoted `wake-runtime` branch may intentionally lag verified `master` while continuous research is active.
 
 The conversation application is the first small concrete proof of this contract. Its human and assistant turns are governed application actions, its provider context contains the transient current message plus bounded database-derived observations and active commitments, and raw transcript text is not durable Conversation state. The private service owns one additional volatile input: the immediately previous successful human/assistant exchange. It supplies that pair only to the next fresh provider to resolve adjacent references, never writes it to SQLite, and drops it on restart or explicit Clear. Provider framing makes the current task and adjacent pair explicit. A lexical reference may carry validated public URLs from the preceding human message into `read_public_url` selection for that follow-up only; unrelated turns inherit nothing and ordinary target rejection still applies. Exact suffixes and declared per-response follow-up questions are deterministically enforced, including canonical removal of duplicate standalone suffixes when citations precede the final footer. Other semantic response instructions are explicit application state rather than hidden provider memory; new instructions must be exact excerpts of the authorizing human turn, multiple instructions may coexist, and fresh providers receive the governed set. The application deterministically parses the explicit `following footer:` and `[DONT FORGET]` init syntax instead of relying on a probabilistic provider to notice those declarations. Tests replace process-local kernel/application/provider objects between rounds and also exercise the private HTTP transport against one SQLite authority.
 
@@ -41,8 +35,6 @@ Conversation also declares two read-only web capabilities: `read_public_url` for
 Conversation also demonstrates application-level consumption of a reusable extension. Its optional matrix campaign uses the shared `continuity@1` definition for stable coordinates and deterministic traversal, while Conversation itself owns campaign activation, result verdicts, and provider projection. Matrix progress is persisted only through governed `app:conversation` state; the extension never writes the database or invokes the provider. When no campaign is active, normal Conversation provider context is unchanged.
 
 Handoff is a second native sudofx application with materially different semantics. It reads generic governed work through public kernel context, creates bounded export views, deterministically scores returned packet-grounding evidence, and commits new evaluations through `apply_application` under `app:handoff`. Historical `record_handoff_evaluation` work events remain replay compatibility only and are rejected for new submissions.
-
-WAKE✳︎ is the larger Phase E proof: preserve its domain semantics while moving operational authority onto the same generic sudofx boundary.
 
 ## Authority boundary
 
@@ -177,31 +169,6 @@ Applications may render browser or API views from verified database-derived proj
 
 Presentation output is disposable and must never be read back as authority.
 
-## WAKE✳︎ boundary
-
-WAKE✳︎ should retain ownership of concepts such as:
-
-- research topics and seed questions
-- projects and notebooks
-- beliefs and evidence rules
-- retrieval and source qualification
-- publication/editorial policy
-- Bob
-- inquiry-drive experiments
-- research-specific scheduling and collection policy
-
-sudofx should provide the generic substrate beneath those concepts:
-
-- durable governed transitions
-- provenance
-- replay
-- bounded context
-- invocation/effect lifecycle
-- recovery
-- application isolation
-
-The migration succeeds when WAKE✳︎ can change substantially without requiring new research-specific assumptions in the sudofx kernel.
-
 ## Removal tests
 
 Two removal tests distinguish applications from extensions.
@@ -220,7 +187,7 @@ For compact event-log applications, removal leaves the generic event envelope re
 
 ## Why this boundary is intentionally small
 
-WAKE✳︎ accumulated useful ideas and domain complexity at the same time. sudofx must not repeat that growth pattern at the engine layer.
+Keep generic authority separate from application-specific complexity.
 
 A feature belongs below the application boundary only when at least one of these is true:
 

@@ -38,7 +38,7 @@ class ConversationPrivacyTests(unittest.TestCase):
                     validate_private_message(message)
 
     def test_public_web_targets_are_explicit_and_private_targets_fail_closed(self) -> None:
-        github = "https://github.com/sudofx/wake"
+        github = "https://github.com/sudofx/sudofx"
         self.assertEqual(validate_private_message(github), github)
         self.assertEqual(conversation_web_tools(github), ("read_public_url",))
         self.assertEqual(
@@ -70,7 +70,7 @@ class ConversationPrivacyTests(unittest.TestCase):
     def test_web_citations_are_transient_and_never_become_observations(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / "record.sqlite"
-            url = "https://github.com/sudofx/wake"
+            url = "https://github.com/sudofx/sudofx"
             commit_human_turn(
                 f"Read {url}",
                 data_path=path,
@@ -81,10 +81,10 @@ class ConversationPrivacyTests(unittest.TestCase):
                 sys.executable,
                 "-c",
                 "import json,sys; json.load(sys.stdin); json.dump({"
-                "'content':'WAKE is a public repository.',"
-                "'observations':['https://github.com/sudofx/wake'],"
+                "'content':'Example is a public repository.',"
+                "'observations':['https://github.com/sudofx/sudofx'],"
                 "'commitment_updates':[],"
-                "'sources':[{'url':'https://github.com/sudofx/wake','title':'WAKE'}]"
+                "'sources':[{'url':'https://github.com/sudofx/sudofx','title':'Example'}]"
                 "},sys.stdout)",
             )
             reply = commit_assistant_turn(
@@ -93,7 +93,7 @@ class ConversationPrivacyTests(unittest.TestCase):
                 private_message=f"Read {url}",
                 provenance=SubmissionProvenance("model", "fixture", "unit-test"),
             )
-            self.assertIn("[WAKE](https://github.com/sudofx/wake)", reply)
+            self.assertIn("[Example](https://github.com/sudofx/sudofx)", reply)
 
             registry = ApplicationRegistry((CONVERSATION_APPLICATION,))
             kernel = Kernel(Record(path), Governance(application_registry=registry))

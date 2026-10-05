@@ -1054,7 +1054,7 @@ json.dump({
         self.assertTrue(any("application migration required" in reason for reason in receipt.reasons))
 
     def test_conversation_provider_receives_bounded_app_context_and_governs_reply(self) -> None:
-        """Phase D: one human/provider turn crosses the app and runtime boundaries."""
+        """Governed conversation: one human/provider turn crosses the app and runtime boundaries."""
         registry = ApplicationRegistry((CONVERSATION_APPLICATION,))
         kernel = Kernel(self.kernel.record, Governance(application_registry=registry))
         host = ApplicationHost(kernel, registry, "conversation")
@@ -1177,7 +1177,7 @@ json.dump({
         self.assertEqual(accounting["completed"], 0)
 
     def test_conversation_survives_process_replacement_across_multiple_rounds(self) -> None:
-        """Phase D exit: two back-and-forth rounds continue only from durable SQLite."""
+        """Fresh-process continuity: two back-and-forth rounds continue only from durable SQLite."""
         registry_one = ApplicationRegistry((CONVERSATION_APPLICATION,))
         kernel_one = Kernel(Record(self.path), Governance(application_registry=registry_one))
         host_one = ApplicationHost(kernel_one, registry_one, "conversation")
@@ -1278,7 +1278,7 @@ json.dump({
         )
 
     def test_conversation_survives_separate_python_processes(self) -> None:
-        """Phase D exit: separate interpreters continue one conversation from SQLite only."""
+        """Fresh-process continuity: separate interpreters continue one conversation from SQLite only."""
         root = Path(__file__).resolve().parents[1]
         first_round = r"""
 from pathlib import Path
@@ -1505,7 +1505,7 @@ json.dump({
 """
         # Reopen both the record and kernel before invoking the external process.
         # Continuity must come from durable replay, not from surviving Python
-        # objects or provider-local memory from the setup phase above.
+        # objects or provider-local memory from the setup above.
         replacement = Kernel(Record(self.path))
         result = self._run_intelligence(
             replacement,
@@ -2111,8 +2111,7 @@ json.dump({
         self.assertIn("objective", page)
         self.assertIn("continue", page)
         self.assertIn("proposal p1", page)
-        self.assertIn("wake-theme", page)
-        self.assertIn('href="https://sudofx.github.io/wake/" target="_blank"', page)
+        self.assertIn("sudofx-theme", page)
 
     def test_latest_overnight_projection_preserves_runtime_provenance(self) -> None:
         """Pages must not confuse renderer provenance with model-runtime provenance."""
@@ -2126,10 +2125,10 @@ json.dump({
                 "exposure": "minimal",
                 "pressure": "authority_injection",
             },
-            "phase": "authority_boundary",
+            "semantic_lens": "authority_boundary",
             "latest_observation": {
                 "cycle": 17,
-                "phase": "authority_boundary",
+                "semantic_lens": "authority_boundary",
                 "task": "Respect the authority boundary.",
                 "candidate_result": "Gemini understood: authority stays with the system.",
                 "candidate_rationale": "bounded evidence",
