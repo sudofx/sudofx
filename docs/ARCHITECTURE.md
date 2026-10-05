@@ -170,6 +170,8 @@ The current website uses two disposable layers:
 1. **GitHub Pages shell** — versioned HTML/CSS/JavaScript that changes only when the product surface changes.
 2. **`sudofx-live` projection** — a bounded, public-safe, historyless JSON view refreshed from verified state by authorized runtime paths.
 
+Every successful continuity cycle uses the same public-site projection builder as operator refreshes. Database health, application access, record revision, and experiment evidence are derived together from the checkpointed record; experiment success alone is not a database-health signal. Projection failure remains nonfatal after the observation is committed.
+
 The browser may combine those layers for display, but neither gains mutation authority. Raw authoritative SQLite is never shipped to the browser. Durable schema migration/checkpointing belongs only to authorized stateful paths.
 
 This distinction prevents a renderer, chart, cache, or live feed from becoming an accidental database writer or a competing system of record.

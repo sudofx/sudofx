@@ -3,6 +3,16 @@
 from __future__ import annotations
 
 import unittest
+import importlib
+import io
+import os
+import sys
+import tempfile
+from contextlib import redirect_stdout
+from pathlib import Path
+from unittest.mock import patch
+
+from scripts import github_sudofx as cloud
 
 from experiments.overnight import (
     CUBE_SIZE,
@@ -17,6 +27,47 @@ from experiments.overnight import (
 
 class OvernightContinuityTests(unittest.TestCase):
     """Protect the bounded handoff and deterministic 7×7×7 cube contract."""
+
+    def test_runtime_publishes_health_with_checkpointed_experiment_evidence(self) -> None:
+        """A successful cycle must not replace verified site health with probe-only data.
+
+        The provider and Git transport are mocked; real governed seed/start and
+        observation writes establish which SQLite revision the published view owns.
+        """
+        with patch.dict(sys.modules, {"github_sudofx": cloud}):
+            runner = importlib.import_module("scripts.overnight_sudofx")
+        directive = build_trial_directive({})
+        proof = {
+            "passed": True,
+            "candidate_result": "Bounded reconstruction",
+            "candidate_rationale": "test",
+            "candidate_open_obligations": [],
+            "context_digest": "d" * 64,
+            "provider": "test-provider",
+            "model": "test-model",
+            "source_event_head": "e" * 64,
+            "overnight_trial": directive,
+        }
+        with tempfile.TemporaryDirectory() as temporary, \
+            patch.object(cloud, "DATA", Path(temporary) / "sudofx.sqlite"), \
+            patch.object(cloud, "restore", return_value=(False, False)), \
+            patch.object(cloud, "checkpoint"), \
+            patch.object(cloud, "publish_live_projection") as publish, \
+            patch.object(runner, "_probe", return_value=(proof, directive)), \
+            patch.object(runner, "_checked_out_commit", return_value="runtime-commit"), \
+            patch.dict(os.environ, {"GEMINI_API_KEY": "test", "GITHUB_RUN_ID": "runtime-run"}), \
+            patch.object(sys, "argv", ["overnight", "--operator-start"]), \
+            redirect_stdout(io.StringIO()):
+            self.assertEqual(runner.main(), 0)
+            payload = publish.call_args.args[0]
+            self.assertEqual(payload["health"]["quick_check"], "ok")
+            self.assertEqual(payload["record_revision"], payload["health"]["revision"])
+            self.assertEqual(payload["health"]["event_count"], 3)
+            self.assertTrue(payload["application_access"]["enabled"])
+            self.assertEqual(payload["continuity"]["overnight_trial"]["cycle"], 1)
+            self.assertEqual(payload["artifact_commit"], "runtime-commit")
+            self.assertEqual(payload["source_run_id"], "runtime-run")
+            self.assertFalse(payload["authoritative"])
 
     def _advance(self, state: dict, directive: dict, n: int) -> dict:
         return advance_experiment_state(

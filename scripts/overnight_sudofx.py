@@ -511,11 +511,16 @@ def main() -> int:
     # replaceable public-safe projection after SQLite has been checkpointed.
     # Projection failure is visible in logs but cannot stop authoritative work
     # or the next fresh-model cycle.
-    live_projection = dict(proof)
-    live_projection["projection_schema"] = 1
-    live_projection["projection_kind"] = "disposable-live-view"
-    live_projection["source_run_id"] = run_id
     try:
+        # Every publisher uses the canonical public-site envelope. A successful
+        # experiment alone cannot report database health or application access;
+        # derive those fields from the checkpointed record, never provider prose.
+        # Keep construction inside this presentation-only failure boundary so a
+        # failed health projection cannot undo the committed observation.
+        live_projection = cloud.build_public_site_projection(
+            kernel, kernel.record, proof, verification={}
+        )
+        live_projection["source_run_id"] = run_id
         cloud.publish_live_projection(
             live_projection,
             handoff_packet=cloud.build_handoff_packet(kernel, cloud.AUTO_HANDOFF_ID),
