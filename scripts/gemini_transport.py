@@ -33,7 +33,15 @@ def build_generate_request(*, api_key: str, model: str, prompt: str, temperature
 
 
 def request_json(request, *, timeout: float):
-    return request_gemini_json(request, timeout=timeout)
+    """Return the decoded response object expected by experiment adapters.
+
+    The package transport also returns HTTP status for generic accounting.
+    This compatibility boundary owns only payload decoding; status must not
+    enter model-text extraction or change the adapters' response shape.
+    Transport and malformed-JSON failures propagate to the caller's policy.
+    """
+    payload, _status = request_gemini_json(request, timeout=timeout)
+    return payload
 
 
 def extract_text(response):

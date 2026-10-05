@@ -109,14 +109,15 @@ class GeminiTransportTests(unittest.TestCase):
         self.assertEqual(evidence["search_queries"], ["sudofx engine"])
         self.assertEqual(evidence["url_retrievals"][0]["status"], "URL_RETRIEVAL_STATUS_SUCCESS")
 
-    def test_request_json_centralizes_only_success_transport(self) -> None:
+    def test_compatibility_response_remains_extractable_by_experiment_adapters(self) -> None:
+        """HTTP status metadata must not replace the provider response object."""
         class Response:
             def __enter__(self):
                 return self
             def __exit__(self, exc_type, exc, tb):
                 return False
             def read(self, maximum=None):
-                return b'{"candidates": []}'
+                return b'{"candidates": [{"content": {"parts": [{"text": "bounded result"}]}}]}'
 
         _, request = build_generate_request(
             api_key="test-key",
@@ -125,7 +126,9 @@ class GeminiTransportTests(unittest.TestCase):
             temperature=0.1,
         )
         with patch("sudofx.generation.urllib.request.urlopen", return_value=Response()) as opened:
-            self.assertEqual(request_json(request, timeout=12), ({"candidates": []}, 200))
+            payload = request_json(request, timeout=12)
+            self.assertIsInstance(payload, dict)
+            self.assertEqual(extract_text(payload), "bounded result")
         opened.assert_called_once_with(request, timeout=12)
 
     def test_request_json_rejects_non_object_json(self) -> None:
