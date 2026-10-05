@@ -18,7 +18,13 @@ import threading
 from typing import Any
 from urllib.parse import urlsplit
 
-from sudofx import (\n    ApplicationAccessError,\n    ApplicationHost,\n    ApplicationRegistry,\n    Kernel,\n    build_application_observability,\n)
+from sudofx import (
+    ApplicationAccessError,
+    ApplicationHost,
+    ApplicationRegistry,
+    Kernel,
+    build_application_observability,
+)
 from sudofx.governance import Governance
 from sudofx.providers import ProviderError, ProviderQuotaError, ProviderTemporaryError
 from sudofx.record import Record
