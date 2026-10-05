@@ -1,5 +1,6 @@
 (() => {
-  const LIVE_URL='https://raw.githubusercontent.com/sudofx/sudofx/sudofx-live/live.json';
+  const PUBLIC_LIVE_URL='https://raw.githubusercontent.com/sudofx/sudofx/sudofx-live/live.json';
+  const LOCAL_LIVE_URL='api/site/live';
   const APPLICATION_SOURCES='application-sources.json';
   const q=s=>document.querySelector(s);
   const fmtBytes=n=>{n=Number(n);if(!Number.isFinite(n)||n<0)return '—';if(n===0)return '0 B';const u=['B','KB','MB','GB'];let i=0;while(n>=1024&&i<u.length-1){n/=1024;i++}return (n>=100||i===0?n.toFixed(0):n.toFixed(1))+' '+u[i]};
