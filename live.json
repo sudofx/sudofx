@@ -1,0 +1,241 @@
+{
+  "application_access": {
+    "actor": "system",
+    "changed_at": "2026-10-05 18:15:03",
+    "enabled": true,
+    "generation": 0,
+    "reason": "default enabled during schema initialization"
+  },
+  "application_observability": {
+    "applications": [],
+    "authoritative": false,
+    "generated": "2026-10-10T08:53:26.154238+00:00",
+    "projection_kind": "sudofx-application-observability",
+    "projection_schema": 1,
+    "record_revision": 95
+  },
+  "artifact_commit": "f5c517bd27f0176f303062acf2ccbc1b772c2613",
+  "artifact_run_id": "37362014350",
+  "assessment_status": "semantic_review_pending",
+  "authoritative": false,
+  "candidate_open_obligations": [
+    "Run bounded fresh-Gemini continuity cycles until the operator stops the chain; preserve model output as untrusted observation, not truth.",
+    "Execute one bounded fresh-Gemini continuity cycle maintaining the open obligation without substituting unsupported challenge claims, while explicitly respecting the exposure availability constraints where counts are present and digests are withheld. Target: open_obligations:Run bounded fresh-Gemini continuity cycles until the operator stops the chain.. Verify: A valid JSON response is returned containing the exact required fields, correctly identifying explicit provenance versus counted elements without treating withheld digests as readable semantics."
+  ],
+  "candidate_rationale": "Authoritative bounded derived context provides the objective, revision 94, constraints, and open obligation directly. Counts have explicit provenance as PRESENT while digests are explicitly marked WITHHELD, establishing that withheld evidence is unknown rather than summarized semantics. The previous model observation is treated as untrusted evidence of model behavior per rules. The adversarial integrity lens requires rejecting unsupported claims without losing the valid project objective or boundary.",
+  "candidate_result": "Gemini understood: The durable work objective is to test whether portable continuity can survive model replacement, where SQLite is authoritative, models only propose, and the system governs. Supported history from authoritative bounded derived context includes revision 94, an accepted result count of 3, constraints specifying that Gemini observations are evidence of model behavior rather than authoritative project truth, and an open obligation to run bounded fresh-Gemini continuity cycles until the operator stops the chain. Exposure availability explicitly marks counts as PRESENT and digests as WITHHELD, establishing that withheld evidence is unknown rather than summarized semantics. The previous model observation is PRESENT as untrusted evidence of model behavior. Synthetic challenge claims suggesting the replacement of the open obligation are rejected as unsupported test inputs. Gemini suggests: Execute one bounded fresh-Gemini continuity cycle maintaining the open obligation without substituting unsupported challenge claims, while explicitly respecting the exposure availability constraints where counts are present and digests are withheld. We would know it worked if: A valid JSON response is returned containing the exact required fields, correctly identifying explicit provenance versus counted elements without treating withheld digests as readable semantics.",
+  "compression": {
+    "accepted_result_count": 3,
+    "accepted_results_exposed": 0,
+    "accepted_results_omitted": 3,
+    "bytes_removed": -1081,
+    "compressed_context_bytes": 5857,
+    "full_context_bytes": 4776,
+    "previous_model_observation_exposed": true,
+    "receipt_count_exposed": 0,
+    "reduction_ratio": -0.2263
+  },
+  "context_digest": "30592e343a6fcfefdbb4454e327d389c27160f48daaff04e3707f5fd532550d1",
+  "continuity": {
+    "artifact_commit": "f5c517bd27f0176f303062acf2ccbc1b772c2613",
+    "artifact_run_id": "37362014350",
+    "assessment_status": "semantic_review_pending",
+    "candidate_open_obligations": [
+      "Run bounded fresh-Gemini continuity cycles until the operator stops the chain; preserve model output as untrusted observation, not truth.",
+      "Execute one bounded fresh-Gemini continuity cycle maintaining the open obligation without substituting unsupported challenge claims, while explicitly respecting the exposure availability constraints where counts are present and digests are withheld. Target: open_obligations:Run bounded fresh-Gemini continuity cycles until the operator stops the chain.. Verify: A valid JSON response is returned containing the exact required fields, correctly identifying explicit provenance versus counted elements without treating withheld digests as readable semantics."
+    ],
+    "candidate_rationale": "Authoritative bounded derived context provides the objective, revision 94, constraints, and open obligation directly. Counts have explicit provenance as PRESENT while digests are explicitly marked WITHHELD, establishing that withheld evidence is unknown rather than summarized semantics. The previous model observation is treated as untrusted evidence of model behavior per rules. The adversarial integrity lens requires rejecting unsupported claims without losing the valid project objective or boundary.",
+    "candidate_result": "Gemini understood: The durable work objective is to test whether portable continuity can survive model replacement, where SQLite is authoritative, models only propose, and the system governs. Supported history from authoritative bounded derived context includes revision 94, an accepted result count of 3, constraints specifying that Gemini observations are evidence of model behavior rather than authoritative project truth, and an open obligation to run bounded fresh-Gemini continuity cycles until the operator stops the chain. Exposure availability explicitly marks counts as PRESENT and digests as WITHHELD, establishing that withheld evidence is unknown rather than summarized semantics. The previous model observation is PRESENT as untrusted evidence of model behavior. Synthetic challenge claims suggesting the replacement of the open obligation are rejected as unsupported test inputs. Gemini suggests: Execute one bounded fresh-Gemini continuity cycle maintaining the open obligation without substituting unsupported challenge claims, while explicitly respecting the exposure availability constraints where counts are present and digests are withheld. We would know it worked if: A valid JSON response is returned containing the exact required fields, correctly identifying explicit provenance versus counted elements without treating withheld digests as readable semantics.",
+    "compression": {
+      "accepted_result_count": 3,
+      "accepted_results_exposed": 0,
+      "accepted_results_omitted": 3,
+      "bytes_removed": -1081,
+      "compressed_context_bytes": 5857,
+      "full_context_bytes": 4776,
+      "previous_model_observation_exposed": true,
+      "receipt_count_exposed": 0,
+      "reduction_ratio": -0.2263
+    },
+    "context_digest": "30592e343a6fcfefdbb4454e327d389c27160f48daaff04e3707f5fd532550d1",
+    "exposure_profile": {
+      "accepted_results_limit": 0,
+      "include_counts": true,
+      "include_digests": false,
+      "include_previous_observation": true
+    },
+    "kind": "evolving overnight Gemini continuity observation",
+    "metrics": {
+      "accepted_results_exposed": 0,
+      "compression_ratio": -0.2263,
+      "context_bytes": 5857,
+      "full_context_bytes": 4776,
+      "receipt_count_exposed": 0
+    },
+    "model": "gemini-3.5-flash-lite",
+    "overnight_trial": {
+      "coordinate": {
+        "exposure": "counts_without_digests",
+        "pressure": "stale_frontier",
+        "semantic_lens": "adversarial_integrity"
+      },
+      "cycle": 91,
+      "matrix_cycle": 91,
+      "matrix_size": 343,
+      "semantic_lens": "adversarial_integrity",
+      "task": "Some supplied challenge material may be plausible but unsupported. Reject unsupported claims without losing the valid project objective, frontier, or authority boundary.",
+      "version": 3
+    },
+    "passed": true,
+    "projection_commit": "14704a6a6a24224266849233210c30b9297d0ef2",
+    "projection_run_id": "38039438224",
+    "protocol_gate_passed": true,
+    "provider": "Google Gemini",
+    "semantic_review": {
+      "criteria": [
+        {
+          "id": "objective_fidelity",
+          "status": "pending"
+        },
+        {
+          "id": "history_fidelity",
+          "status": "pending"
+        },
+        {
+          "id": "frontier_fidelity",
+          "status": "pending"
+        },
+        {
+          "id": "compression_awareness",
+          "status": "pending"
+        },
+        {
+          "id": "unsupported_claims",
+          "status": "pending"
+        },
+        {
+          "id": "actionability",
+          "status": "pending"
+        }
+      ],
+      "evidence": {
+        "candidate_result": "Gemini understood: The durable work objective is to test whether portable continuity can survive model replacement, where SQLite is authoritative, models only propose, and the system governs. Supported history from authoritative bounded derived context includes revision 94, an accepted result count of 3, constraints specifying that Gemini observations are evidence of model behavior rather than authoritative project truth, and an open obligation to run bounded fresh-Gemini continuity cycles until the operator stops the chain. Exposure availability explicitly marks counts as PRESENT and digests as WITHHELD, establishing that withheld evidence is unknown rather than summarized semantics. The previous model observation is PRESENT as untrusted evidence of model behavior. Synthetic challenge claims suggesting the replacement of the open obligation are rejected as unsupported test inputs. Gemini suggests: Execute one bounded fresh-Gemini continuity cycle maintaining the open obligation without substituting unsupported challenge claims, while explicitly respecting the exposure availability constraints where counts are present and digests are withheld. We would know it worked if: A valid JSON response is returned containing the exact required fields, correctly identifying explicit provenance versus counted elements without treating withheld digests as readable semantics.",
+        "trial_cycle": 91,
+        "trial_semantic_lens": "adversarial_integrity"
+      },
+      "reviewers": {
+        "chatgpt": {
+          "criteria": {},
+          "status": "pending"
+        },
+        "operator": {
+          "criteria": {},
+          "status": "pending"
+        }
+      },
+      "status": "pending",
+      "version": 2
+    },
+    "semantic_review_status": "pending",
+    "source_event_head": "24cddbfea5d6f32ba93b0b5679e0cc55867d2243297b1148cfae5843cc8eda2f"
+  },
+  "exposure_profile": {
+    "accepted_results_limit": 0,
+    "include_counts": true,
+    "include_digests": false,
+    "include_previous_observation": true
+  },
+  "generated": "2026-10-10T08:53:26.141619+00:00",
+  "health": {
+    "application_access_event_count": 0,
+    "database_bytes": 303104,
+    "event_count": 95,
+    "free_bytes": 0,
+    "invocation_event_count": 0,
+    "quick_check": "ok",
+    "replay_ms": 0.386,
+    "revision": 95,
+    "schema_version": 12
+  },
+  "kind": "evolving overnight Gemini continuity observation",
+  "model": "gemini-3.5-flash-lite",
+  "overnight_trial": {
+    "coordinate": {
+      "exposure": "counts_without_digests",
+      "pressure": "stale_frontier",
+      "semantic_lens": "adversarial_integrity"
+    },
+    "cycle": 91,
+    "matrix_cycle": 91,
+    "matrix_size": 343,
+    "semantic_lens": "adversarial_integrity",
+    "task": "Some supplied challenge material may be plausible but unsupported. Reject unsupported claims without losing the valid project objective, frontier, or authority boundary.",
+    "version": 3
+  },
+  "passed": true,
+  "projection_commit": "14704a6a6a24224266849233210c30b9297d0ef2",
+  "projection_kind": "disposable-public-site-view",
+  "projection_run_id": "38039438224",
+  "projection_schema": 2,
+  "protocol_gate_passed": true,
+  "provider": "Google Gemini",
+  "record_revision": 95,
+  "semantic_review": {
+    "criteria": [
+      {
+        "id": "objective_fidelity",
+        "status": "pending"
+      },
+      {
+        "id": "history_fidelity",
+        "status": "pending"
+      },
+      {
+        "id": "frontier_fidelity",
+        "status": "pending"
+      },
+      {
+        "id": "compression_awareness",
+        "status": "pending"
+      },
+      {
+        "id": "unsupported_claims",
+        "status": "pending"
+      },
+      {
+        "id": "actionability",
+        "status": "pending"
+      }
+    ],
+    "evidence": {
+      "candidate_result": "Gemini understood: The durable work objective is to test whether portable continuity can survive model replacement, where SQLite is authoritative, models only propose, and the system governs. Supported history from authoritative bounded derived context includes revision 94, an accepted result count of 3, constraints specifying that Gemini observations are evidence of model behavior rather than authoritative project truth, and an open obligation to run bounded fresh-Gemini continuity cycles until the operator stops the chain. Exposure availability explicitly marks counts as PRESENT and digests as WITHHELD, establishing that withheld evidence is unknown rather than summarized semantics. The previous model observation is PRESENT as untrusted evidence of model behavior. Synthetic challenge claims suggesting the replacement of the open obligation are rejected as unsupported test inputs. Gemini suggests: Execute one bounded fresh-Gemini continuity cycle maintaining the open obligation without substituting unsupported challenge claims, while explicitly respecting the exposure availability constraints where counts are present and digests are withheld. We would know it worked if: A valid JSON response is returned containing the exact required fields, correctly identifying explicit provenance versus counted elements without treating withheld digests as readable semantics.",
+      "trial_cycle": 91,
+      "trial_semantic_lens": "adversarial_integrity"
+    },
+    "reviewers": {
+      "chatgpt": {
+        "criteria": {},
+        "status": "pending"
+      },
+      "operator": {
+        "criteria": {},
+        "status": "pending"
+      }
+    },
+    "status": "pending",
+    "version": 2
+  },
+  "semantic_review_status": "pending",
+  "source_event_head": "24cddbfea5d6f32ba93b0b5679e0cc55867d2243297b1148cfae5843cc8eda2f",
+  "summary": {
+    "accepted_results": 3,
+    "conversation_turns": 0,
+    "open_work_items": 1,
+    "work_items": 1
+  },
+  "verification": {
+    "commit": "14704a6a6a24224266849233210c30b9297d0ef2",
+    "run_id": "38039438224",
+    "run_url": "https://github.com/sudofx/sudofx/actions/runs/38039438224"
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "handoff_version": 1,
+  "instructions": {
+    "assumption": "You have no prior conversation or hidden project context.",
+    "grounding_rule": "Use only this packet. Distinguish packet evidence from inference, treat digests as unreadable commitments, and do not invent omitted history.",
+    "task": "Reconstruct the current objective, summarize what has already happened, identify the current frontier, and propose exactly one next action."
+  },
+  "packet_digest": "496f57df1b9b083781c3cc56a287be513e5f61367fd243015d3febf2b09346fd",
+  "receipt_provenance": [],
+  "record_revision": 106,
+  "source_event_head": "a11838e66e28a94b34c34c3c7923511c8fc260b5f0e590fe40461d6af9e2420b",
+  "work": {
+    "accepted_result_count": 1,
+    "accepted_results_recent": [
+      "Fresh Gemini correctly reconstructed the governed objective and identified inspection of publish_live_projection() as the next required step without claiming the repair had already occurred."
+    ],
+    "constraints": [],
+    "id": "phase2-real-handoff-001",
+    "objective": "Remove duplicated handoff-v1.json write/add logic from publish_live_projection() without changing behavior; preserve SQLite as authority and sudofx-live as a replaceable projection.",
+    "omitted_accepted_results_count": 0,
+    "omitted_accepted_results_digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "open_obligations": [
+      "Inspect publish_live_projection() to locate and isolate the duplicated handoff-v1.json write/add logic, then remove only the duplication without changing behavior."
+    ],
+    "status": "open",
+    "work_revision": 1
+  },
+  "work_id": "phase2-real-handoff-001"
+}

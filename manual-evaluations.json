@@ -1,0 +1,18 @@
+{
+  "application_id": "handoff",
+  "comparable_batch": {
+    "max_score": 0,
+    "packet_digest": "",
+    "score": 0,
+    "scorer_version": null,
+    "tests": 0,
+    "vendors": []
+  },
+  "latest": null,
+  "projection_kind": "disposable-handoff-application-view",
+  "projection_schema": 2,
+  "recent": [],
+  "record_revision": 95,
+  "total_tests": 0,
+  "work_id": "handoff-v1"
+}
