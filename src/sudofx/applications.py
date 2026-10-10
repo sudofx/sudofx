@@ -13,9 +13,13 @@ external-effect capabilities. ApplicationHost turns an intent into one generic
 apply_application operation; Kernel governance independently recomputes the
 declared transition before the event may be accepted.
 
-Accepted events store the verified resulting JSON state. Replay therefore does
-not need installed application code and historical generic record integrity does
-not depend on a plugin loader or a specific application still being present.
+Snapshot applications store verified resulting JSON state, which generic replay
+can reconstruct without installed application code. Event-log applications store
+inputs and result digests: generic replay preserves those envelopes, while domain
+reconstruction requires the matching versioned evaluator. Historical replay may
+use a dedicated deterministic reducer when current eligibility has tightened;
+new proposals always use the live evaluator. Both paths verify the recorded result
+digest, so a compatibility reducer cannot silently redefine accepted history.
 """
 
 from __future__ import annotations
@@ -52,10 +56,16 @@ ApplicationEvaluator = Callable[[JsonValue, JsonValue], ApplicationDecision]
 
 @dataclass(frozen=True)
 class ApplicationAction:
-    """Bind one stable domain action name to deterministic evaluation."""
+    """Bind live permission and optional historical reduction to one action.
+
+    ``replay`` is called only while rebuilding already accepted event-log
+    entries. It never grants permission to a new proposal, and its result still
+    has to match the digest committed with that historical event.
+    """
 
     name: str
     evaluate: ApplicationEvaluator
+    replay: ApplicationEvaluator | None = None
 
 
 @dataclass(frozen=True)
@@ -150,7 +160,11 @@ def application_state(
         action = definition.action(action_name)
         if action is None:
             raise ValueError(f"application event uses unknown action: {action_name}")
-        decision = action.evaluate(state, event.get("input"))
+        # Current policy can become stricter without erasing an event that was
+        # legitimately accepted under an earlier rule. The replay reducer is
+        # compatibility for committed history only; ApplicationHost continues
+        # to call evaluate for all new intents.
+        decision = (action.replay or action.evaluate)(state, event.get("input"))
         if not decision.accepted:
             raise ValueError(f"application replay rejected historical action: {action_name}")
         expected = hashlib.sha256(canonical_json(decision.next_state).encode()).hexdigest()

@@ -1,6 +1,6 @@
 # Project status
 
-**Date:** October 5, 2026
+**Date:** October 10, 2026
 **Scope:** current sudofx implementation
 
 ## Objective
@@ -14,6 +14,8 @@ The success condition is not that one model remembers. The success condition is 
 - Kernel: deterministic governance, atomic transitions, receipts, provenance, and verified replay.
 - Runtime: bounded context, durable invocation lifecycle, recovery, accounting, and provider/effect ordering.
 - Applications: identity/versioning, sealed namespaces, deterministic policy re-evaluation, explicit migrations, and compact event-log storage.
+- Kernel compatibility: committed event-log replay may use a separate deterministic reducer while new proposals remain governed by the live evaluator; result digests remain checked.
+- Record storage: schema v12 supports versioned compressed event and projection JSON, migration verification, and current-format read-only opening.
 - Conversation: private same-origin chat with fresh provider calls and privacy-bounded durable state.
 - Handoff: bounded packet export and governed grounding evaluations.
 
@@ -35,7 +37,7 @@ The success condition is not that one model remembers. The success condition is 
 - Conversation preserves multiple simultaneous human-authorized commitments across fresh providers: suffixes are enforced deterministically, semantic response instructions remain explicit, and provider-invented commitment text is discarded before it can affect a reply or durable state.
 - Conversation can read validated public HTTPS URLs and perform explicitly requested public-web searches through bounded provider capabilities; private targets fail closed, citations remain transient presentation, and web content cannot become a durable observation merely because it was retrieved.
 - Handoff packet/scoring/evaluation semantics now live in `applications/handoff/`; new evaluations persist under `app:handoff` rather than as handoff-specific generic work operations.
-- A schema-v11 global application-access latch now lets the operator STOP or RESTORE application-origin access while leaving sudofx itself online; application commits are generation-fenced against stale in-flight work, and STOP/RESTORE transitions are protected by an independently hash-chained audit trail.
+- A schema-v11 global application-access latch lets the operator STOP or RESTORE application-origin access while leaving sudofx itself online; application commits are generation-fenced against stale in-flight work, and STOP/RESTORE transitions are protected by an independently hash-chained audit trail.
 - Emergency STOP has no full-suite dependency and may preempt ordinary serialized sudofx authority work; RESTORE requires the full suite to pass before reopening connected-application access.
 - The recovered `continuity@1` seven-cubed matrix is now a reusable sudofx extension: 343 stable coordinates, deterministic traversal, and an immutable versioned definition that applications may use while keeping campaign progress/results in their own governed SQLite state.
 - Conversation is the first in-repo consumer of that extension: matrix campaigns are opt-in, the next cell enters bounded provider context only while active, cell verdicts/evidence digests persist through `app:conversation`, and fresh service instances reconstruct campaign progress from SQLite.
@@ -97,7 +99,9 @@ Implemented and verified:
 
 ## Current frontier
 
-Next: discuss the sudofx API and extensible application design before selecting new implementation behavior.
+The WAKE-derived kernel changes are implemented locally in sudofx. Focused
+regression, read-only boundary, and legacy-record migration validation remain
+pending before treating schema v12 as accepted for durable installations.
 
 ## Remaining work
 

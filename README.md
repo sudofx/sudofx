@@ -45,16 +45,23 @@ Record → Context → Proposal → Governance → Transition → Receipt → Re
 
 **Models propose. The system governs.**
 
-## Current status — October 5, 2026
+## Current status — October 10, 2026
 
 The project has moved beyond the original continuity proof into a reusable engine/application architecture.
 
-Implemented and exercised on `master`:
+Implemented on `master`; the recent WAKE-derived kernel changes are local and
+awaiting focused validation:
 
 - SQLite as the single authoritative operational store
 - deterministic governance and atomic transitions
 - append-only accountable receipts and provenance
-- verified replay plus explicit full-history audit paths
+- verified replay plus explicit full-history audit paths, including a separate
+  deterministic reducer for committed application events when live eligibility
+  has tightened
+- schema-v12 compressed event/projection storage with verified prior-schema
+  migration that preserves decoded event bytes and history hashes
+- read-only current-format record opening for inspection paths that must not
+  initialize or migrate authority
 - durable provider invocation lifecycle and resource accounting
 - bounded context with explicit omission evidence
 - provider-neutral execution boundaries

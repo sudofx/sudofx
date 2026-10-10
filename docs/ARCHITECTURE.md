@@ -109,6 +109,16 @@ version. Version zero is the supported legacy shape; unknown identities and
 newer schemas fail closed. Storage migrations are checkpointed before a newer
 projection is published.
 
+Schema v12 stores large event JSON and materialized projection JSON with
+versioned binary zlib markers. Small or incompressible event payloads remain
+TEXT. Readers decode before JSON parsing or semantic hashing and reject unknown,
+truncated, or trailing compressed streams. The v12 migration verifies the
+existing semantic chain and operational journals, preserves decoded event JSON
+bytes, rewrites storage in one transaction, and verifies the same evidence
+before advancing the format marker. A post-commit compaction reclaims old pages;
+interruption there leaves the migrated record valid. `Record.open_read_only`
+accepts only an existing current-format record and never creates or migrates one.
+
 The complete event chain remains append-only. Public presentation materializes
 only a bounded recent window and exports content-free health evidence such as
 database bytes, event count, replay duration, and integrity status. This bounds

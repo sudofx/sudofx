@@ -65,20 +65,67 @@ from .storage import (
 # sudofx record; user_version gives storage evolution one ordered owner instead
 # of scattering opportunistic CREATE/ALTER statements through runtime paths.
 APPLICATION_ID = 0x53444658  # "SDFX"
-SCHEMA_VERSION = 11
+SCHEMA_VERSION = 12
 
 
-_PROJECTION_CODEC_PREFIX = "zlib:"
+_PROJECTION_CODEC_PREFIX = "zlib:"  # Legacy v8-v11 Base64 wrapper, still readable.
+_EVENT_CODEC_PREFIX = b"sudofx:event-json:zlib@1\x00"
+_PROJECTION_BINARY_PREFIX = b"sudofx:projection-json:zlib@1\x00"
 
 
-def _encode_projection_state(state_json: str) -> str:
-    """Compress derived projection bytes without changing semantic state."""
-    compressed = zlib.compress(state_json.encode(), level=9)
-    return _PROJECTION_CODEC_PREFIX + base64.b64encode(compressed).decode("ascii")
+def _decode_binary_json(stored: bytes, prefix: bytes) -> str:
+    """Decode one versioned storage value and reject partial or extra streams.
+
+    The marker prevents arbitrary BLOBs from being mistaken for compressed JSON.
+    Checking the decompressor state also rejects truncation and trailing bytes,
+    which could otherwise make two physical encodings appear equivalent.
+    """
+    if not stored.startswith(prefix):
+        raise IntegrityError("unknown compressed record storage encoding")
+    try:
+        decoder = zlib.decompressobj()
+        raw = decoder.decompress(stored[len(prefix):]) + decoder.flush()
+        if not decoder.eof or decoder.unused_data or decoder.unconsumed_tail:
+            raise ValueError("incomplete or trailing compressed stream")
+        return raw.decode("utf-8")
+    except (ValueError, zlib.error, UnicodeDecodeError) as error:
+        raise IntegrityError("compressed record storage is invalid") from error
 
 
-def _decode_projection_state(stored: str) -> str:
+def _encode_event_payload(payload_json: str) -> str | bytes:
+    """Compress large event JSON without changing its semantic hash bytes.
+
+    SQLite accepts BLOBs in this existing non-STRICT TEXT column. Small or
+    incompressible payloads stay TEXT so codec overhead never makes records
+    larger. Every reader decodes before JSON parsing and event verification.
+    """
+    raw = payload_json.encode("utf-8")
+    if len(raw) < 1024:
+        return payload_json
+    packed = _EVENT_CODEC_PREFIX + zlib.compress(raw, level=6)
+    return packed if len(packed) < len(raw) else payload_json
+
+
+def _decode_event_payload(stored: str | bytes) -> str:
+    """Read both historical TEXT and versioned compressed event encodings."""
+    if isinstance(stored, str):
+        return stored
+    if isinstance(stored, bytes):
+        return _decode_binary_json(stored, _EVENT_CODEC_PREFIX)
+    raise IntegrityError("invalid event payload storage type")
+
+
+def _encode_projection_state(state_json: str) -> bytes:
+    """Compress the derived cache without Base64 expansion in SQLite storage."""
+    return _PROJECTION_BINARY_PREFIX + zlib.compress(state_json.encode("utf-8"), level=9)
+
+
+def _decode_projection_state(stored: str | bytes) -> str:
     """Decode current or legacy projection storage into canonical JSON text."""
+    if isinstance(stored, bytes):
+        return _decode_binary_json(stored, _PROJECTION_BINARY_PREFIX)
+    if not isinstance(stored, str):
+        raise IntegrityError("invalid record projection storage type")
     if not stored.startswith(_PROJECTION_CODEC_PREFIX):
         return stored
     try:
@@ -295,7 +342,7 @@ class _SQLiteTransaction:
                 event.status,
                 event.revision_before,
                 event.revision_after,
-                canonical_json(event.payload),
+                _encode_event_payload(canonical_json(event.payload)),
                 canonical_json(list(event.reasons)),
                 canonical_json(event.provenance) if event.provenance is not None else None,
                 event.previous_hash,
@@ -350,6 +397,32 @@ class Record:
     def __init__(self, path: str | Path) -> None:
         self.path = str(path)
         self.schema_changed = self._initialize()
+        if getattr(self, "storage_encoding_migrated", False):
+            # The verified logical migration is already committed. Reclaim old
+            # SQLite pages once; interruption here leaves a valid v12 record.
+            self.compact()
+
+    @classmethod
+    def open_read_only(cls, path: str | Path) -> "Record":
+        """Open an existing v12 sudofx record without initializing or migrating it.
+
+        Presentation and inspection paths must not gain write authority just
+        because they encountered an older record. They may read only records
+        already brought to the current format by an authorized stateful path.
+        """
+        record = cls.__new__(cls)
+        record.path = str(Path(path).resolve())
+        record.schema_changed = False
+        record._read_only = True
+        with record.connect() as connection:
+            if (
+                connection.execute("PRAGMA application_id").fetchone()[0] != APPLICATION_ID
+                or connection.execute("PRAGMA user_version").fetchone()[0] != SCHEMA_VERSION
+            ):
+                raise StorageVersionError(
+                    "read-only inspection requires the current sudofx record format"
+                )
+        return record
 
     @contextmanager
     def connect(self) -> Iterator[sqlite3.Connection]:
@@ -359,7 +432,10 @@ class Record:
         Transaction ownership stays with the calling operation because reads,
         governance, and append sometimes need one shared snapshot.
         """
-        connection = sqlite3.connect(self.path)
+        if getattr(self, "_read_only", False):
+            connection = sqlite3.connect(Path(self.path).as_uri() + "?mode=ro", uri=True)
+        else:
+            connection = sqlite3.connect(self.path)
         connection.row_factory = sqlite3.Row
         try:
             yield connection
@@ -718,7 +794,7 @@ class Record:
             projection = connection.execute(
                 "SELECT state, state_digest FROM record_projection WHERE singleton = 1"
             ).fetchone()
-            if projection is not None and version < 8:
+            if projection is not None and version < 12:
                 state_json = _decode_projection_state(projection["state"])
                 if hashlib.sha256(state_json.encode()).hexdigest() != projection["state_digest"]:
                     raise IntegrityError("record projection state digest is invalid")
@@ -742,6 +818,40 @@ class Record:
                         _encode_projection_state(state_json),
                         hashlib.sha256(state_json.encode()).hexdigest(),
                     ),
+                )
+
+            if version < 12:
+                # This is a physical encoding migration: decoded UTF-8 JSON,
+                # event hashes, IDs, revisions and operational journals remain
+                # invariant. Verify each journal before and after rewriting so
+                # a malformed stream or accidental byte change rolls back the
+                # schema marker and every updated row together.
+                before_chain = self._verified_chain(connection)
+                before_invocations = self._verified_invocation_history(connection)
+                before_access = self._verified_application_access_history(connection)
+                migrated = False
+                for row in connection.execute(
+                    "SELECT sequence, payload FROM events ORDER BY sequence"
+                ):
+                    raw = _decode_event_payload(row["payload"])
+                    encoded = _encode_event_payload(raw)
+                    if _decode_event_payload(encoded) != raw:
+                        raise IntegrityError("event storage migration changed decoded bytes")
+                    if encoded != row["payload"]:
+                        connection.execute(
+                            "UPDATE events SET payload = ? WHERE sequence = ?",
+                            (encoded, row["sequence"]),
+                        )
+                        migrated = True
+                if self._verified_chain(connection) != before_chain:
+                    raise IntegrityError("event storage migration changed the verified chain")
+                if (
+                    self._verified_invocation_history(connection) != before_invocations
+                    or self._verified_application_access_history(connection) != before_access
+                ):
+                    raise IntegrityError("storage migration changed operational journals")
+                self.storage_encoding_migrated = version > 0 and (
+                    migrated or projection is not None
                 )
 
             connection.execute(f"PRAGMA application_id = {APPLICATION_ID}")
@@ -1337,7 +1447,7 @@ class Record:
             "status": row["status"],
             "revision_before": row["revision_before"],
             "revision_after": row["revision_after"],
-            "proposal": json.loads(row["payload"]),
+            "proposal": json.loads(_decode_event_payload(row["payload"])),
             "reasons": json.loads(row["reasons"]),
             "provenance": json.loads(row["provenance"]) if row["provenance"] else None,
             "previous_hash": row["previous_hash"],
@@ -1375,7 +1485,7 @@ class Record:
         previous_hash = GENESIS_HASH
         sequence = 0
         for row in self.rows(connection):
-            payload = json.loads(row["payload"])
+            payload = json.loads(_decode_event_payload(row["payload"]))
             reasons = json.loads(row["reasons"])
             material = {
                 "receipt_id": row["receipt_id"],
@@ -1411,7 +1521,7 @@ class Record:
         previous_hash = GENESIS_HASH
         sequence = 0
         for row in self.rows(connection):
-            payload = json.loads(row["payload"])
+            payload = json.loads(_decode_event_payload(row["payload"]))
             reasons = json.loads(row["reasons"])
             material = {
                 "receipt_id": row["receipt_id"],
@@ -1552,7 +1662,7 @@ class Record:
                 "revision_before": row["revision_before"],
                 "revision_after": row["revision_after"],
                 "reasons": json.loads(row["reasons"]),
-                "proposal": json.loads(row["payload"]),
+                "proposal": json.loads(_decode_event_payload(row["payload"])),
                 "provenance": json.loads(row["provenance"]) if row["provenance"] else None,
                 "event_hash": row["event_hash"],
             }
