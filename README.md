@@ -198,6 +198,21 @@ python -m venv .venv
 PYTHONPATH=src:. .venv/bin/python -m unittest discover -s tests -v
 ```
 
+### Local Docker development
+
+`./scripts/sudofx_runner start` builds the `sudofx-dev:local` development image
+and starts the `sudofx.app` container. The checkout is mounted read/write at
+`/workspace`, so edits, branches, commits, and pushes operate on this host repo.
+The local `.env` is supplied to the container process, and host `~/.ssh` is
+mounted read-only when present. Pushes to this repo's `origin` use SSH; fetches
+retain the configured remote transport. No source, credential,
+or database file is copied into the image.
+
+Use `./scripts/sudofx_runner stop` to stop the container while retaining its
+disposable home volume. `./scripts/sudofx_runner reset` recreates it and removes
+that home volume; it preserves the checkout, `.env`, and any `data/` SQLite
+record in the repository. The pre-existing `sudofx` container is independent.
+
 Basic kernel commands remain available through the `sudofx` CLI.
 
 ## Current frontier

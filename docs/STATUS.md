@@ -18,6 +18,9 @@ The success condition is not that one model remembers. The success condition is 
 - Record storage: schema v12 supports versioned compressed event and projection JSON, migration verification, and current-format read-only opening.
 - Conversation: private same-origin chat with fresh provider calls and privacy-bounded durable state.
 - Handoff: bounded packet export and governed grounding evaluations.
+- Local development: a Docker image and `scripts/sudofx_runner` provide a
+  writable mounted checkout, local `.env` access, SSH-based Git operations, and
+  a reset path that preserves repository files and records.
 
 ## What is already proven mechanically
 

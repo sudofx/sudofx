@@ -1,0 +1,5 @@
+# Build only the small development image; the checkout is mounted at runtime.
+# In particular, local secrets, Git objects, generated databases, and caches
+# must not become image layers or be sent to the Docker build daemon.
+**
+!Dockerfile

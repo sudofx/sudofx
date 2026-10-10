@@ -1,0 +1,99 @@
+#!/usr/bin/env bash
+# Operate the local sudofx development container without changing hosted state.
+# The named container and home volume belong only to this repository's dev setup.
+# Source, .env, Git history, and SQLite records stay in the writable host checkout.
+
+usage() {
+    cat <<'EOF'
+Usage: ./scripts/sudofx_runner {start|stop|reset}
+
+start  Build the development image if needed, then create or start sudofx.app.
+stop   Stop sudofx.app while preserving the checkout and container home.
+reset  Recreate sudofx.app and clear only its disposable home volume.
+
+The repository is mounted read/write at /workspace and .env is loaded into the
+container process environment. Reset does not delete files in this checkout.
+EOF
+}
+
+main() {
+    local action="${1:-}"
+    local repo_dir=""
+    local host_home="${HOME:-}"
+    local image="sudofx-dev:local"
+    local container="sudofx.app"
+    local home_volume="sudofx.app-home"
+    local -a mounts
+
+    if [[ "$#" -ne 1 ]]; then
+        usage >&2
+        return 2
+    fi
+    case "$action" in
+        start|stop|reset) ;;
+        -h|--help) usage; return 0 ;;
+        *) usage >&2; return 2 ;;
+    esac
+
+    repo_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)" || return
+    [[ -f "$repo_dir/.env" ]] || {
+        echo "Missing local .env in $repo_dir; copy .env.example and add credentials." >&2
+        return 1
+    }
+    docker info >/dev/null 2>&1 || {
+        echo "Docker is unavailable. Start Docker first." >&2
+        return 1
+    }
+
+    if [[ "$action" == stop ]]; then
+        if docker container inspect "$container" >/dev/null 2>&1; then
+            docker stop "$container"
+        else
+            echo "$container is not present."
+        fi
+        return
+    fi
+
+    if [[ "$action" == reset ]]; then
+        # Remove the container before its home volume; neither owns repo data.
+        if docker container inspect "$container" >/dev/null 2>&1; then
+            docker rm -f "$container" || return
+        fi
+        if docker volume inspect "$home_volume" >/dev/null 2>&1; then
+            docker volume rm "$home_volume" || return
+        fi
+    elif docker container inspect "$container" >/dev/null 2>&1; then
+        if [[ "$(docker inspect -f '{{.State.Running}}' "$container")" == true ]]; then
+            echo "$container is already running."
+            return 0
+        fi
+        docker start "$container"
+        return
+    fi
+
+    # Docker Desktop's VM may require its host bridge proxy to reach Debian.
+    # An explicit caller proxy wins; empty fallback keeps non-Desktop hosts usable.
+    docker build --build-arg "HTTPS_PROXY=${HTTPS_PROXY:-http://http.docker.internal:3128}" \
+        -t "$image" "$repo_dir" || return
+    docker volume create "$home_volume" >/dev/null || return
+    mounts=(--mount "type=bind,src=$repo_dir,dst=/workspace"
+            --mount "type=volume,src=$home_volume,dst=/home/sudofx")
+    # Reuse host SSH identity for Git pushes without copying private keys into
+    # the image or making the mounted key directory writable from the container.
+    if [[ -n "$host_home" && -d "$host_home/.ssh" ]]; then
+        mounts+=(--mount "type=bind,src=$host_home/.ssh,dst=/home/sudofx/.ssh,readonly")
+    fi
+    docker run -d \
+        --name "$container" \
+        --restart unless-stopped \
+        "${mounts[@]}" \
+        --workdir /workspace \
+        --env-file "$repo_dir/.env" \
+        -e HOME=/home/sudofx \
+        -e GIT_CONFIG_COUNT=1 \
+        -e GIT_CONFIG_KEY_0=remote.origin.pushurl \
+        -e GIT_CONFIG_VALUE_0=git@github.com:sudofx/sudofx.git \
+        "$image"
+}
+
+main "$@"
