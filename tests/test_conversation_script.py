@@ -15,7 +15,8 @@ class ConversationScriptTests(unittest.TestCase):
 
         self.assertIn("--reset|—reset", script)
         self.assertIn("pkill -f 'python .*applications\\.conversation\\.server'", script)
-        self.assertIn('git pull --ff-only origin master', script)
+        self.assertNotIn('git pull --ff-only origin master', script)
+        self.assertIn('source "$ROOT/.env"', script)
         self.assertIn('DB="$ROOT/.data/conversation.sqlite"', script)
         self.assertIn('rm -f "$DB" "$DB-wal" "$DB-shm"', script)
         self.assertNotIn('rm -rf "$ROOT/.data"', script)

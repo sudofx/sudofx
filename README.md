@@ -202,18 +202,25 @@ PYTHONPATH=src:. .venv/bin/python -m unittest discover -s tests -v
 
 `./scripts/sudofx_runner start` builds the `sudofx-dev:local` development image
 and starts the `sudofx.app` container. The checkout is mounted read/write at
-`/workspace`, so edits, branches, commits, and pushes operate on this host repo.
-The local `.env` is supplied to the container process, and host `~/.ssh` is
-mounted read-only when present. Pushes to this repo's `origin` use SSH; fetches
-retain the configured remote transport. No source, credential,
-or database file is copied into the image.
+`/workspace` as the non-root `sudofx` user, so edits, branches, commits, and
+pushes operate on this host repo. The local `.env` is shell-loaded and passed to
+the container process with quotes interpreted correctly. VS Code supplies its
+temporary Git credential helper on attach; no host key or Git token is copied
+into the image or persisted in the home volume. HTTPS proxy settings are passed
+to provider calls, and port 8765 is published to loopback at
+`http://localhost:8765`.
 
 Use `./scripts/sudofx_runner stop` to stop the container while retaining its
-disposable home volume. `./scripts/sudofx_runner reset` recreates it and removes
-that home volume; it preserves the checkout, `.env`, and any `data/` SQLite
+disposable home volume. `./scripts/sudofx_runner --reset` (or `reset`) recreates
+it and removes that home volume; it preserves the checkout, `.env`, and any `data/` SQLite
 record in the repository. The pre-existing `sudofx` container is independent.
 
 Basic kernel commands remain available through the `sudofx` CLI.
+
+To launch the local Conversation app from the VS Code terminal, run
+`./scripts/conversation.sh` and open `http://localhost:8765/conversation`.
+Git pull and push remain explicit VS Code Git operations; launching Conversation
+does not change the current branch or wait for a remote connection.
 
 ## Current frontier
 

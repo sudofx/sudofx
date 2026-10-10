@@ -2,14 +2,16 @@
 # Operate the local sudofx development container without changing hosted state.
 # The named container and home volume belong only to this repository's dev setup.
 # Source, .env, Git history, and SQLite records stay in the writable host checkout.
+# Git credentials are supplied ephemerally by the attached VS Code session.
 
 usage() {
     cat <<'EOF'
-Usage: ./scripts/sudofx_runner {start|stop|reset}
+Usage: ./scripts/sudofx_runner {start|stop|reset|--reset}
 
 start  Build the development image if needed, then create or start sudofx.app.
 stop   Stop sudofx.app while preserving the checkout and container home.
 reset  Recreate sudofx.app and clear only its disposable home volume.
+--reset Alias for reset, matching the WAKE runner convention.
 
 The repository is mounted read/write at /workspace and .env is loaded into the
 container process environment. Reset does not delete files in this checkout.
@@ -19,18 +21,18 @@ EOF
 main() {
     local action="${1:-}"
     local repo_dir=""
-    local host_home="${HOME:-}"
     local image="sudofx-dev:local"
     local container="sudofx.app"
     local home_volume="sudofx.app-home"
-    local -a mounts
+    local dotenv_line dotenv_name proxy_url
+    local -a mounts runtime_env
 
     if [[ "$#" -ne 1 ]]; then
         usage >&2
         return 2
     fi
     case "$action" in
-        start|stop|reset) ;;
+        start|stop|reset|--reset) ;;
         -h|--help) usage; return 0 ;;
         *) usage >&2; return 2 ;;
     esac
@@ -54,6 +56,10 @@ main() {
         return
     fi
 
+    if [[ "$action" == --reset ]]; then
+        action="reset"
+    fi
+
     if [[ "$action" == reset ]]; then
         # Remove the container before its home volume; neither owns repo data.
         if docker container inspect "$container" >/dev/null 2>&1; then
@@ -71,28 +77,42 @@ main() {
         return
     fi
 
+    # Docker's --env-file retains surrounding quotes, while Bash correctly
+    # removes them from this repo's shell-compatible .env. Pass only its
+    # declared names through Docker so credentials never become image layers.
+    while IFS= read -r dotenv_line || [[ -n "$dotenv_line" ]]; do
+        [[ "$dotenv_line" =~ ^[[:space:]]*(export[[:space:]]+)?([A-Za-z_][A-Za-z0-9_]*)= ]] || continue
+        dotenv_name="${BASH_REMATCH[2]}"
+        [[ "$dotenv_name" == HTTP_PROXY || "$dotenv_name" == HTTPS_PROXY ]] && continue
+        runtime_env+=(--env "$dotenv_name")
+    done < "$repo_dir/.env"
+    set -a
+    # shellcheck disable=SC1090
+    source "$repo_dir/.env"
+    set +a
+
     # Docker Desktop's VM may require its host bridge proxy to reach Debian.
-    # An explicit caller proxy wins; empty fallback keeps non-Desktop hosts usable.
-    docker build --build-arg "HTTPS_PROXY=${HTTPS_PROXY:-http://http.docker.internal:3128}" \
+    # Gemini's HTTPS calls need the same route at runtime as image package pulls.
+    proxy_url="${HTTPS_PROXY:-${HTTP_PROXY:-http://http.docker.internal:3128}}"
+    docker build --build-arg "HTTPS_PROXY=$proxy_url" \
         -t "$image" "$repo_dir" || return
     docker volume create "$home_volume" >/dev/null || return
     mounts=(--mount "type=bind,src=$repo_dir,dst=/workspace"
             --mount "type=volume,src=$home_volume,dst=/home/sudofx")
-    # Reuse host SSH identity for Git pushes without copying private keys into
-    # the image or making the mounted key directory writable from the container.
-    if [[ -n "$host_home" && -d "$host_home/.ssh" ]]; then
-        mounts+=(--mount "type=bind,src=$host_home/.ssh,dst=/home/sudofx/.ssh,readonly")
-    fi
+    runtime_env+=(--env "HTTPS_PROXY=$proxy_url" --env "HTTP_PROXY=$proxy_url")
+    # Keep VS Code's server/extension cache across the move from root to sudofx.
+    # Its credential helper remains a live VS Code bridge; no host key is copied.
+    docker run --rm --user root \
+        --mount "type=volume,src=$home_volume,dst=/home/sudofx" \
+        "$image" sh -c 'if [ ! -f /home/sudofx/.owner-10001 ]; then chown -R 10001:10001 /home/sudofx && touch /home/sudofx/.owner-10001 && chown 10001:10001 /home/sudofx/.owner-10001; fi' || return
     docker run -d \
         --name "$container" \
         --restart unless-stopped \
+        -p "127.0.0.1:${SUDOFX_CONVERSATION_PORT:-8765}:8765" \
         "${mounts[@]}" \
         --workdir /workspace \
-        --env-file "$repo_dir/.env" \
+        "${runtime_env[@]}" \
         -e HOME=/home/sudofx \
-        -e GIT_CONFIG_COUNT=1 \
-        -e GIT_CONFIG_KEY_0=remote.origin.pushurl \
-        -e GIT_CONFIG_VALUE_0=git@github.com:sudofx/sudofx.git \
         "$image"
 }
 

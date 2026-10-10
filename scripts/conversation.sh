@@ -13,10 +13,13 @@ usage() {
 Usage: scripts/conversation.sh [--reset]
 
 Without --reset:
-  stop any running Conversation server, pull current master, and start a new server.
+  stop any running Conversation server and start a new server.
 
 With --reset:
-  stop the server, delete Conversation SQLite state, pull current master, and start fresh.
+  stop the server, delete Conversation SQLite state, and start fresh.
+
+Git pull/push is an explicit VS Code Git operation. Starting the app never
+changes branches or waits for GitHub, so it also works while offline.
 EOF
 }
 
@@ -45,6 +48,16 @@ fi
 
 cd "$ROOT"
 
+# Load shell-compatible quoting from the repository's local environment file.
+# Docker's env-file parser passes quoted API keys literally, causing provider
+# authentication failures even though the key appears to be configured.
+if [[ -f "$ROOT/.env" ]]; then
+  set -a
+  # shellcheck disable=SC1090
+  source "$ROOT/.env"
+  set +a
+fi
+
 echo "Stopping any running Conversation server..."
 if [[ -f "$PID_FILE" ]]; then
   pid="$(cat "$PID_FILE" 2>/dev/null || true)"
@@ -63,9 +76,6 @@ if [[ "$RESET" == true ]]; then
   echo "Resetting Conversation SQLite authority..."
   rm -f "$DB" "$DB-wal" "$DB-shm"
 fi
-
-echo "Pulling current master..."
-git pull --ff-only origin master
 
 mkdir -p "$ROOT/.data"
 

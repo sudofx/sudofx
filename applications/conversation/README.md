@@ -107,6 +107,7 @@ Three transport/runtime patterns are defined:
 
 - **private same-origin server** — `python -m applications.conversation.server` hosts the chat and one explicit SQLite authority directly;
 - **private GitHub Codespace** — the repository dev container starts that same server on port 8765. GitHub keeps forwarded ports private by default and authenticates the codespace creator before access;
+- **local Docker development** — attach VS Code to `sudofx.app`, open `/workspace`, run `./scripts/conversation.sh`, and open `http://localhost:8765/conversation`. The runner passes shell-parsed `.env` values and the Docker Desktop proxy to the process. Use VS Code's Git controls for explicit pull/push; launching Conversation does not mutate branches;
 - **encrypted Actions seam** — `conversation.yml` remains available for a future authenticated server-side gateway. It is not exposed directly to the browser.
 
 The Actions seam requires the same `CONVERSATION_TRANSPORT_KEY` at both ends. Workflow inputs and the disposable reply branch contain ciphertext, not plaintext.

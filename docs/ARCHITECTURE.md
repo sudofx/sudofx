@@ -28,12 +28,13 @@ For continuous model experiments, governance runs against an isolated verificati
 ### Local development container
 
 The `sudofx.app` Docker container is a disposable execution environment, not an
-authority boundary. It runs commands from the host checkout mounted read/write
-at `/workspace`; `.env` is injected at launch and optional host SSH material is
-mounted read-only for Git transport. The container image contains tooling only,
-while Git history, source changes, and SQLite records remain host-owned. The
-runner's reset removes its container home volume and does not remove checkout
-data.
+authority boundary. It runs commands as the non-root `sudofx` user against the
+host checkout mounted read/write at `/workspace`. The local `.env` is evaluated
+with shell quoting before selected values enter the process environment; it is
+never copied into the image. VS Code's Git credential bridge supplies temporary
+GitHub access without persisting a token or host private key in the container.
+Git history, source changes, and SQLite records remain host-owned. The runner's
+reset removes only its disposable home volume and does not remove checkout data.
 
 ### SQLite record
 

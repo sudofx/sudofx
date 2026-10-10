@@ -19,8 +19,9 @@ The success condition is not that one model remembers. The success condition is 
 - Conversation: private same-origin chat with fresh provider calls and privacy-bounded durable state.
 - Handoff: bounded packet export and governed grounding evaluations.
 - Local development: a Docker image and `scripts/sudofx_runner` provide a
-  writable mounted checkout, local `.env` access, SSH-based Git operations, and
-  a reset path that preserves repository files and records.
+  writable `/workspace` checkout as non-root `sudofx`, shell-compatible `.env`
+  loading, VS Code's temporary Git credential bridge, provider proxy access,
+  and a reset path that preserves repository files and records.
 
 ## What is already proven mechanically
 
